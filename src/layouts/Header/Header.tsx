@@ -143,7 +143,7 @@ export const Header = ({ analyticsActions, analyticsComputed, updater }: HeaderP
       <div className="relative z-10 flex items-center gap-2.5 min-w-0 flex-1 pointer-events-none">
         <img
           src={getAssetPath("app-icon.png")}
-          alt="Claude Code History"
+          alt=""
           className="w-6 h-6 hidden md:block"
         />
         <div className="flex flex-col min-w-0">

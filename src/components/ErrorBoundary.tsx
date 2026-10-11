@@ -4,6 +4,7 @@ import { withTranslation, type WithTranslation } from "react-i18next";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { APP_NAME } from "@/constants/brand";
 
 interface Props extends WithTranslation {
   children: ReactNode;
@@ -91,7 +92,7 @@ ${t("error.copyTemplate.timestamp", {
       const emailSubject = encodeURIComponent(
         t("error.emailTemplate.subject", {
           error: this.state.error?.message || "Unknown error",
-          defaultValue: "[Claude Code History Viewer] Error Report: {{error}}",
+          defaultValue: `[${APP_NAME}] Error Report: {{error}}`,
         })
       );
       const emailBody = encodeURIComponent(`
@@ -101,7 +102,7 @@ ${t("error.emailTemplate.greeting", {
 
 ${t("error.emailTemplate.description", {
   defaultValue:
-    "I encountered the following error while using Claude Code History Viewer:",
+    `I encountered the following error while using ${APP_NAME}:`,
 })}
 
 ${t("error.emailTemplate.placeholder", {
@@ -256,7 +257,7 @@ ${t("error.emailTemplate.thanks", {
                       <span className="text-muted-foreground/60">•</span>
                       {t("error.troubleshootingSteps.updateVersion", {
                         defaultValue:
-                          "Ensure you have the latest version of Claude Code History Viewer installed",
+                          `Ensure you have the latest version of ${APP_NAME} installed`,
                       })}
                     </li>
                     <li className="flex items-start gap-2">
