@@ -133,7 +133,7 @@ pub struct RawLogEntry {
     pub is_meta: Option<bool>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ClaudeMessage {
     pub uuid: String,
     #[serde(rename = "parentUuid")]
@@ -413,32 +413,9 @@ mod tests {
             timestamp: "2025-06-26T12:00:00Z".to_string(),
             message_type: "user".to_string(),
             content: Some(json!("Hello, Claude!")),
-            project_name: None,
-            tool_use: None,
-            tool_use_result: None,
             is_sidechain: Some(false),
-            usage: None,
             role: Some("user".to_string()),
-            model: None,
-            stop_reason: None,
-            cost_usd: None,
-            duration_ms: None,
-            message_id: None,
-            snapshot: None,
-            is_snapshot_update: None,
-            data: None,
-            tool_use_id: None,
-            parent_tool_use_id: None,
-            operation: None,
-            subtype: None,
-            level: None,
-            hook_count: None,
-            hook_infos: None,
-            stop_reason_system: None,
-            prevented_continuation: None,
-            compact_metadata: None,
-            microcompact_metadata: None,
-            provider: None,
+            ..Default::default()
         };
 
         let serialized = serde_json::to_string(&message).unwrap();
@@ -453,37 +430,10 @@ mod tests {
     fn test_claude_message_with_optional_fields_skipped() {
         let message = ClaudeMessage {
             uuid: "uuid".to_string(),
-            parent_uuid: None,
             session_id: "session".to_string(),
             timestamp: "2025-01-01T00:00:00Z".to_string(),
             message_type: "user".to_string(),
-            content: None,
-            project_name: None,
-            tool_use: None,
-            tool_use_result: None,
-            is_sidechain: None,
-            usage: None,
-            role: None,
-            model: None,
-            stop_reason: None,
-            cost_usd: None,
-            duration_ms: None,
-            message_id: None,
-            snapshot: None,
-            is_snapshot_update: None,
-            data: None,
-            tool_use_id: None,
-            parent_tool_use_id: None,
-            operation: None,
-            subtype: None,
-            level: None,
-            hook_count: None,
-            hook_infos: None,
-            stop_reason_system: None,
-            prevented_continuation: None,
-            compact_metadata: None,
-            microcompact_metadata: None,
-            provider: None,
+            ..Default::default()
         };
 
         let serialized = serde_json::to_string(&message).unwrap();

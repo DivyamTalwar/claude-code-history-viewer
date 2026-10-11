@@ -392,37 +392,11 @@ mod tests {
     fn message(uuid: &str, timestamp: &str) -> ClaudeMessage {
         ClaudeMessage {
             uuid: uuid.to_string(),
-            parent_uuid: None,
             session_id: "session".to_string(),
             timestamp: timestamp.to_string(),
             message_type: "user".to_string(),
-            content: None,
-            project_name: None,
-            tool_use: None,
-            tool_use_result: None,
-            is_sidechain: None,
-            usage: None,
-            role: None,
-            model: None,
-            stop_reason: None,
-            cost_usd: None,
-            duration_ms: None,
-            message_id: None,
-            snapshot: None,
-            is_snapshot_update: None,
-            data: None,
-            tool_use_id: None,
-            parent_tool_use_id: None,
-            operation: None,
-            subtype: None,
-            level: None,
-            hook_count: None,
-            hook_infos: None,
-            stop_reason_system: None,
-            prevented_continuation: None,
-            compact_metadata: None,
-            microcompact_metadata: None,
             provider: Some(PROVIDER_ID.to_string()),
+            ..Default::default()
         }
     }
 

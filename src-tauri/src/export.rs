@@ -50,15 +50,7 @@ fn summarize_input(input: &serde_json::Map<String, Value>) -> String {
     let mut parts: Vec<String> = Vec::new();
     for (key, val) in input {
         match val {
-            Value::String(s) => {
-                let truncated = if s.chars().count() > 120 {
-                    let head: String = s.chars().take(120).collect();
-                    format!("{head}...")
-                } else {
-                    s.clone()
-                };
-                parts.push(format!("{key}: {truncated}"));
-            }
+            Value::String(s) => parts.push(format!("{key}: {}", truncate(s, 120))),
             Value::Bool(b) => parts.push(format!("{key}: {b}")),
             Value::Number(n) => parts.push(format!("{key}: {n}")),
             _ => {}
@@ -153,16 +145,14 @@ fn extract_blocks(content: &Value) -> Vec<ExtractedBlock> {
                     } else {
                         ""
                     };
-                    match obj.get("content") {
-                        Some(Value::String(c)) => blocks.push(ExtractedBlock {
-                            kind: BlockKind::Result,
-                            text: format!("{prefix}{}", truncate(c, 500)),
-                        }),
-                        _ => blocks.push(ExtractedBlock {
-                            kind: BlockKind::Result,
-                            text: format!("{prefix}[Tool result]"),
-                        }),
-                    }
+                    let body = match obj.get("content") {
+                        Some(Value::String(c)) => truncate(c, 500),
+                        _ => "[Tool result]".to_string(),
+                    };
+                    blocks.push(ExtractedBlock {
+                        kind: BlockKind::Result,
+                        text: format!("{prefix}{body}"),
+                    });
                 }
             }
             "server_tool_use" => {
@@ -200,11 +190,7 @@ fn extract_blocks(content: &Value) -> Vec<ExtractedBlock> {
                 });
             }
             "web_fetch_tool_result" => {
-                let url = obj
-                    .get("content")
-                    .and_then(|c| c.as_object())
-                    .and_then(|c| c.get("url"))
-                    .and_then(|v| v.as_str());
+                let url = nested(obj, "url").and_then(Value::as_str);
                 let text = match url {
                     Some(u) => format!("[Web fetch: {u}]"),
                     None => "[Web fetch result]".to_string(),

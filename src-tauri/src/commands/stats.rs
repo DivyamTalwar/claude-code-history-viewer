@@ -5253,7 +5253,6 @@ impl TryFrom<RawLogEntry> for ClaudeMessage {
                 .unwrap_or_else(|| Utc::now().to_rfc3339()),
             message_type: log_entry.message_type.clone(),
             content: log_entry.message.map(|m| m.content).or(log_entry.content),
-            project_name: None,
             tool_use: log_entry.tool_use,
             tool_use_result: log_entry.tool_use_result,
             is_sidechain: log_entry.is_sidechain,
@@ -5282,7 +5281,7 @@ impl TryFrom<RawLogEntry> for ClaudeMessage {
             prevented_continuation: log_entry.prevented_continuation,
             compact_metadata: log_entry.compact_metadata,
             microcompact_metadata: log_entry.microcompact_metadata,
-            provider: None,
+            ..Default::default()
         })
     }
 }
@@ -6246,7 +6245,6 @@ mod tests {
     fn test_extract_token_usage_from_content() {
         let msg = ClaudeMessage {
             uuid: "uuid".to_string(),
-            parent_uuid: None,
             session_id: "session".to_string(),
             timestamp: "2025-01-01T00:00:00Z".to_string(),
             message_type: "assistant".to_string(),
@@ -6257,32 +6255,7 @@ mod tests {
                     "service_tier": "premium"
                 }
             })),
-            project_name: None,
-            tool_use: None,
-            tool_use_result: None,
-            is_sidechain: None,
-            usage: None,
-            role: None,
-            model: None,
-            stop_reason: None,
-            cost_usd: None,
-            duration_ms: None,
-            message_id: None,
-            snapshot: None,
-            is_snapshot_update: None,
-            data: None,
-            tool_use_id: None,
-            parent_tool_use_id: None,
-            operation: None,
-            subtype: None,
-            level: None,
-            hook_count: None,
-            hook_infos: None,
-            stop_reason_system: None,
-            prevented_continuation: None,
-            compact_metadata: None,
-            microcompact_metadata: None,
-            provider: None,
+            ..Default::default()
         };
 
         let usage = extract_token_usage(&msg);
@@ -6296,42 +6269,16 @@ mod tests {
     fn test_extract_token_usage_from_tool_use_result() {
         let msg = ClaudeMessage {
             uuid: "uuid".to_string(),
-            parent_uuid: None,
             session_id: "session".to_string(),
             timestamp: "2025-01-01T00:00:00Z".to_string(),
             message_type: "user".to_string(),
-            content: None,
-            project_name: None,
-            tool_use: None,
             tool_use_result: Some(json!({
                 "usage": {
                     "input_tokens": 150,
                     "output_tokens": 75
                 }
             })),
-            is_sidechain: None,
-            usage: None,
-            role: None,
-            model: None,
-            stop_reason: None,
-            cost_usd: None,
-            duration_ms: None,
-            message_id: None,
-            snapshot: None,
-            is_snapshot_update: None,
-            data: None,
-            tool_use_id: None,
-            parent_tool_use_id: None,
-            operation: None,
-            subtype: None,
-            level: None,
-            hook_count: None,
-            hook_infos: None,
-            stop_reason_system: None,
-            prevented_continuation: None,
-            compact_metadata: None,
-            microcompact_metadata: None,
-            provider: None,
+            ..Default::default()
         };
 
         let usage = extract_token_usage(&msg);
@@ -6344,39 +6291,13 @@ mod tests {
     fn test_extract_token_usage_from_total_tokens() {
         let msg = ClaudeMessage {
             uuid: "uuid".to_string(),
-            parent_uuid: None,
             session_id: "session".to_string(),
             timestamp: "2025-01-01T00:00:00Z".to_string(),
             message_type: "assistant".to_string(),
-            content: None,
-            project_name: None,
-            tool_use: None,
             tool_use_result: Some(json!({
                 "totalTokens": 500
             })),
-            is_sidechain: None,
-            usage: None,
-            role: None,
-            model: None,
-            stop_reason: None,
-            cost_usd: None,
-            duration_ms: None,
-            message_id: None,
-            snapshot: None,
-            is_snapshot_update: None,
-            data: None,
-            tool_use_id: None,
-            parent_tool_use_id: None,
-            operation: None,
-            subtype: None,
-            level: None,
-            hook_count: None,
-            hook_infos: None,
-            stop_reason_system: None,
-            prevented_continuation: None,
-            compact_metadata: None,
-            microcompact_metadata: None,
-            provider: None,
+            ..Default::default()
         };
 
         let usage = extract_token_usage(&msg);
@@ -6389,37 +6310,10 @@ mod tests {
     fn test_extract_token_usage_empty() {
         let msg = ClaudeMessage {
             uuid: "uuid".to_string(),
-            parent_uuid: None,
             session_id: "session".to_string(),
             timestamp: "2025-01-01T00:00:00Z".to_string(),
             message_type: "user".to_string(),
-            content: None,
-            project_name: None,
-            tool_use: None,
-            tool_use_result: None,
-            is_sidechain: None,
-            usage: None,
-            role: None,
-            model: None,
-            stop_reason: None,
-            cost_usd: None,
-            duration_ms: None,
-            message_id: None,
-            snapshot: None,
-            is_snapshot_update: None,
-            data: None,
-            tool_use_id: None,
-            parent_tool_use_id: None,
-            operation: None,
-            subtype: None,
-            level: None,
-            hook_count: None,
-            hook_infos: None,
-            stop_reason_system: None,
-            prevented_continuation: None,
-            compact_metadata: None,
-            microcompact_metadata: None,
-            provider: None,
+            ..Default::default()
         };
 
         let usage = extract_token_usage(&msg);

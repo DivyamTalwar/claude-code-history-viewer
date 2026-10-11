@@ -29,7 +29,7 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio_stream::wrappers::BroadcastStream;
 use tokio_stream::{Stream, StreamExt};
-use tower_http::cors::CorsLayer;
+use tower_http::cors::{AllowOrigin, CorsLayer};
 use tower_http::services::ServeDir;
 
 use self::auth::{
@@ -165,28 +165,22 @@ pub fn build_router(
     let base_path = normalize_base_path(base_path).expect("Invalid WebUI base path");
 
     // Restrict CORS when auth is enabled; permissive only for --no-auth.
-    let cors = if state.auth.is_enabled() {
+    let origin = if state.auth.is_enabled() {
         let origin = format!("http://{host}:{port}")
             .parse::<HeaderValue>()
             .unwrap_or_else(|_| HeaderValue::from_static("http://localhost:3727"));
-        CorsLayer::new()
-            .allow_origin(origin)
-            .allow_methods([Method::GET, Method::POST])
-            .allow_headers([
-                header::CONTENT_TYPE,
-                header::AUTHORIZATION,
-                HeaderName::from_static("x-csrf-token"),
-            ])
+        AllowOrigin::exact(origin)
     } else {
-        CorsLayer::new()
-            .allow_origin(tower_http::cors::Any)
-            .allow_methods([Method::GET, Method::POST])
-            .allow_headers([
-                header::CONTENT_TYPE,
-                header::AUTHORIZATION,
-                HeaderName::from_static("x-csrf-token"),
-            ])
+        AllowOrigin::any()
     };
+    let cors = CorsLayer::new()
+        .allow_origin(origin)
+        .allow_methods([Method::GET, Method::POST])
+        .allow_headers([
+            header::CONTENT_TYPE,
+            header::AUTHORIZATION,
+            HeaderName::from_static("x-csrf-token"),
+        ]);
 
     let protected_api = Router::new()
         // SSE endpoint for real-time file change events
@@ -369,20 +363,14 @@ pub fn build_router(
             .expect("Failed to read dist/index.html — is --dist correct?");
         let index_html = inject_base_path(&index_html, &base_path);
         spa_index = SpaIndex::Html(Arc::new(index_html));
-        let index_for_root = spa_index.clone();
-        let index_for_fallback = spa_index.clone();
-        let spa_root = get(move || {
-            let index = index_for_root.clone();
+        let index_for_spa = spa_index.clone();
+        let spa = get(move || {
+            let index = index_for_spa.clone();
             async move { spa_index_response(index) }
         });
-        let spa_fallback = get(move || {
-            let index = index_for_fallback.clone();
-            async move { spa_index_response(index) }
-        });
-        let serve_dir = ServeDir::new(dist);
         app = app
-            .route("/", spa_root)
-            .fallback_service(serve_dir.fallback(spa_fallback));
+            .route("/", spa.clone())
+            .fallback_service(ServeDir::new(dist).fallback(spa));
     } else {
         // Embedded mode: serve from rust-embed compiled assets (production default)
         spa_index = SpaIndex::Embedded {
@@ -648,25 +636,17 @@ fn embedded_asset_handler(req: Request, base_path: String) -> Response {
     let path = req.uri().path().trim_start_matches('/');
 
     // Try the exact path first, then fall back to index.html for SPA routing.
-    let (data, mime) = if let Some(file) = EmbeddedAssets::get(path) {
-        let mime = mime_guess::from_path(path)
-            .first_or_octet_stream()
-            .to_string();
-        (Body::from(file.data.into_owned()), mime)
-    } else if let Some(index) = embedded_index_body(&base_path) {
-        (index, "text/html".to_string())
-    } else {
-        return (
-            StatusCode::NOT_FOUND,
-            "index.html not found in embedded assets",
-        )
-            .into_response();
+    let Some(file) = EmbeddedAssets::get(path) else {
+        return embedded_index_response(base_path);
     };
+    let mime = mime_guess::from_path(path)
+        .first_or_octet_stream()
+        .to_string();
 
     Response::builder()
         .status(StatusCode::OK)
         .header(header::CONTENT_TYPE, mime)
-        .body(data)
+        .body(Body::from(file.data.into_owned()))
         .unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response())
 }
 

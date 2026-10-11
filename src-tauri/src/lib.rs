@@ -981,6 +981,10 @@ fn start_server_file_watcher(
     Some(debouncer)
 }
 
+/// A provider's `get_base_path`, used to build the watch-path tables below.
+#[cfg(feature = "webui-server")]
+type BasePathFn = fn() -> Option<String>;
+
 /// Collect available provider directories to watch for live session file updates.
 #[cfg(feature = "webui-server")]
 fn collect_watch_paths() -> Vec<std::path::PathBuf> {
@@ -1019,25 +1023,6 @@ fn collect_watch_paths() -> Vec<std::path::PathBuf> {
         }
     }
 
-    if let Some(codex_base) = providers::codex::get_base_path() {
-        let base = PathBuf::from(codex_base);
-        let sessions = base.join("sessions");
-        let archived_sessions = base.join("archived_sessions");
-        if sessions.is_dir() {
-            paths.push(sessions);
-        }
-        if archived_sessions.is_dir() {
-            paths.push(archived_sessions);
-        }
-    }
-
-    if let Some(kimi_base) = providers::kimi::get_base_path() {
-        let sessions = PathBuf::from(kimi_base).join("sessions");
-        if sessions.is_dir() {
-            paths.push(sessions);
-        }
-    }
-
     // Kimi Code (the `~/.kimi-code` rewrite) sessions. Symlinked sessions
     // roots are not registered — `is_dir()` follows symlinks, and watching
     // through one would observe directories outside the store.
@@ -1047,21 +1032,6 @@ fn collect_watch_paths() -> Vec<std::path::PathBuf> {
             .map(|meta| meta.file_type().is_dir())
             .unwrap_or(false);
         if is_real_dir {
-            paths.push(sessions);
-        }
-    }
-
-    // Pi / oh-my-pi: get_base_path() is already the sessions root.
-    if let Some(pi_base) = providers::pi::get_base_path() {
-        let sessions = PathBuf::from(pi_base);
-        if sessions.is_dir() {
-            paths.push(sessions);
-        }
-    }
-
-    if let Some(ompi_base) = providers::ompi::get_base_path() {
-        let sessions = PathBuf::from(ompi_base);
-        if sessions.is_dir() {
             paths.push(sessions);
         }
     }
@@ -1106,110 +1076,53 @@ fn collect_watch_paths() -> Vec<std::path::PathBuf> {
         }
     }
 
-    if let Some(codebuddy_base) = providers::codebuddy::get_base_path() {
-        let codebuddy_projects = PathBuf::from(codebuddy_base);
-        if codebuddy_projects.is_dir() {
-            paths.push(codebuddy_projects);
-        }
-    }
+    // Providers whose base path is itself the directory to watch. For Pi and
+    // oh-my-pi, get_base_path() is already the sessions root.
+    let flat_bases: [BasePathFn; 14] = [
+        providers::pi::get_base_path,
+        providers::ompi::get_base_path,
+        providers::codebuddy::get_base_path,
+        providers::cursor_agent::get_base_path,
+        providers::continue_dev::get_base_path,
+        providers::pearai::get_base_path,
+        providers::goose::get_base_path,
+        providers::llm::get_base_path,
+        providers::amazon_q::get_base_path,
+        providers::qwen::get_base_path,
+        providers::zcode::get_base_path,
+        providers::zed::get_base_path,
+        providers::openhands::get_base_path,
+        providers::trae::get_base_path,
+    ];
+    paths.extend(
+        flat_bases
+            .iter()
+            .filter_map(|base| base())
+            .map(PathBuf::from)
+            .filter(|dir| dir.is_dir()),
+    );
 
-    if let Some(cursor_agent_base) = providers::cursor_agent::get_base_path() {
-        let cursor_agent_projects = PathBuf::from(cursor_agent_base);
-        if cursor_agent_projects.is_dir() {
-            paths.push(cursor_agent_projects);
-        }
-    }
-
-    if let Some(continue_base) = providers::continue_dev::get_base_path() {
-        let continue_sessions = PathBuf::from(continue_base);
-        if continue_sessions.is_dir() {
-            paths.push(continue_sessions);
-        }
-    }
-
-    if let Some(pearai_base) = providers::pearai::get_base_path() {
-        let pearai_sessions = PathBuf::from(pearai_base);
-        if pearai_sessions.is_dir() {
-            paths.push(pearai_sessions);
-        }
-    }
-
-    if let Some(goose_base) = providers::goose::get_base_path() {
-        let goose_sessions = PathBuf::from(goose_base);
-        if goose_sessions.is_dir() {
-            paths.push(goose_sessions);
-        }
-    }
-
-    if let Some(llm_base) = providers::llm::get_base_path() {
-        let llm_dir = PathBuf::from(llm_base);
-        if llm_dir.is_dir() {
-            paths.push(llm_dir);
-        }
-    }
-
-    if let Some(amazon_q_base) = providers::amazon_q::get_base_path() {
-        let amazon_q_dir = PathBuf::from(amazon_q_base);
-        if amazon_q_dir.is_dir() {
-            paths.push(amazon_q_dir);
-        }
-    }
-
-    if let Some(oi_base) = providers::openinterpreter::get_base_path() {
-        for sub in ["sessions", "archived_sessions"] {
-            let dir = PathBuf::from(&oi_base).join(sub);
-            if dir.is_dir() {
-                paths.push(dir);
-            }
-        }
-    }
-
-    if let Some(qwen_base) = providers::qwen::get_base_path() {
-        let qwen_projects = PathBuf::from(qwen_base);
-        if qwen_projects.is_dir() {
-            paths.push(qwen_projects);
-        }
-    }
-
-    if let Some(zcode_base) = providers::zcode::get_base_path() {
-        let zcode_dir = PathBuf::from(zcode_base);
-        if zcode_dir.is_dir() {
-            paths.push(zcode_dir);
-        }
-    }
-
-    if let Some(zed_base) = providers::zed::get_base_path() {
-        let zed_dir = PathBuf::from(zed_base);
-        if zed_dir.is_dir() {
-            paths.push(zed_dir);
-        }
-    }
-
-    if let Some(oh_base) = providers::openhands::get_base_path() {
-        let oh_dir = PathBuf::from(oh_base);
-        if oh_dir.is_dir() {
-            paths.push(oh_dir);
-        }
-    }
-
-    if let Some(trae_base) = providers::trae::get_base_path() {
-        let trae_dir = PathBuf::from(trae_base);
-        if trae_dir.is_dir() {
-            paths.push(trae_dir);
-        }
-    }
-
-    if let Some(vibe_base) = providers::vibe::get_base_path() {
-        let vibe_sessions = PathBuf::from(vibe_base).join("logs/session");
-        if vibe_sessions.is_dir() {
-            paths.push(vibe_sessions);
-        }
-    }
-
-    if let Some(copilot_base) = providers::copilot_cli::get_base_path() {
-        let session_state = PathBuf::from(copilot_base).join("session-state");
-        if session_state.is_dir() {
-            paths.push(session_state);
+    // Providers that keep sessions in sub-directories of their base path.
+    let nested_bases: [(BasePathFn, &[&str]); 5] = [
+        (
+            providers::codex::get_base_path,
+            &["sessions", "archived_sessions"],
+        ),
+        (providers::kimi::get_base_path, &["sessions"]),
+        (
+            providers::openinterpreter::get_base_path,
+            &["sessions", "archived_sessions"],
+        ),
+        (providers::vibe::get_base_path, &["logs/session"]),
+        (providers::copilot_cli::get_base_path, &["session-state"]),
+    ];
+    for (get_base, subs) in nested_bases {
+        if let Some(base) = get_base() {
+            paths.extend(
+                subs.iter()
+                    .map(|sub| PathBuf::from(&base).join(sub))
+                    .filter(|dir| dir.is_dir()),
+            );
         }
     }
 

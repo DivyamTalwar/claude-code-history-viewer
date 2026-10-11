@@ -238,21 +238,7 @@ fn search_in_file(file_path: &PathBuf, matcher: &AhoCorasick) -> Vec<ClaudeMessa
             cost_usd: log_entry.cost_usd,
             duration_ms: log_entry.duration_ms,
             message_id: message_content.id.clone(),
-            snapshot: None,
-            is_snapshot_update: None,
-            data: None,
-            tool_use_id: None,
-            parent_tool_use_id: None,
-            operation: None,
-            subtype: None,
-            level: None,
-            hook_count: None,
-            hook_infos: None,
-            stop_reason_system: None,
-            prevented_continuation: None,
-            compact_metadata: None,
-            microcompact_metadata: None,
-            provider: None,
+            ..Default::default()
         };
         results.push(claude_message);
     }

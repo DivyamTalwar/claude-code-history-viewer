@@ -1354,37 +1354,13 @@ mod tests {
     fn make_message(message_type: &str, content: Value) -> ClaudeMessage {
         ClaudeMessage {
             uuid: format!("{message_type}-id"),
-            parent_uuid: None,
             session_id: "session-1".to_string(),
             timestamp: "2026-02-19T12:00:00Z".to_string(),
             message_type: message_type.to_string(),
             content: Some(content),
-            project_name: None,
-            tool_use: None,
-            tool_use_result: None,
-            is_sidechain: None,
-            usage: None,
             role: Some(message_type.to_string()),
-            model: None,
-            stop_reason: None,
-            cost_usd: None,
-            duration_ms: None,
-            message_id: None,
-            snapshot: None,
-            is_snapshot_update: None,
-            data: None,
-            tool_use_id: None,
-            parent_tool_use_id: None,
-            operation: None,
-            subtype: None,
-            level: None,
-            hook_count: None,
-            hook_infos: None,
-            stop_reason_system: None,
-            prevented_continuation: None,
-            compact_metadata: None,
-            microcompact_metadata: None,
             provider: Some("claude".to_string()),
+            ..Default::default()
         }
     }
 
