@@ -1143,7 +1143,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
                     "w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-300",
                     "bg-accent/10 text-accent",
                     "group-hover:bg-accent/20 group-hover:shadow-sm group-hover:shadow-accent/20",
-                    isViewingGlobalStats && "bg-accent/20 shadow-glow"
+                    isViewingGlobalStats && "bg-accent/20"
                   )}
                 >
                   <span title={t("project.globalStats")}>
