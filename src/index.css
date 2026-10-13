@@ -105,13 +105,13 @@
   --secondary-foreground: oklch(0.25 0.02 260);
   --muted: oklch(0.94 0.005 240);
   --muted-foreground: oklch(0.45 0.02 260);
-  --accent: oklch(0.50 0.15 250);
+  --accent: oklch(0.50 0.16 275);
   --accent-foreground: oklch(0.98 0 0);
   --destructive: oklch(0.48 0.20 25);
   --destructive-foreground: oklch(0.98 0 0);
   --border: oklch(0.88 0.01 240);
   --input: oklch(0.92 0.005 240);
-  --ring: oklch(0.60 0.05 250);
+  --ring: oklch(0.60 0.06 275);
 
   /* === Semantic Status Colors === */
   --success: oklch(0.45 0.12 145);
@@ -226,13 +226,13 @@
   --secondary-foreground: oklch(0.9 0.01 240);
   --muted: oklch(0.22 0.015 260);
   --muted-foreground: oklch(0.78 0.02 240);
-  --accent: oklch(0.72 0.14 250);
+  --accent: oklch(0.73 0.12 279);
   --accent-foreground: oklch(0.12 0 0);
   --destructive: oklch(0.72 0.18 25);
   --destructive-foreground: oklch(0.12 0 0);
   --border: oklch(0.25 0.015 260);
   --input: oklch(0.22 0.015 260);
-  --ring: oklch(0.50 0.05 250);
+  --ring: oklch(0.50 0.06 275);
 
   /* === Semantic Status Colors (Dark) ===
      Fills are bright in dark mode, so their foregrounds must be dark (like
@@ -574,7 +574,7 @@
 
   /* Selection */
   ::selection {
-    background: oklch(0.75 0.18 55 / 0.3);
+    background: color-mix(in oklch, var(--accent) 30%, transparent);
   }
 
   /* Prose typography overrides for compact display */
