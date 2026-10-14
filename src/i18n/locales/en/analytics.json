@@ -201,5 +201,15 @@
   ],
   "analytics.weekend": "Weekend",
   "analytics.weeklyActiveDays": "Weekly Active Days",
-  "analytics.weeklyActivity": "Weekly Activity"
+  "analytics.weeklyActivity": "Weekly Activity",
+  "analytics.trend.new": "New",
+  "analytics.trend.newDescription": "New — no activity on the previous day",
+  "analytics.trend.upSmallBase": "Up — previous day too small to compare",
+  "analytics.trend.downSmallBase": "Down — previous day too small to compare",
+  "analytics.trend.flatSmallBase": "Unchanged — previous day too small to compare",
+  "analytics.trend.times": "{{value}}×",
+  "analytics.trend.upDescription": "Up from the previous day",
+  "analytics.trend.downDescription": "Down from the previous day",
+  "analytics.trend.flatDescription": "Unchanged from the previous day",
+  "analytics.trend.timesDescription": "{{value}} times the previous day"
 }
