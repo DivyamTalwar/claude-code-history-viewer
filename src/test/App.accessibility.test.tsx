@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
+import { beginPendingLoad } from "@/hooks/usePendingLoad";
 import App from "@/App";
 
-const { useAppStoreMock } = vi.hoisted(() => {
+const { useAppStoreMock, appStoreState, resetStoreLoadFlags } = vi.hoisted(() => {
   const mockSession = {
     session_id: "session-1",
     actual_session_id: "session-1",
@@ -31,6 +32,19 @@ const { useAppStoreMock } = vi.hoisted(() => {
     isLoadingSessions: false,
     isLoadingMessages: false,
     isLoadingTokenStats: false,
+    // Store-level loads AppLayout folds into its `data-ready` marker.
+    isLoadingGlobalStats: false,
+    isLoadingBoard: false,
+    isMetadataLoading: false,
+    isLoadingRecentEditsDock: false,
+    isLoadingMoreRecentEditsDock: false,
+    analytics: { recentEditsPagination: { isLoadingMore: false } },
+    archive: {
+      isLoadingArchives: false,
+      isLoadingSessions: false,
+      isLoadingExpiring: false,
+      isLoadingDiskUsage: false,
+    },
     error: null,
     sessionTokenStats: null,
     sessionConversationTokenStats: null,
@@ -91,9 +105,26 @@ const { useAppStoreMock } = vi.hoisted(() => {
     typeof selector === "function" ? selector(state) : state) as StoreMock;
   storeMock.getState = () => state;
 
+  const resetStoreLoadFlags = () => {
+    state.isLoadingGlobalStats = false;
+    state.isLoadingBoard = false;
+    state.isMetadataLoading = false;
+    state.isLoadingRecentEditsDock = false;
+    state.isLoadingMoreRecentEditsDock = false;
+    state.analytics.recentEditsPagination.isLoadingMore = false;
+    state.pagination.isLoadingMore = false;
+    Object.assign(state.archive, {
+      isLoadingArchives: false,
+      isLoadingSessions: false,
+      isLoadingExpiring: false,
+      isLoadingDiskUsage: false,
+    });
+  };
+
   return {
     appStoreState: state,
     useAppStoreMock: storeMock,
+    resetStoreLoadFlags,
   };
 });
 
@@ -291,6 +322,7 @@ describe("App accessibility smoke", () => {
     window.history.replaceState({}, "", "/");
     vi.clearAllMocks();
     resetComputedMock();
+    resetStoreLoadFlags();
   });
 
   it("renders skip links and landmark targets", () => {
@@ -390,5 +422,48 @@ describe("App accessibility smoke", () => {
         { history: "none" },
       );
     });
+  });
+
+  /**
+   * The UI capture harness (scripts/ui-capture) photographs a screen only
+   * once the root reports `data-ready="true"`, so the marker must follow
+   * every load it folds in, and the main pane must carry its probe hook.
+   */
+  it.each([
+    ["nothing is loading", () => {}, "true"],
+    ["the global stats are loading", () => { appStoreState.isLoadingGlobalStats = true; }, "false"],
+    ["the board is loading", () => { appStoreState.isLoadingBoard = true; }, "false"],
+    ["an archive list is loading", () => { appStoreState.archive.isLoadingArchives = true; }, "false"],
+    ["the archive disk usage is loading", () => { appStoreState.archive.isLoadingDiskUsage = true; }, "false"],
+    ["an analytics view is loading", () => { computedMock.isAnyLoading = true; }, "false"],
+    ["session metadata is loading", () => { appStoreState.isMetadataLoading = true; }, "false"],
+    ["another message page is loading", () => { appStoreState.pagination.isLoadingMore = true; }, "false"],
+    ["the recent-edits dock is loading", () => { appStoreState.isLoadingRecentEditsDock = true; }, "false"],
+    ["another recent-edits dock page is loading", () => { appStoreState.isLoadingMoreRecentEditsDock = true; }, "false"],
+    ["another recent-edits page is loading", () => { appStoreState.analytics.recentEditsPagination.isLoadingMore = true; }, "false"],
+  ])("reports data-ready while %s", (_label, arrange, expected) => {
+    arrange();
+
+    const { container } = render(<App />);
+
+    const marked = container.querySelectorAll("[data-ready]");
+    expect(marked).toHaveLength(1);
+    expect(marked[0]).toHaveAttribute("data-ready", expected);
+    expect(container.querySelector('[data-slot="main"]')).toBe(
+      document.getElementById("main-content"),
+    );
+  });
+
+  it("reports data-ready false while a view-level load is registered", () => {
+    // e.g. the Settings Manager fetching its settings (usePendingLoad).
+    const release = beginPendingLoad();
+    let container: HTMLElement;
+    try {
+      ({ container } = render(<App />));
+      expect(container.querySelector("[data-ready]")).toHaveAttribute("data-ready", "false");
+    } finally {
+      act(() => release());
+    }
+    expect(container.querySelector("[data-ready]")).toHaveAttribute("data-ready", "true");
   });
 });

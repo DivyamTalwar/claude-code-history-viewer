@@ -54,6 +54,7 @@ import type { UseUpdaterReturn } from "@/hooks/useUpdater";
 import type { SearchState, SearchFilterType } from "@/store/slices/types";
 import type { WorktreeGroup, DirectoryGroup, TimeGroup } from "@/utils/worktreeUtils";
 import type { ProjectTokenStatsPagination } from "@/store/slices/messageSlice";
+import { usePendingLoadCount } from "@/hooks/usePendingLoad";
 
 export interface AppLayoutProps {
   // Store state
@@ -260,6 +261,42 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
   const setRecentEditsMode = useAppStore((s) => s.setRecentEditsMode);
   const setRecentEditsDockOpen = useAppStore((s) => s.setRecentEditsDockOpen);
   const setAnalyticsCurrentView = useAppStore((s) => s.setAnalyticsCurrentView);
+  /*
+    The non-visual `data-ready` marker on the root reads "true" only when no
+    load is pending anywhere a screen can show a loader: the prop flags below,
+    store-level loads the props do not carry (including incremental "load
+    more" pages and the recent-edits dock), and view-level loads components
+    keep in local state (`usePendingLoad`, e.g. the Settings Manager). The UI
+    capture harness (`scripts/ui-capture`) waits on it, on top of network and
+    DOM quiescence, before it photographs a screen. Attribute only; it never
+    affects layout or styling.
+  */
+  const hasPendingStoreLoad = useAppStore(
+    (s) =>
+      s.isLoadingGlobalStats ||
+      s.isLoadingBoard ||
+      s.isMetadataLoading ||
+      s.pagination.isLoadingMore ||
+      s.isLoadingRecentEditsDock ||
+      s.isLoadingMoreRecentEditsDock ||
+      s.analytics.recentEditsPagination.isLoadingMore ||
+      s.archive.isLoadingArchives ||
+      s.archive.isLoadingSessions ||
+      s.archive.isLoadingExpiring ||
+      s.archive.isLoadingDiskUsage
+  );
+  const pendingViewLoads = usePendingLoadCount();
+  const isSettled = !(
+    hasPendingStoreLoad ||
+    pendingViewLoads > 0 ||
+    isLoading ||
+    isLoadingProjects ||
+    isLoadingSessions ||
+    isLoadingMoreSessions ||
+    isLoadingMessages ||
+    isLoadingTokenStats ||
+    computed.isAnyLoading
+  );
 
   /*
     The return trip out of the dock. Mode is only a preference; what actually
@@ -276,7 +313,11 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
   // Error State
   if (error && error.type !== AppErrorType.CLAUDE_FOLDER_NOT_FOUND) {
     return (
-      <div className="h-screen flex items-center justify-center bg-background">
+      <div
+        className="h-screen flex items-center justify-center bg-background"
+        // Terminal error screen: nothing further loads, so it is settled.
+        data-ready="true"
+      >
         <div className="text-center max-w-md mx-auto p-8">
           <div className="w-16 h-16 rounded-2xl bg-destructive/10 flex items-center justify-center mx-auto mb-6">
             <AlertTriangle className="w-8 h-8 text-destructive" />
@@ -408,7 +449,10 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
 
   return (
     <TooltipProvider>
-      <div className="h-screen flex flex-col bg-background">
+      <div
+        className="h-screen flex flex-col bg-background"
+        data-ready={isSettled ? "true" : "false"}
+      >
         <nav
           aria-label={t("common.a11y.skipNavigation", {
             defaultValue: "Skip navigation",
@@ -598,6 +642,7 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
           {/* Main Content Area */}
           <main
             id="main-content"
+            data-slot="main"
             tabIndex={-1}
             className="flex-1 flex flex-col min-w-0 bg-background pb-14 md:pb-0"
           >
