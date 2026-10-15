@@ -20,7 +20,8 @@ import { toast } from "sonner";
 import { getModelLifecycle } from "./utils/calculations";
 
 export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
-  isViewingGlobalStats = false,
+  isGlobalScope = false,
+  onRetry,
 }) => {
   const { t } = useTranslation();
   const {
@@ -53,7 +54,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
   // the provider has retired or is about to. The stable id makes repeated
   // loads update the same toast instead of stacking.
   useEffect(() => {
-    if (!isViewingGlobalStats) return;
+    if (!isGlobalScope) return;
     const models = globalSummary?.model_distribution ?? [];
     const retiring = models.filter((model) => {
       const status = getModelLifecycle(model.model_name)?.status;
@@ -67,10 +68,10 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
       }),
       { id: "model-retirement", duration: 8000 },
     );
-  }, [globalSummary, isViewingGlobalStats, t]);
+  }, [globalSummary, isGlobalScope, t]);
 
   // Global stats or no project
-  if (isViewingGlobalStats || !selectedProject) {
+  if (isGlobalScope || !selectedProject) {
     if (isLoadingGlobalStats) {
       return (
         <div className="flex-1 p-4 md:p-6 flex items-center justify-center bg-background">
@@ -201,6 +202,9 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
           <ProjectStatsView
             projectSummary={projectSummary}
             conversationSummary={projectConversationSummary}
+            isLoading={analyticsState.isLoadingProjectSummary}
+            error={analyticsState.projectSummaryError}
+            onRetry={onRetry}
             providerId={selectedProject?.provider ?? "claude"}
           />
         )}

@@ -9,7 +9,10 @@
 // ============================================================================
 
 export interface AnalyticsDashboardProps {
-  isViewingGlobalStats?: boolean;
+  /** Show the cross-project overview (the global stats screen). */
+  isGlobalScope?: boolean;
+  /** Reload the open screen's data; offered by the summary's error state. */
+  onRetry?: () => void;
 }
 
 // ============================================================================

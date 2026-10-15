@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { act, render, screen, waitFor } from "@testing-library/react";
 import { beginPendingLoad } from "@/hooks/usePendingLoad";
 import App from "@/App";
+import { VIEW_PANEL_ID, viewTabId } from "@/layouts/Header/viewTabIds";
 
 const { useAppStoreMock, appStoreState, resetStoreLoadFlags } = vi.hoisted(() => {
   const mockSession = {
@@ -66,9 +67,12 @@ const { useAppStoreMock, appStoreState, resetStoreLoadFlags } = vi.hoisted(() =>
     goToPrevMatch: vi.fn(),
     clearSessionSearch: vi.fn(),
     loadGlobalStats: vi.fn(async () => {}),
-    isViewingGlobalStats: false,
-    setViewingGlobalStats: vi.fn(),
-    setAnalyticsCurrentView: vi.fn(),
+    view: "conversation",
+    navigationEpoch: 0,
+    navigate: vi.fn(async () => true),
+    beginNavigation: vi.fn(() => 1),
+    reloadCurrent: vi.fn(async () => {}),
+    setBoardHoverSession: vi.fn(),
     loadMoreProjectTokenStats: vi.fn(async () => {}),
     loadMoreRecentEdits: vi.fn(async () => {}),
     updateUserSettings: vi.fn(),
@@ -129,8 +133,21 @@ const { useAppStoreMock, appStoreState, resetStoreLoadFlags } = vi.hoisted(() =>
 });
 
 vi.mock("@/components/ProjectTree", () => ({
-  ProjectTree: ({ asideId }: { asideId?: string }) => (
-    <aside id={asideId ?? "project-explorer"} tabIndex={-1}>
+  ProjectTree: ({
+    asideId,
+    isGlobalStatsActive,
+    isSelectionRetained,
+  }: {
+    asideId?: string;
+    isGlobalStatsActive?: boolean;
+    isSelectionRetained?: boolean;
+  }) => (
+    <aside
+      id={asideId ?? "project-explorer"}
+      tabIndex={-1}
+      data-global-stats-active={String(isGlobalStatsActive)}
+      data-selection={isSelectionRetained ? "retained" : "active"}
+    >
       project-tree
     </aside>
   ),
@@ -231,6 +248,7 @@ const { computedMock, resetComputedMock } = vi.hoisted(() => {
     isMessagesView: true,
     isTokenStatsView: false,
     isAnalyticsView: false,
+    isGlobalStatsView: false,
     isRecentEditsView: false,
     isSettingsView: false,
     isBoardView: false,
@@ -380,6 +398,16 @@ describe("App accessibility smoke", () => {
     }
   );
 
+  it("labels the main view as the panel of the selected header tab", () => {
+    render(<App />);
+
+    const panel = document.getElementById(VIEW_PANEL_ID);
+    expect(panel).not.toBeNull();
+    expect(panel).toHaveAttribute("role", "tabpanel");
+    // The tab itself is the (mocked) header's; its id is pinned there.
+    expect(panel).toHaveAttribute("aria-labelledby", viewTabId("conversation"));
+  });
+
   it("keeps every rendered skip link pointing at a target that exists", () => {
     // The general invariant, asserted across the view states rather than for
     // one link: whatever the nav offers must resolve.
@@ -406,6 +434,32 @@ describe("App accessibility smoke", () => {
     }
   });
 
+  /**
+   * Plan §9b C3 (audit capture 12): the sidebar's global stats row is
+   * selected only while global stats is the open screen, and on any app-level
+   * screen the tree marks its selection as kept context.
+   */
+  it.each([
+    ["globalStats", "true", "retained"],
+    ["archive", "false", "retained"],
+    ["settingsManager", "false", "retained"],
+    ["conversation", "false", "active"],
+    ["analytics", "false", "active"],
+  ] as const)(
+    "derives the sidebar highlight from the place: %s",
+    (view, globalActive, selection) => {
+      appStoreState.view = view;
+      try {
+        render(<App />);
+        const tree = document.getElementById("project-explorer");
+        expect(tree?.getAttribute("data-global-stats-active")).toBe(globalActive);
+        expect(tree?.getAttribute("data-selection")).toBe(selection);
+      } finally {
+        appStoreState.view = "conversation";
+      }
+    }
+  );
+
   it("replays a WebUI message link from browser history", async () => {
     render(<App />);
 
@@ -417,9 +471,10 @@ describe("App accessibility smoke", () => {
     window.dispatchEvent(new PopStateEvent("popstate"));
 
     await waitFor(() => {
-      expect(useAppStoreMock.getState().navigateToMessage).toHaveBeenCalledWith(
-        "message-2",
-        { history: "none" },
+      // Browser history replays as a navigation that writes no history.
+      expect(useAppStoreMock.getState().navigate).toHaveBeenCalledWith(
+        { view: "conversation", messageId: "message-2" },
+        expect.objectContaining({ history: "none", record: false }),
       );
     });
   });
