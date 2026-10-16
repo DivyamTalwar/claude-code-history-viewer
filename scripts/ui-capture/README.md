@@ -11,6 +11,7 @@ nvm use                      # Node 22.18.0 (.nvmrc)
 pnpm ui:capture              # build, then capture every scenario
 pnpm ui:capture --repro      # capture twice on this commit, gate reproducibility (0%)
 pnpm ui:capture --base develop --gate unchanged
+pnpm ui:capture --locale ja --only transcript--1440x900--light   # one locale (en | ko | ja | zh-CN | zh-TW)
 ```
 
 macOS and Linux only: the fixture works by pointing `HOME` at a generated
@@ -78,9 +79,14 @@ Declared in `scenarios.mjs` (one place; edit there). Id =
     `get_project_stats_summary` failing (500 `boom`): the dashboard's own
     error state, not a stuck loading text
 - Mobile adds `sidebar` (project drawer open).
+- Font scale (T4 / D9): `transcript` and `analytics` at **90 %** and
+  **110 %** (`<screen>-scale90`, `<screen>-scale110`), 1440×900 light. The
+  first step sets the app's own font-size setting through the gear menu
+  (`{ do: "fontScale", percent }`); the WebUI does not restore a stored scale
+  at startup, so seeding storage would not work.
 
-Desktop 3 × 2 × 15 + mobile 1 × 2 × 16 + measurement pair 3 × 1 × 2 = **128
-scenarios**.
+Desktop 3 × 2 × 15 + mobile 1 × 2 × 16 + measurement pair 3 × 1 × 2 + font
+scale 1 × 1 × 4 = **132 scenarios**.
 
 ## Output
 
@@ -123,18 +129,43 @@ Measured after the screenshot, written per scenario:
   was opened. This runs after the screenshot and never affects pixels.
   Regression test: `test/probes.test.mjs` (real WebKit).
 
+### Typography (T4, C5)
+
+`lib/typography.mjs` → `typography` in each probe JSON, measured after the
+other probes:
+
+- `lang` (html[lang]), `appFontScale` (`--app-font-scale` on html),
+  `bodyFontFamily` (computed, i.e. the per-language font order);
+- `steps`: the computed size and line height of every type step
+  (`caption 12 / list 13 / body 15 / code 13 / title 17`, analytics aliases
+  `lg 18 / xl 20 / 2xl 24`), from a hidden probe span per step class, so a
+  step is checked even on a screen that does not use it;
+- `used`: the sizes visible elements carrying a step class actually render at
+  (`usedAt` names one class list per size);
+- `problems`: `checkTypography` against the run's locale and the scenario's
+  scale: html[lang] = locale, `--app-font-scale` = scale, font order =
+  `FONT_STACKS[locale]`, body line height 1.7 (ko / ja / zh) or 1.55 (en),
+  every step and every used size = base × scale ±0.5 px, and `minFontSize.px`
+  ≥ 12 px at 100 % (≥ 12 × scale − 0.5 px otherwise).
+
+Any problem fails the scenario on this checkout's captures. A `--base`
+capture records them but never fails on them: it is the "before". For the
+five-language check run the same scenarios once per `--locale`.
+
 ### Measurement state (C4)
 
 Every scenario starts from the C4 measurement state declared in
 `scenarios.mjs` → `MEASUREMENT_STATE`: sidebar **260 px**, scale **100 %**,
-inspector **closed**, **one tab**. `STORAGE_SEED` writes the app's own
-storage keys (`sidebar-width=260`, `navigator-open=false`) before the first
-app script; app defaults are untouched. The right-hand message navigator is
-today's inspector; scale 100 % is the default of a fresh context; the app has
-no tab UI yet. Each probe JSON records `measurementState` (measured sidebar
-width, root font size, stored inspector flag, sessions layout, selected /
-expanded project rows), and a scenario fails when the measured state differs
-(desktop sidebar width, inspector flag, root font size).
+inspector **closed**, **one tab** (font-scale scenarios: their own scale).
+`STORAGE_SEED` writes the app's own storage keys (`sidebar-width=260`,
+`navigator-open=false`) before the first app script; app defaults are
+untouched. The right-hand message navigator is today's inspector; scale 100 %
+is the default of a fresh context; the app has no tab UI yet. Each probe JSON
+records `measurementState` (measured sidebar width, root font size,
+`appFontScale` = `--app-font-scale`, stored inspector flag, sessions layout,
+selected / expanded project rows), and a scenario fails when the measured
+state differs (desktop sidebar width, inspector flag, root font size 16 px,
+`--app-font-scale` = the scenario's scale).
 
 Project-row pair (C4 D3), desktop sizes, dark:
 
@@ -242,9 +273,9 @@ purpose; captures of the old and new fixture are not comparable.
 
 ## Known limits
 
-- **Fonts**: external requests are blocked, so the Google-hosted IBM Plex Sans
-  / JetBrains Mono never load and text renders in the system fallback.
-  Deterministic on one machine; bundling the fonts locally is T4.
+- **Fonts**: IBM Plex Sans / JetBrains Mono are bundled (`src/assets/fonts`),
+  so the external-request block no longer changes rendering. CJK text uses
+  the OS fonts (per-language order in `index.css`).
 - **Same machine only**: screenshots depend on the OS font stack, the WebKit
   build and the checkout path (shown inside the app). Compare captures made
   on the same machine; do not commit baselines from one machine for another.
