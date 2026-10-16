@@ -35,6 +35,7 @@ import type { CommandId } from "@/commands/manifest";
 import { runCommand, type CommandContext } from "@/commands/registry";
 import { commandItemValue, paletteEntries } from "@/commands/paletteQuery";
 import { PaletteCommandGroup } from "./PaletteCommandGroup";
+import { PaletteComboboxLink } from "./PaletteComboboxLink";
 
 type GlobalSearchResult = ClaudeMessage;
 
@@ -107,6 +108,18 @@ const collectSearchableText = (message: GlobalSearchResult): string => {
     return parts.join(" ").replace(/\s+/g, " ");
 };
 
+/**
+ * The keys cmdk's root acts on: move the highlight, pick the highlighted
+ * item. Typed in the search field they drive the list; pressed on another
+ * control in the palette (a type filter, the project picker, clear) they
+ * belong to that control alone, so they must not reach the root. Stopping
+ * propagation, not the default, keeps the browser's own activation.
+ */
+const LIST_KEYS = new Set(["Enter", "ArrowDown", "ArrowUp", "Home", "End"]);
+const keepKeysFromList = (e: React.KeyboardEvent) => {
+    if (LIST_KEYS.has(e.key)) e.stopPropagation();
+};
+
 type SearchResultGroup = {
     label: string;
     provider?: string;
@@ -121,6 +134,14 @@ export const GlobalSearchModal = ({
     getCommandContext,
 }: GlobalSearchModalProps) => {
     const { t, i18n } = useTranslation();
+    // The search reads `t` only to word its failure toast. Through a ref, a
+    // new `t` neither re-creates `performSearch` nor, through the filter
+    // effect below, sends the query again. (react-i18next's `t` is stable
+    // until the language changes; a test double need not be.)
+    const tRef = useRef(t);
+    useEffect(() => {
+        tRef.current = t;
+    }, [t]);
     const [query, setQuery] = useState("");
     const [results, setResults] = useState<GlobalSearchResult[]>([]);
     const [isSearching, setIsSearching] = useState(false);
@@ -301,12 +322,12 @@ export const GlobalSearchModal = ({
             } catch (error) {
                 console.error("Global search failed:", error);
                 setResults([]);
-                toast.error(t("globalSearch.searchFailed"));
+                toast.error(tRef.current("globalSearch.searchFailed"));
             } finally {
                 setIsSearching(false);
             }
         },
-        [claudePath, activeProviders, selectedProjectPath, messageTypeFilter, userMetadata, t],
+        [claudePath, activeProviders, selectedProjectPath, messageTypeFilter, userMetadata],
     );
 
     // Handle input change with debounce
@@ -464,6 +485,7 @@ export const GlobalSearchModal = ({
         (value: string) => setSelection({ query, results, value }),
         [query, results],
     );
+    const listRef = useRef<HTMLDivElement>(null);
 
     // Arrow keys and Enter belong to the cmdk list (commands and results
     // alike); cmdk ignores Enter while an IME is composing.
@@ -628,8 +650,13 @@ export const GlobalSearchModal = ({
                 {/* Search Header */}
                 <div className="flex items-center gap-3 px-4 py-3 border-b border-border">
                     <Search className="w-4 h-4 text-muted-foreground shrink-0" />
+                    {/* A combobox: PaletteComboboxLink adds aria-controls and
+                        aria-activedescendant once cmdk has rendered the list. */}
                     <Input
                         ref={inputRef}
+                        role="combobox"
+                        aria-expanded
+                        aria-autocomplete="list"
                         type="text"
                         value={query}
                         onChange={handleInputChange}
@@ -645,6 +672,8 @@ export const GlobalSearchModal = ({
                     )}
                     {query && !isSearching && (
                         <button
+                            type="button"
+                            onKeyDown={keepKeysFromList}
                             onClick={() => {
                                 setQuery("");
                                 setResults([]);
@@ -658,13 +687,18 @@ export const GlobalSearchModal = ({
                     )}
                 </div>
 
-                {/* Filters Bar */}
-                <div className="flex items-center gap-2 px-4 py-2 border-b border-border bg-muted/20">
+                {/* Filters Bar: its keys work its own controls, never the list */}
+                <div
+                    className="flex items-center gap-2 px-4 py-2 border-b border-border bg-muted/20"
+                    onKeyDown={keepKeysFromList}
+                >
                     {/* Message Type Filter */}
                     <div className="flex items-center gap-1">
                         {(["all", "user", "assistant"] as const).map((type) => (
                             <button
                                 key={type}
+                                type="button"
+                                aria-pressed={messageTypeFilter === type}
                                 onClick={() => setMessageTypeFilter(type)}
                                 className={cn(
                                     "flex items-center gap-1 px-2 py-1 text-list rounded-md transition-colors",
@@ -710,6 +744,7 @@ export const GlobalSearchModal = ({
 
                 {/* Commands, then message results: one cmdk list */}
                 <CommandPrimitive.List
+                    ref={listRef}
                     label={t("globalSearch.title")}
                     className="max-h-100 overflow-y-auto"
                 >
@@ -855,6 +890,7 @@ export const GlobalSearchModal = ({
                         </div>
                     )}
                 </CommandPrimitive.List>
+                <PaletteComboboxLink inputRef={inputRef} listRef={listRef} selectedValue={selectedValue} />
 
                 {/* Footer with keyboard hints */}
                 <div className="flex items-center justify-between px-4 py-2 border-t border-border bg-muted/30 text-list text-muted-foreground">
