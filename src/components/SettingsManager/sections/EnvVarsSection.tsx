@@ -24,7 +24,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { ChevronDown, ChevronRight, Key, Plus, Trash2, Eye, EyeOff } from "lucide-react";
+import { ChevronDown, ChevronRight, Key, Plus, Trash, Eye, EyeOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ClaudeCodeSettings } from "@/types";
 
@@ -102,9 +102,9 @@ const EnvVarCard: React.FC<EnvVarCardProps> = React.memo(({
                 aria-label={showValue ? t("common.hide") : t("common.show")}
               >
                 {showValue ? (
-                  <EyeOff className="w-3 h-3" />
+                  <EyeOff className="w-3.5 h-3.5" />
                 ) : (
-                  <Eye className="w-3 h-3" />
+                  <Eye className="w-3.5 h-3.5" />
                 )}
               </Button>
             )}
@@ -142,7 +142,7 @@ const EnvVarCard: React.FC<EnvVarCardProps> = React.memo(({
                 onClick={() => setIsDeleteConfirm(true)}
                 aria-label={t("common.delete")}
               >
-                <Trash2 className="w-3 h-3" />
+                <Trash className="w-3.5 h-3.5" />
               </Button>
             )}
           </div>

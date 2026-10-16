@@ -21,7 +21,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { AlertTriangle, ExternalLink, Server } from "lucide-react";
+import { TriangleAlert, ExternalLink, Server } from "lucide-react";
 import { maskValue } from "@/utils/securityUtils";
 import { useSettingsManager } from "../UnifiedSettingsManager";
 import type { MCPServerConfig, MCPSource, SettingsScope } from "@/types";
@@ -150,7 +150,7 @@ export const UnifiedMCPDialog: React.FC<UnifiedMCPDialogProps> = ({
       <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Server className="w-5 h-5" />
+            <Server className="w-4 h-4" />
             {t("settingsManager.unified.mcp.allServers")}
           </DialogTitle>
         </DialogHeader>
@@ -163,7 +163,7 @@ export const UnifiedMCPDialog: React.FC<UnifiedMCPDialogProps> = ({
             </span>
             {conflicts.size > 0 && (
               <Badge variant="outline" className="text-warning border-warning/40">
-                <AlertTriangle className="w-3 h-3 mr-1" />
+                <TriangleAlert className="w-3.5 h-3.5 mr-1" />
                 {conflicts.size} {t("settingsManager.overview.conflicts")}
               </Badge>
             )}
@@ -199,7 +199,7 @@ export const UnifiedMCPDialog: React.FC<UnifiedMCPDialogProps> = ({
                               className="inline-flex items-center justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-sm"
                               aria-label={t("settingsManager.unified.mcp.conflictHint")}
                             >
-                              <AlertTriangle className="w-4 h-4 text-warning" />
+                              <TriangleAlert className="w-4 h-4 text-warning" />
                             </button>
                           </TooltipTrigger>
                           <TooltipContent>
@@ -216,7 +216,7 @@ export const UnifiedMCPDialog: React.FC<UnifiedMCPDialogProps> = ({
                         className="h-6 text-list"
                         onClick={() => handleNavigateToSource(singleServer.source)}
                       >
-                        <ExternalLink className="w-3 h-3 mr-1" />
+                        <ExternalLink className="w-3.5 h-3.5 mr-1" />
                         {t("settingsManager.unified.mcp.goToSource")}
                       </Button>
                     )}
@@ -246,8 +246,10 @@ export const UnifiedMCPDialog: React.FC<UnifiedMCPDialogProps> = ({
                                 size="sm"
                                 className="h-5 text-list px-1"
                                 onClick={() => handleNavigateToSource(server.source)}
+                                aria-label={t("settingsManager.unified.mcp.goToSourceOf", { source: server.sourceLabel })}
+                                title={t("settingsManager.unified.mcp.goToSourceOf", { source: server.sourceLabel })}
                               >
-                                <ExternalLink className="w-3 h-3" />
+                                <ExternalLink className="w-3.5 h-3.5" />
                               </Button>
                             )}
                           </div>

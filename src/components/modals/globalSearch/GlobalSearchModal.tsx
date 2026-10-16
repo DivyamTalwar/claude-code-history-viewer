@@ -2,18 +2,19 @@ import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { api } from "@/services/api";
 import { useTranslation } from "react-i18next";
 import {
-    Search,
-    ArrowUp,
-    ArrowDown,
-    CornerDownLeft,
-    X,
-    Loader2,
-    Filter,
-    User,
-    Bot,
-    MessageSquare,
-    Lightbulb,
+  Search,
+  ArrowUp,
+  ArrowDown,
+  CornerDownLeft,
+  X,
+  LoaderCircle,
+  Funnel,
+  User,
+  Bot,
+  MessageSquare,
+  Lightbulb,
 } from "lucide-react";
+import { Icon } from "@/components/icon/Icon";
 import { Dialog, DialogContent, Input } from "@/components/ui";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
@@ -618,7 +619,7 @@ export const GlobalSearchModal = ({
                         spellCheck={false}
                     />
                     {isSearching && (
-                        <Loader2 className="w-4 h-4 text-muted-foreground animate-spin shrink-0" />
+                        <LoaderCircle className="w-4 h-4 text-muted-foreground animate-spin shrink-0" />
                     )}
                     {query && !isSearching && (
                         <button
@@ -630,7 +631,7 @@ export const GlobalSearchModal = ({
                             className="p-1 hover:bg-muted rounded"
                             aria-label={t("globalSearch.clearSearch")}
                         >
-                            <X className="w-3 h-3 text-muted-foreground" />
+                            <X className="w-3.5 h-3.5 text-muted-foreground" />
                         </button>
                     )}
                 </div>
@@ -651,9 +652,9 @@ export const GlobalSearchModal = ({
                                 )}
                                 aria-label={t(`globalSearch.filterType.${type}`)}
                             >
-                                {type === "all" && <MessageSquare className="w-3 h-3" />}
-                                {type === "user" && <User className="w-3 h-3" />}
-                                {type === "assistant" && <Bot className="w-3 h-3" />}
+                                {type === "all" && <MessageSquare className="w-3.5 h-3.5" />}
+                                {type === "user" && <User className="w-3.5 h-3.5" />}
+                                {type === "assistant" && <Bot className="w-3.5 h-3.5" />}
                                 <span>{t(`globalSearch.filterType.${type}`)}</span>
                             </button>
                         ))}
@@ -667,7 +668,7 @@ export const GlobalSearchModal = ({
                     {/* Project Filter */}
                     {projects.length > 1 && (
                         <>
-                            <Filter className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                            <Funnel className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
                             <Select value={selectedProjectPath} onValueChange={setSelectedProjectPath}>
                                 <SelectTrigger className="h-7 text-list border-border w-40">
                                     <SelectValue placeholder={t("globalSearch.allProjects")} />
@@ -716,7 +717,7 @@ export const GlobalSearchModal = ({
                     {!query && (
                         <div className="px-6 py-8 space-y-4">
                             <div className="text-center">
-                                <Search className="w-8 h-8 text-muted-foreground/40 mx-auto mb-3" />
+                                <Icon icon={Search} size={24} className="text-muted-foreground/40 mx-auto mb-3" />
                                 <p className="text-body text-muted-foreground">
                                     {t("globalSearch.hint")}
                                 </p>
@@ -805,8 +806,8 @@ export const GlobalSearchModal = ({
                                                                               : "bg-muted text-muted-foreground"
                                                                     )}
                                                                 >
-                                                                    {result.type === "user" && <User className="w-3 h-3" />}
-                                                                    {result.type === "assistant" && <Bot className="w-3 h-3" />}
+                                                                    {result.type === "user" && <User className="w-3.5 h-3.5" />}
+                                                                    {result.type === "assistant" && <Bot className="w-3.5 h-3.5" />}
                                                                     {result.type}
                                                                 </span>
                                                                 <span className="text-list text-muted-foreground">
@@ -817,7 +818,7 @@ export const GlobalSearchModal = ({
                                                                 const sessionName = getSessionName(result);
                                                                 return sessionName ? (
                                                                     <p className="flex items-center gap-1 text-list text-muted-foreground/70 mb-0.5">
-                                                                        <MessageSquare className="w-3 h-3 shrink-0" />
+                                                                        <MessageSquare className="w-3.5 h-3.5 shrink-0" />
                                                                         <span className="truncate">{sessionName}</span>
                                                                     </p>
                                                                 ) : null;
@@ -842,10 +843,10 @@ export const GlobalSearchModal = ({
                     <div className="flex items-center gap-4">
                         <div className="flex items-center gap-1">
                             <kbd className="px-1.5 py-0.5 bg-muted rounded border border-border font-mono">
-                                <ArrowUp className="w-3 h-3 inline" />
+                                <ArrowUp className="w-3.5 h-3.5 inline" />
                             </kbd>
                             <kbd className="px-1.5 py-0.5 bg-muted rounded border border-border font-mono">
-                                <ArrowDown className="w-3 h-3 inline" />
+                                <ArrowDown className="w-3.5 h-3.5 inline" />
                             </kbd>
                             <span className="ml-1">
                                 {t("globalSearch.navigate")}
@@ -853,7 +854,7 @@ export const GlobalSearchModal = ({
                         </div>
                         <div className="flex items-center gap-1">
                             <kbd className="px-1.5 py-0.5 bg-muted rounded border border-border font-mono">
-                                <CornerDownLeft className="w-3 h-3 inline" />
+                                <CornerDownLeft className="w-3.5 h-3.5 inline" />
                             </kbd>
                             <span className="ml-1">
                                 {t("globalSearch.select")}

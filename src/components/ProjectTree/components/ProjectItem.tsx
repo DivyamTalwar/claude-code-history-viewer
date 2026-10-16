@@ -1,6 +1,6 @@
 // src/components/ProjectTree/components/ProjectItem.tsx
 import React from "react";
-import { AlertCircle, ChevronDown, ChevronRight, Folder, GitBranch } from "lucide-react";
+import { CircleAlert, ChevronDown, ChevronRight, Folder, GitBranch } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import type { ProjectItemProps } from "../types";
@@ -109,13 +109,13 @@ export const ProjectItem: React.FC<ProjectItemProps> = ({
             : "text-muted-foreground"
         )}
       >
-        {isExpanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+        {isExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
       </span>
 
       {/* Icon */}
       {isGrouped ? (
         isMain ? (
-          <span title="Project">
+          <span title={t("project.kind.main")}>
             <Folder
               className={cn(
                 "w-3.5 h-3.5 transition-colors",
@@ -124,7 +124,7 @@ export const ProjectItem: React.FC<ProjectItemProps> = ({
             />
           </span>
         ) : (
-          <span title="Worktree">
+          <span title={t("project.kind.worktree")}>
             <GitBranch
               className={cn(
                 "w-3.5 h-3.5 transition-colors",
@@ -241,7 +241,7 @@ export const ProjectItem: React.FC<ProjectItemProps> = ({
           })}
           className="flex-shrink-0 text-warning"
         >
-          <AlertCircle className="w-3.5 h-3.5" aria-hidden="true" />
+          <CircleAlert className="w-3.5 h-3.5" aria-hidden="true" />
         </span>
       )}
 

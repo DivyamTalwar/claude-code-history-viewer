@@ -1,4 +1,4 @@
-import { Loader2, RefreshCw, Search } from "lucide-react";
+import { LoaderCircle, RefreshCw, Search } from "lucide-react";
 import { useState } from "react";
 
 import { TooltipButton } from "@/shared/TooltipButton";
@@ -278,7 +278,7 @@ export const Header = ({ analyticsActions, analyticsComputed, updater }: HeaderP
           className="md:hidden p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
           aria-label={t("common.commandPalette")}
         >
-          <Search className="w-5 h-5" />
+          <Search className="w-4 h-4" />
         </button>
 
         {/* Project views — one segmented control, Messages first so the way
@@ -291,12 +291,12 @@ export const Header = ({ analyticsActions, analyticsComputed, updater }: HeaderP
             className="hidden md:flex items-center gap-0.5 bg-muted/60 rounded-lg p-0.5 border border-border/60"
           >
             {TOOLBAR_TAB_ORDER.map((view) => {
-              const { icon, labelKey } = VIEW_REGISTRY[view].tab;
+              const { icon, tab: { labelKey } } = VIEW_REGISTRY[view];
               const tab = tabBehaviour[view];
               return (
                 <ViewTab
                   key={view}
-                  icon={tab.isLoading ? Loader2 : icon}
+                  icon={tab.isLoading ? LoaderCircle : icon}
                   label={tab.label ?? t(labelKey)}
                   view={view}
                   tabStop={tabStop === view}
@@ -429,7 +429,8 @@ const ViewTab = ({
       )}
       content={label}
     >
-      <Icon className={cn("w-4 h-4", isLoading && "animate-spin")} />
+      {/* Selected: the icon takes the accent (#9AA0F0 in dark, decision page 7). */}
+      <Icon className={cn("w-4 h-4", isActive && !isLoading && "text-accent", isLoading && "animate-spin")} />
       <span className="hidden xl:inline">{label}</span>
     </TooltipButton>
   );

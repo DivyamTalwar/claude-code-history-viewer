@@ -13,8 +13,9 @@ import {
   Search,
   File,
   ChevronDown,
-  Loader2,
+  LoaderCircle,
 } from "lucide-react";
+import { Icon } from "@/components/icon/Icon";
 import { useAppStore } from "@/store/useAppStore";
 import { useTheme } from "@/contexts/theme";
 import { layout } from "@/components/renderers";
@@ -105,7 +106,7 @@ export const RecentEditsViewer: React.FC<RecentEditsViewerProps> = ({
   if (selectedProject && !supportsRecentEdits(selectedProject.provider)) {
     return (
       <div className="flex flex-col items-center justify-center py-12">
-        <File className="w-12 h-12 mb-4 text-muted-foreground/50" />
+        <Icon icon={File} size={24} className="mb-4 text-muted-foreground/50" />
         <p className={`${layout.bodyText} text-muted-foreground`}>
           {t("recentEdits.unavailableForProvider", {
             provider: getProviderLabel(
@@ -130,7 +131,7 @@ export const RecentEditsViewer: React.FC<RecentEditsViewerProps> = ({
         withSparkle={true}
         emptyComponent={
           <div className="flex flex-col items-center justify-center py-12">
-            <File className="w-12 h-12 mb-4 text-muted-foreground/50" />
+            <Icon icon={File} size={24} className="mb-4 text-muted-foreground/50" />
             <p className="text-title mb-2 text-muted-foreground">{t("recentEdits.noEdits")}</p>
             <p className={`${layout.bodyText} text-muted-foreground`}>
               {t("recentEdits.noEditsDescription")}
@@ -199,7 +200,7 @@ export const RecentEditsViewer: React.FC<RecentEditsViewerProps> = ({
         {/* Search bar */}
         <div className="relative">
           <div className="absolute left-4 top-1/2 -translate-y-1/2 w-8 h-8 rounded-lg bg-muted/50 flex items-center justify-center">
-            <span title="Search"><Search className="w-4 h-4 text-muted-foreground" /></span>
+            <span title={t("common.search")}><Search className="w-4 h-4 text-muted-foreground" /></span>
           </div>
           <input
             type="text"
@@ -216,7 +217,7 @@ export const RecentEditsViewer: React.FC<RecentEditsViewerProps> = ({
         {filteredFiles.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12">
             <div className="w-16 h-16 rounded-2xl bg-muted/30 flex items-center justify-center mb-4">
-              <Search className="w-8 h-8 text-muted-foreground/40" />
+              <Icon icon={Search} size={24} className="text-muted-foreground/40" />
             </div>
             <p className={`${layout.bodyText} text-muted-foreground`}>
               {t("recentEdits.noSearchResults")}
@@ -244,12 +245,12 @@ export const RecentEditsViewer: React.FC<RecentEditsViewerProps> = ({
               >
                 {isLoadingMore ? (
                   <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <LoaderCircle className="w-4 h-4 animate-spin" />
                     {t("common.loading")}
                   </>
                 ) : (
                   <>
-                    <span title="Show More"><ChevronDown className="w-4 h-4" /></span>
+                    <span title={t("common.showMore")}><ChevronDown className="w-4 h-4" /></span>
                     {t("recentEdits.showMore", { count: Math.min(pagination?.limit ?? 20, remainingCount) })}
                     <span className="text-muted-foreground/70">
                       ({remainingCount} {t("analytics.remaining")})

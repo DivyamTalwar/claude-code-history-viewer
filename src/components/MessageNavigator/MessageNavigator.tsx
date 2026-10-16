@@ -1,7 +1,8 @@
 import React, { useRef, useCallback, useState, useMemo, useEffect } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useTranslation } from "react-i18next";
-import { Indent, ListTree, Search, X, PanelRightClose, PanelRight, User, Zap } from "lucide-react";
+import { ListIndentIncrease, ListTree, Search, X, PanelRightClose, User, Zap } from "lucide-react";
+import { SCREEN_ICONS } from "@/components/icon/screenIcons";
 import { cn } from "@/lib/utils";
 import type { ClaudeMessage } from "../../types";
 import { useAppStore } from "../../store/useAppStore";
@@ -17,6 +18,8 @@ import { findTurnKeyForUuid } from "./outline/flattenOutline";
 import { NavigatorOutline } from "./outline/NavigatorOutline";
 import { buildTurnOfMessage } from "./outline/turnOfMessage";
 import { useOutlineTurns } from "./outline/useOutlineTurns";
+
+const InspectorIcon = SCREEN_ICONS.inspector;
 
 // Height estimation constants for virtual scrolling
 const ESTIMATED_CHARS_PER_LINE = 40; // Conservative estimate for small text
@@ -306,7 +309,7 @@ export const MessageNavigator: React.FC<MessageNavigatorProps> = ({
             title={t("navigator.toggle")}
             aria-label={t("navigator.toggle")}
           >
-            <PanelRight className="w-4 h-4" />
+            <InspectorIcon className="w-4 h-4" />
           </button>
 
           <div className="w-6 h-px bg-accent/20" />
@@ -363,7 +366,7 @@ export const MessageNavigator: React.FC<MessageNavigatorProps> = ({
           aria-pressed={isOutline}
           title={t("navigator.viewMode.toggle")}
         >
-          <Indent className="w-3.5 h-3.5" />
+          <ListIndentIncrease className="w-3.5 h-3.5" />
         </button>
         <button
           onClick={handlePersonButtonClick}
@@ -407,7 +410,7 @@ export const MessageNavigator: React.FC<MessageNavigatorProps> = ({
       {/* Filter input */}
       <div className="px-2 py-1.5 border-b border-border/30 shrink-0">
         <div className="relative">
-          <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground/50" />
+          <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/50" />
           <input
             type="text"
             value={filterText}
@@ -422,7 +425,7 @@ export const MessageNavigator: React.FC<MessageNavigatorProps> = ({
               className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-accent/10"
               aria-label={t("common.cancel")}
             >
-              <X className="w-2.5 h-2.5 text-muted-foreground" />
+              <X className="w-3.5 h-3.5 text-muted-foreground" />
             </button>
           )}
         </div>

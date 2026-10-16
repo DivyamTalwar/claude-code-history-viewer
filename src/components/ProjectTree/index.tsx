@@ -2,7 +2,6 @@
 import React, { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import {
   Folder,
-  Database,
   ChevronDown,
   ChevronRight,
   List,
@@ -15,6 +14,8 @@ import {
   Search,
   X,
 } from "lucide-react";
+import { SCREEN_ICONS } from "@/components/icon/screenIcons";
+import { Icon } from "@/components/icon/Icon";
 import { useTranslation } from "react-i18next";
 import { OverlayScrollbarsComponent } from "overlayscrollbars-react";
 import { toast } from "sonner";
@@ -45,6 +46,8 @@ import {
   normalizeProviderIds,
   PROVIDER_IDS,
 } from "../../utils/providers";
+
+const GlobalStatsIcon = SCREEN_ICONS.globalStats;
 
 type ProviderTabId = "all" | ProviderId;
 
@@ -808,7 +811,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
             aria-label={t("project.globalStats")}
             title={t("project.globalStats")}
           >
-            <Database className="w-4 h-4" />
+            <GlobalStatsIcon className="w-4 h-4" />
           </button>
 
           <div className="w-6 h-px bg-accent/20" />
@@ -839,14 +842,18 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
 
         {/* Sidebar Header */}
         <div className="px-4 py-3 bg-accent/5 border-b border-accent/10">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
+          {/* The title gives way before the grouping controls do, so they stay
+              inside a narrow sidebar in every language: it truncates, and below
+              the width where it could show a few characters it is hidden with
+              its dot (the aside's aria-label still names the region). */}
+          <div className="@container flex items-center justify-between">
+            <div className="flex min-w-0 items-center gap-1.5">
               {/* Collapse Button (desktop) */}
               {onToggleCollapse && (
                 <button
                   onClick={onToggleCollapse}
                   className={cn(
-                    "p-1 rounded-md transition-colors",
+                    "shrink-0 p-1 rounded-md transition-colors",
                     "text-muted-foreground hover:text-accent hover:bg-accent/10"
                   )}
                   title={t("project.collapseSidebar", "Collapse sidebar")}
@@ -860,7 +867,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
                 <button
                   onClick={onClose}
                   className={cn(
-                    "p-1 rounded-md transition-colors",
+                    "shrink-0 p-1 rounded-md transition-colors",
                     "text-muted-foreground hover:text-accent hover:bg-accent/10"
                   )}
                   title={t("common.close", "Close")}
@@ -869,12 +876,15 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
                   <X className="w-3.5 h-3.5" />
                 </button>
               )}
-              <div className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
-              <span className="text-list font-semibold uppercase tracking-widest text-accent">
+              <div className="w-1.5 h-1.5 shrink-0 rounded-full bg-accent animate-pulse @max-[12.25rem]:hidden" />
+              <span
+                className="min-w-0 truncate text-list font-semibold uppercase tracking-widest text-accent @max-[12.25rem]:hidden"
+                title={t("project.explorer")}
+              >
                 {t("project.explorer")}
               </span>
             </div>
-            <div className="flex items-center gap-1.5">
+            <div className="flex shrink-0 items-center gap-1.5">
               {/* Grouping Mode Tabs */}
               {onGroupingModeChange && (
                 <div className="flex items-center bg-muted/30 rounded-md p-0.5 gap-0.5">
@@ -888,7 +898,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
                     title={t("project.groupingNone", "Flat list")}
                     aria-label={t("project.groupingNone", "Flat list")}
                   >
-                    <List className="w-3 h-3" />
+                    <List className="w-3.5 h-3.5" />
                   </button>
                   {/* Directory Grouping */}
                   <button
@@ -902,7 +912,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
                     title={t("project.groupingDirectory", "Group by directory")}
                     aria-label={t("project.groupingDirectory", "Group by directory")}
                   >
-                    <FolderTree className="w-3 h-3" />
+                    <FolderTree className="w-3.5 h-3.5" />
                   </button>
                   {/* Worktree Grouping */}
                   <button
@@ -916,7 +926,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
                     title={t("project.groupingWorktree", "Group by worktree")}
                     aria-label={t("project.groupingWorktree", "Group by worktree")}
                   >
-                    <GitBranch className="w-3 h-3" />
+                    <GitBranch className="w-3.5 h-3.5" />
                   </button>
                   {/* Time (Session Recency) Grouping */}
                   <button
@@ -930,11 +940,11 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
                     title={t("project.groupingTime", "Group by time")}
                     aria-label={t("project.groupingTime", "Group by time")}
                   >
-                    <Clock className="w-3 h-3" />
+                    <Clock className="w-3.5 h-3.5" />
                   </button>
                 </div>
               )}
-              <span className="text-list font-mono text-accent bg-accent/10 px-2 py-0.5 rounded-full">
+              <span className="text-list font-mono text-accent bg-accent/10 px-1.5 py-0.5 rounded-full">
                 {filteredProjects.length}
               </span>
             </div>
@@ -959,9 +969,9 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
                     : t("common.expand", "Expand")}: ${providerFilterSummary} (${providerFilterCount})`}
                 >
                   {areProviderFiltersOpen ? (
-                    <ChevronDown className="h-3 w-3 shrink-0" />
+                    <ChevronDown className="h-3.5 w-3.5 shrink-0" />
                   ) : (
-                    <ChevronRight className="h-3 w-3 shrink-0" />
+                    <ChevronRight className="h-3.5 w-3.5 shrink-0" />
                   )}
                   <span className="min-w-0 flex-1 truncate">
                     {providerFilterSummary}
@@ -985,7 +995,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
                 title={t("project.resetProviderFilters", "Reset")}
                 aria-label={t("project.resetProviderFilters", "Reset")}
               >
-                <RotateCcw className="w-3 h-3" />
+                <RotateCcw className="w-3.5 h-3.5" />
               </button>
             </div>
             <CollapsibleContent>
@@ -1003,7 +1013,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
                   title={t("project.discoverProviders", "Find other providers")}
                   aria-label={t("project.discoverProviders", "Find other providers")}
                 >
-                  <Search className="h-3 w-3" aria-hidden="true" />
+                  <Search className="h-3.5 w-3.5" aria-hidden="true" />
                   <span>
                     {isDetectingProviders || isLoadingProjects
                       ? t("project.discoveringProviders", "Searching for providers...")
@@ -1074,7 +1084,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
                 className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded text-muted-foreground/50 hover:text-muted-foreground transition-colors"
                 aria-label={t("common.clear", "Clear")}
               >
-                <X className="w-3 h-3" />
+                <X className="w-3.5 h-3.5" />
               </button>
             )}
           </div>
@@ -1101,7 +1111,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
           {filteredProjects.length === 0 ? (
             <div className="px-4 py-12 text-center">
               <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-muted/30 flex items-center justify-center">
-                <Folder className="w-8 h-8 text-muted-foreground/40" />
+                <Icon icon={Folder} size={24} className="text-muted-foreground/40" />
               </div>
               <p className="text-body text-muted-foreground">{t("project.notFound")}</p>
             </div>
@@ -1147,7 +1157,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
                   )}
                 >
                   <span title={t("project.globalStats")}>
-                    <Database className="w-4 h-4 transition-transform group-hover:scale-110" />
+                    <GlobalStatsIcon className="w-4 h-4 transition-transform group-hover:scale-110" />
                   </span>
                 </div>
                 <div className="flex-1 min-w-0">

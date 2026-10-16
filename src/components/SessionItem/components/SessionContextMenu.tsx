@@ -3,12 +3,12 @@ import { createPortal } from "react-dom";
 import {
   Pencil,
   RotateCcw,
-  Terminal,
+  SquareTerminal,
   Copy,
   FileText,
   FolderOpen,
   Play,
-  Trash2,
+  Trash,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
@@ -159,7 +159,7 @@ export const SessionContextMenu: React.FC<SessionContextMenuProps> = ({
           <>
             <div className="my-1 border-t border-border/50" />
             <button type="button" role="menuitem" onClick={handleAction(onNativeRenameClick)} className={menuItemClass}>
-              <Terminal className="w-3.5 h-3.5" />
+              <SquareTerminal className="w-3.5 h-3.5" />
               <span>
                 {providerId === "opencode"
                   ? t("session.nativeRename.menuItemOpenCode", "Rename in OpenCode")
@@ -209,7 +209,7 @@ export const SessionContextMenu: React.FC<SessionContextMenuProps> = ({
               onClick={handleAction(onDeleteSession)}
               className={cn(menuItemClass, "text-destructive hover:text-destructive")}
             >
-              <Trash2 className="w-3.5 h-3.5" />
+              <Trash className="w-3.5 h-3.5" />
               <span>{t("session.deleteSession", "Delete Session")}</span>
             </button>
           </>

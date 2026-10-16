@@ -18,10 +18,10 @@ import { Label } from "@/components/ui/label";
 import {
   ChevronDown,
   ChevronRight,
-  Terminal,
-  AlertTriangle,
-  CheckCircle2,
-  XCircle,
+  SquareTerminal,
+  TriangleAlert,
+  CircleCheck,
+  CircleX,
   RotateCcw,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -260,7 +260,7 @@ export function SessionResumeSection({
           className="flex items-center justify-between w-full p-4 text-left hover:bg-muted/30 transition-colors"
         >
           <div className="flex items-center gap-2">
-            <Terminal className="h-4 w-4 text-primary shrink-0" />
+            <SquareTerminal className="h-4 w-4 text-primary shrink-0" />
             <div>
               <h3 className="text-body font-medium text-foreground">
                 {t("settings.sessionResume.title", "Session Resume Arguments")}
@@ -333,7 +333,7 @@ export function SessionResumeSection({
                             className="inline-flex items-center gap-1 px-2 py-0.5 text-caption text-muted-foreground hover:text-foreground rounded hover:bg-muted"
                             title={t("common.reset", "Reset")}
                           >
-                            <RotateCcw className="h-3 w-3" />
+                            <RotateCcw className="h-3.5 w-3.5" />
                             <span>{t("common.reset", "Reset")}</span>
                           </button>
                           {isDirty && (
@@ -343,7 +343,7 @@ export function SessionResumeSection({
                               disabled={!validation.isValid}
                               className="inline-flex items-center gap-1 px-2.5 py-0.5 text-caption font-medium bg-primary text-primary-foreground rounded hover:bg-primary/90 disabled:opacity-50"
                             >
-                              <CheckCircle2 className="h-3 w-3" />
+                              <CircleCheck className="h-3.5 w-3.5" />
                               <span>{t("common.save", "Save")}</span>
                             </button>
                           )}
@@ -373,7 +373,7 @@ export function SessionResumeSection({
                       {/* Inline Validation Error */}
                       {!validation.isValid && (
                         <p className="flex items-center gap-1 text-caption text-destructive">
-                          <XCircle className="h-3 w-3 shrink-0" />
+                          <CircleX className="h-3.5 w-3.5 shrink-0" />
                           <span>{getValidationErrorMessage(validation)}</span>
                         </p>
                       )}
@@ -381,7 +381,7 @@ export function SessionResumeSection({
                       {/* Inline Dangerous Flag Warning */}
                       {validation.isValid && validation.hasDangerousFlag && (
                         <div className="flex items-center gap-1.5 text-caption text-amber-700 dark:text-amber-300 bg-amber-500/10 border border-amber-500/30 rounded px-2 py-1 mt-1">
-                          <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
+                          <TriangleAlert className="h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
                           <span>
                             {t(
                               "settings.sessionResume.warningDangerous",

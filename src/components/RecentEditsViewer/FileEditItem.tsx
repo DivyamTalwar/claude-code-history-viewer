@@ -10,7 +10,7 @@ import React, { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Markdown } from "../common";
 import {
-  FileEdit,
+  FilePen,
   FileDiff,
   FilePlus,
   Clock,
@@ -18,7 +18,7 @@ import {
   Check,
   ChevronDown,
   ChevronRight,
-  Loader2,
+  LoaderCircle,
   RotateCcw,
   FolderOpen,
 } from "lucide-react";
@@ -174,11 +174,11 @@ export const FileEditItem: React.FC<FileEditItemProps> = ({
           >
             {isExpanded ? (
               <span title={tCommon("common.collapse", "Collapse")}>
-                <ChevronDown className={dense ? "h-3 w-3" : "w-4 h-4"} />
+                <ChevronDown className={dense ? "h-3.5 w-3.5" : "w-4 h-4"} />
               </span>
             ) : (
               <span title={tCommon("common.expand", "Expand")}>
-                <ChevronRight className={dense ? "h-3 w-3" : "w-4 h-4"} />
+                <ChevronRight className={dense ? "h-3.5 w-3.5" : "w-4 h-4"} />
               </span>
             )}
           </div>
@@ -213,7 +213,7 @@ export const FileEditItem: React.FC<FileEditItemProps> = ({
               {edit.operation_type === "write" ? (
                 <span title={t("recentEdits.created", "Created")}><FilePlus className="w-4 h-4" /></span>
               ) : (
-                <span title={t("recentEdits.edited", "Edited")}><FileEdit className="w-4 h-4" /></span>
+                <span title={t("recentEdits.edited", "Edited")}><FilePen className="w-4 h-4" /></span>
               )}
             </div>
           )}
@@ -309,7 +309,7 @@ export const FileEditItem: React.FC<FileEditItemProps> = ({
               aria-label={t("recentEdits.showDiff")}
               aria-pressed={isExpanded && viewMode === "diff"}
             >
-              <FileDiff className="w-3 h-3" />
+              <FileDiff className="w-3.5 h-3.5" />
               <span>{t("recentEdits.diff")}</span>
             </button>
           </div>
@@ -332,7 +332,7 @@ export const FileEditItem: React.FC<FileEditItemProps> = ({
           <div
             className={`flex items-center space-x-1.5 ${layout.smallText} text-muted-foreground bg-muted/50 px-2 py-1 rounded-lg`}
           >
-            <span title={t("recentEdits.timestamp", "Timestamp")}><Clock className="w-3 h-3" /></span>
+            <span title={t("recentEdits.timestamp", "Timestamp")}><Clock className="w-3.5 h-3.5" /></span>
             <span title={formatTimestamp(edit.timestamp)}>
               {getRelativeTime(edit.timestamp, tCommon)}
             </span>
@@ -370,6 +370,7 @@ export const FileEditItem: React.FC<FileEditItemProps> = ({
             // than leaving tests to match on an icon's class names.
             data-testid={copied ? "file-edit-copied" : "file-edit-copy"}
             title={t("recentEdits.copyContent")}
+            aria-label={t("recentEdits.copyContent")}
           >
             {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
           </button>
@@ -394,9 +395,10 @@ export const FileEditItem: React.FC<FileEditItemProps> = ({
                     : "hover:bg-muted text-muted-foreground hover:text-foreground"
             )}
             title={t("recentEdits.restoreFile")}
+            aria-label={t("recentEdits.restoreFile")}
           >
             {restoreStatus === "loading" ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
+              <LoaderCircle className="w-4 h-4 animate-spin" />
             ) : restoreStatus === "success" ? (
               <Check className="w-4 h-4" />
             ) : (

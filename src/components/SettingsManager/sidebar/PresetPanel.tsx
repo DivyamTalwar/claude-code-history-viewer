@@ -60,13 +60,13 @@ import {
   User,
   FolderOpen,
   FileCode,
-  MoreHorizontal,
+  Ellipsis,
   Pencil,
-  Trash2,
+  Trash,
   Copy,
-  FileJson,
-  AlertTriangle,
-  Loader2,
+  FileBraces,
+  TriangleAlert,
+  LoaderCircle,
   Check,
   Server,
   Shield,
@@ -143,7 +143,7 @@ const PresetItem: React.FC<PresetItemProps> = React.memo(
                     className="inline-flex items-center justify-center w-6 h-6 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
                     aria-label={t("settingsManager.presets.applyTo")}
                   >
-                    <Play className="w-3 h-3" />
+                    <Play className="w-3.5 h-3.5" />
                   </button>
                 </TooltipTrigger>
                 <TooltipContent side="top" className="text-list">
@@ -158,7 +158,7 @@ const PresetItem: React.FC<PresetItemProps> = React.memo(
                       className="inline-flex items-center justify-center w-6 h-6 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
                       aria-label={t("settingsManager.presets.moreOptions")}
                     >
-                      <MoreHorizontal className="w-3.5 h-3.5" />
+                      <Ellipsis className="w-3.5 h-3.5" />
                     </button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-36">
@@ -175,7 +175,7 @@ const PresetItem: React.FC<PresetItemProps> = React.memo(
                       onClick={onDelete}
                       className="text-destructive focus:text-destructive"
                     >
-                      <Trash2 className="w-3.5 h-3.5 mr-2" />
+                      <Trash className="w-3.5 h-3.5 mr-2" />
                       {t("common.delete")}
                     </DropdownMenuItem>
                   </DropdownMenuContent>
@@ -194,7 +194,7 @@ const PresetItem: React.FC<PresetItemProps> = React.memo(
               )}
               {summary.mcpServerCount > 0 && (
                 <span className="inline-flex items-center gap-1 rounded-full bg-success/10 px-2 py-0.5 text-caption font-medium text-success whitespace-nowrap">
-                  <Server className="w-2.5 h-2.5 shrink-0" />
+                  <Server className="w-3.5 h-3.5 shrink-0" />
                   {t("settingsManager.presets.badge.mcpCount", { count: summary.mcpServerCount })}
                 </span>
               )}
@@ -712,7 +712,7 @@ export const PresetPanel: React.FC = () => {
         <DialogContent className={dialogMode === "edit" ? "sm:max-w-3xl max-h-[85vh] flex flex-col" : "max-w-lg max-h-[85vh] flex flex-col"}>
           <DialogHeader className="shrink-0">
             <DialogTitle className="flex items-center gap-2">
-              <Package className="w-5 h-5" />
+              <Package className="w-4 h-4" />
               {dialogMode === "create"
                 ? t("settingsManager.presets.createTitle")
                 : dialogMode === "edit"
@@ -751,7 +751,7 @@ export const PresetPanel: React.FC = () => {
                   />
                   {formNameError && (
                     <p className="text-list text-destructive mt-1 flex items-center gap-1">
-                      <AlertTriangle className="w-3 h-3" />
+                      <TriangleAlert className="w-3.5 h-3.5" />
                       {formNameError}
                     </p>
                   )}
@@ -776,7 +776,7 @@ export const PresetPanel: React.FC = () => {
               {/* Right column: JSON editor */}
               <div className="flex-1 flex flex-col min-w-0">
                 <Label className="mb-1.5 flex items-center gap-2">
-                  <FileJson className="w-4 h-4" />
+                  <FileBraces className="w-4 h-4" />
                   {t("settingsManager.presets.jsonLabel")}
                 </Label>
                 <Textarea
@@ -790,7 +790,7 @@ export const PresetPanel: React.FC = () => {
                 />
                 {formJsonError && (
                   <p className="text-list text-destructive mt-1 flex items-center gap-1">
-                    <AlertTriangle className="w-3 h-3" />
+                    <TriangleAlert className="w-3.5 h-3.5" />
                     {formJsonError}
                   </p>
                 )}
@@ -808,25 +808,25 @@ export const PresetPanel: React.FC = () => {
                   <div className="flex flex-wrap gap-1.5">
                     {Object.keys(effectiveSettings).length > 0 && (
                       <Badge variant="secondary" className="text-list">
-                        <Cpu className="w-3 h-3 mr-1" />
+                        <Cpu className="w-3.5 h-3.5 mr-1" />
                         {Object.keys(effectiveSettings).length} {t("settingsManager.presets.summary.settings")}
                       </Badge>
                     )}
                     {Object.keys(currentMCPServers).length > 0 && (
                       <Badge variant="secondary" className="text-list">
-                        <Server className="w-3 h-3 mr-1" />
+                        <Server className="w-3.5 h-3.5 mr-1" />
                         {Object.keys(currentMCPServers).length} {t("settingsManager.presets.summary.mcpServers")}
                       </Badge>
                     )}
                     {(effectiveSettings as ClaudeCodeSettings).permissions && (
                       <Badge variant="secondary" className="text-list">
-                        <Shield className="w-3 h-3 mr-1" />
+                        <Shield className="w-3.5 h-3.5 mr-1" />
                         {t("settingsManager.presets.summary.permissions")}
                       </Badge>
                     )}
                     {(effectiveSettings as ClaudeCodeSettings).hooks && (
                       <Badge variant="secondary" className="text-list">
-                        <Zap className="w-3 h-3 mr-1" />
+                        <Zap className="w-3.5 h-3.5 mr-1" />
                         {t("settingsManager.presets.summary.hooks")}
                       </Badge>
                     )}
@@ -856,7 +856,7 @@ export const PresetPanel: React.FC = () => {
                   />
                   {formNameError && (
                     <p className="text-list text-destructive mt-1 flex items-center gap-1">
-                      <AlertTriangle className="w-3 h-3" />
+                      <TriangleAlert className="w-3.5 h-3.5" />
                       {formNameError}
                     </p>
                   )}
@@ -891,7 +891,7 @@ export const PresetPanel: React.FC = () => {
                       className="w-full justify-between px-3 h-9"
                     >
                       <span className="flex items-center gap-2 text-muted-foreground">
-                        <FileJson className="w-4 h-4" />
+                        <FileBraces className="w-4 h-4" />
                         {t("settingsManager.presets.viewJson")}
                       </span>
                       <ChevronDown
@@ -967,7 +967,7 @@ export const PresetPanel: React.FC = () => {
               <div className="flex flex-wrap gap-1.5">
                 {selectedPreset.summary.settingsCount > 0 && (
                   <Badge variant="secondary" className="text-list">
-                    <Cpu className="w-3 h-3 mr-1" />
+                    <Cpu className="w-3.5 h-3.5 mr-1" />
                     {selectedPreset.summary.settingsCount} {t("settingsManager.presets.summary.settings")}
                   </Badge>
                 )}
@@ -978,19 +978,19 @@ export const PresetPanel: React.FC = () => {
                 )}
                 {selectedPreset.summary.mcpServerCount > 0 && (
                   <Badge variant="secondary" className="text-list">
-                    <Server className="w-3 h-3 mr-1" />
+                    <Server className="w-3.5 h-3.5 mr-1" />
                     {selectedPreset.summary.mcpServerCount} {t("settingsManager.presets.summary.mcpServers")}
                   </Badge>
                 )}
                 {selectedPreset.summary.hasPermissions && (
                   <Badge variant="secondary" className="text-list">
-                    <Shield className="w-3 h-3 mr-1" />
+                    <Shield className="w-3.5 h-3.5 mr-1" />
                     {t("settingsManager.presets.summary.permissions")}
                   </Badge>
                 )}
                 {selectedPreset.summary.hasHooks && (
                   <Badge variant="secondary" className="text-list">
-                    <Zap className="w-3 h-3 mr-1" />
+                    <Zap className="w-3.5 h-3.5 mr-1" />
                     {t("settingsManager.presets.summary.hooks")}
                   </Badge>
                 )}
@@ -1098,7 +1098,7 @@ export const PresetPanel: React.FC = () => {
                 </>
               ) : isApplying ? (
                 <>
-                  <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
+                  <LoaderCircle className="w-4 h-4 mr-1.5 animate-spin" />
                   {t("settingsManager.presets.applying")}
                 </>
               ) : (
@@ -1119,7 +1119,7 @@ export const PresetPanel: React.FC = () => {
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-destructive">
-              <Trash2 className="w-5 h-5" />
+              <Trash className="w-4 h-4" />
               {t("settingsManager.presets.deleteConfirmTitle")}
             </DialogTitle>
             <DialogDescription>

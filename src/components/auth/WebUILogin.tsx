@@ -1,6 +1,6 @@
 import { type FormEvent, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { KeyRound, Loader2, Lock, ShieldCheck, User } from "lucide-react";
+import { KeyRound, LoaderCircle, Lock, ShieldCheck, User } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -58,7 +58,7 @@ export default function WebUILogin({ onAuthenticated }: WebUILoginProps) {
       <section className="w-full max-w-[420px] rounded-lg border border-border bg-card p-6 shadow-lg">
         <div className="mb-6 flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-md bg-primary/10 text-primary">
-            <ShieldCheck className="h-5 w-5" aria-hidden="true" />
+            <ShieldCheck className="h-4 w-4" aria-hidden="true" />
           </div>
           <div className="min-w-0">
             <h1 className="text-title font-semibold leading-tight">
@@ -185,7 +185,7 @@ export default function WebUILogin({ onAuthenticated }: WebUILoginProps) {
 
           <Button className="w-full" type="submit" disabled={!canSubmit}>
             {isSubmitting ? (
-              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+              <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" />
             ) : null}
             {t("webui.login.submit")}
           </Button>

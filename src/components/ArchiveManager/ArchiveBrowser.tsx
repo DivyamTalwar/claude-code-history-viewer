@@ -8,12 +8,13 @@ import {
   Download,
   FolderOpen,
   Plus,
-  Trash2,
+  Trash,
   Pencil,
   Package,
   MessageSquare,
-  Loader2,
+  LoaderCircle,
 } from 'lucide-react';
+import { Icon } from "@/components/icon/Icon";
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
@@ -244,7 +245,7 @@ export const ArchiveBrowser: React.FC = () => {
       {/* Archive list */}
       {archives.length === 0 ? (
         <div className="text-center py-12">
-          <Package className="w-12 h-12 mx-auto text-muted-foreground/30 mb-3" />
+          <Icon icon={Package} size={24} className="mx-auto text-muted-foreground/30 mb-3" />
           <p className="text-body font-medium text-muted-foreground">
             {t('archive.browse.empty.title')}
           </p>
@@ -320,7 +321,7 @@ export const ArchiveBrowser: React.FC = () => {
                       setIsDeleteOpen(true);
                     }}
                   >
-                    <Trash2 className="w-3.5 h-3.5" />
+                    <Trash className="w-3.5 h-3.5" />
                   </Button>
                 </div>
               </div>
@@ -330,7 +331,7 @@ export const ArchiveBrowser: React.FC = () => {
                 <CardContent className="pt-0 pb-3 px-3 border-t border-border/30">
                   {archive.isLoadingSessions ? (
                     <div className="flex items-center justify-center gap-2 py-3">
-                      <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />
+                      <LoaderCircle className="w-3.5 h-3.5 animate-spin text-muted-foreground" />
                       <p className="text-list text-muted-foreground">{t('common.loading')}</p>
                     </div>
                   ) : archive.currentArchiveSessionsError &&
@@ -383,7 +384,7 @@ export const ArchiveBrowser: React.FC = () => {
                               onClick={() => handleExportSession(entry.id, session)}
                             >
                               {exportingSessionId === session.sessionId ? (
-                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                <LoaderCircle className="w-3.5 h-3.5 animate-spin" />
                               ) : (
                                 <Download className="w-3.5 h-3.5" />
                               )}
@@ -398,7 +399,7 @@ export const ArchiveBrowser: React.FC = () => {
                                     key={subagent.fileName}
                                     className="flex items-center gap-2 p-1.5 rounded-md hover:bg-muted/20 transition-colors"
                                   >
-                                    <Bot className="w-3 h-3 text-muted-foreground/60 shrink-0" />
+                                    <Bot className="w-3.5 h-3.5 text-muted-foreground/60 shrink-0" />
                                     <div className="min-w-0 flex-1">
                                       <p className="text-caption truncate text-muted-foreground">
                                         {subagent.fileName.replace(/\.jsonl$/, '')}
@@ -424,9 +425,9 @@ export const ArchiveBrowser: React.FC = () => {
                                       onClick={() => handleExportSubagent(entry.id, session.sessionId, subagent.fileName)}
                                     >
                                       {exportingSessionId === trackingId ? (
-                                        <Loader2 className="w-3 h-3 animate-spin" />
+                                        <LoaderCircle className="w-3.5 h-3.5 animate-spin" />
                                       ) : (
-                                        <Download className="w-3 h-3" />
+                                        <Download className="w-3.5 h-3.5" />
                                       )}
                                     </Button>
                                   </div>
@@ -470,7 +471,7 @@ export const ArchiveBrowser: React.FC = () => {
               disabled={archive.isDeletingArchive}
             >
               {archive.isDeletingArchive ? (
-                <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                <LoaderCircle className="w-3.5 h-3.5 mr-1.5 animate-spin" />
               ) : null}
               {t('archive.browse.delete.confirm')}
             </Button>
@@ -503,7 +504,7 @@ export const ArchiveBrowser: React.FC = () => {
               {t('archive.browse.rename.cancel')}
             </Button>
             <Button onClick={handleRename} disabled={!renameName.trim() || archive.isRenamingArchive}>
-              {archive.isRenamingArchive && <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />}
+              {archive.isRenamingArchive && <LoaderCircle className="w-3.5 h-3.5 mr-1.5 animate-spin" />}
               {t('archive.browse.rename.confirm')}
             </Button>
           </DialogFooter>
