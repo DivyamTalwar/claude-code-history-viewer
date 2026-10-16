@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-10-16T08:29:26.940Z
- * 총 키 개수: 2047
+ * 생성 시간: 2026-10-16T10:31:43.642Z
+ * 총 키 개수: 2062
  * Namespace 수: 11
  */
 
@@ -258,7 +258,7 @@ export type CommonKeys =
   | 'time.yesterday';
 
 /**
- * analytics namespace의 번역 키 (197개)
+ * analytics namespace의 번역 키 (206개)
  * 파일: locales/{lang}/analytics.json
  */
 export type AnalyticsKeys =
@@ -275,6 +275,7 @@ export type AnalyticsKeys =
   | 'analytics.Session Analysis'
   | 'analytics.Tools Used'
   | 'analytics.aboveAverage'
+  | 'analytics.activeDays'
   | 'analytics.activeTime'
   | 'analytics.activityHeatmap'
   | 'analytics.activityHeatmapTitle'
@@ -295,6 +296,9 @@ export type AnalyticsKeys =
   | 'analytics.calculating'
   | 'analytics.calendarTotal'
   | 'analytics.conversationOnly'
+  | 'analytics.costEstimatedShort'
+  | 'analytics.costExact'
+  | 'analytics.costUnavailable'
   | 'analytics.count'
   | 'analytics.currentSession'
   | 'analytics.currentSessionTokens'
@@ -310,6 +314,7 @@ export type AnalyticsKeys =
   | 'analytics.estimatedCost'
   | 'analytics.estimatedCostValue'
   | 'analytics.estimatedLabel'
+  | 'analytics.exactCostLabel'
   | 'analytics.firstMessage'
   | 'analytics.globalOverview'
   | 'analytics.globalOverviewDescription'
@@ -336,6 +341,7 @@ export type AnalyticsKeys =
   | 'analytics.metricModeTokens'
   | 'analytics.min'
   | 'analytics.minutesUnit'
+  | 'analytics.mixedCostLabel'
   | 'analytics.modelDistribution'
   | 'analytics.mostUsedSkillsTitle'
   | 'analytics.mostUsedSubagentsTitle'
@@ -366,6 +372,7 @@ export type AnalyticsKeys =
   | 'analytics.providerDistributionMeta'
   | 'analytics.providerScopeProjectTree'
   | 'analytics.rank'
+  | 'analytics.reasoning'
   | 'analytics.recentActivity'
   | 'analytics.recentActivityTrend'
   | 'analytics.remaining'
@@ -453,6 +460,8 @@ export type AnalyticsKeys =
   | 'analytics.trend.upDescription'
   | 'analytics.trend.upSmallBase'
   | 'analytics.units'
+  | 'analytics.unknownProvider'
+  | 'analytics.unpricedModels'
   | 'analytics.viewDetails'
   | 'analytics.weekdayNames'
   | 'analytics.weekdayNamesShort'
@@ -461,7 +470,7 @@ export type AnalyticsKeys =
   | 'analytics.weeklyActivity';
 
 /**
- * session namespace의 번역 키 (266개)
+ * session namespace의 번역 키 (272개)
  * 파일: locales/{lang}/session.json
  */
 export type SessionKeys =
@@ -674,6 +683,12 @@ export type SessionKeys =
   | 'session.nativeRename.warningCodex'
   | 'session.nativeRename.warningForgeCode'
   | 'session.nativeRename.warningOpenCode'
+  | 'session.noProjects.claudeDescription'
+  | 'session.noProjects.claudeHint'
+  | 'session.noProjects.claudeTitle'
+  | 'session.noProjects.description'
+  | 'session.noProjects.hint'
+  | 'session.noProjects.title'
   | 'session.pane.title'
   | 'session.refreshAllConversations'
   | 'session.rename'
@@ -2198,6 +2213,7 @@ export type TranslationKey =
   | 'analytics.Session Analysis'
   | 'analytics.Tools Used'
   | 'analytics.aboveAverage'
+  | 'analytics.activeDays'
   | 'analytics.activeTime'
   | 'analytics.activityHeatmap'
   | 'analytics.activityHeatmapTitle'
@@ -2218,6 +2234,9 @@ export type TranslationKey =
   | 'analytics.calculating'
   | 'analytics.calendarTotal'
   | 'analytics.conversationOnly'
+  | 'analytics.costEstimatedShort'
+  | 'analytics.costExact'
+  | 'analytics.costUnavailable'
   | 'analytics.count'
   | 'analytics.currentSession'
   | 'analytics.currentSessionTokens'
@@ -2233,6 +2252,7 @@ export type TranslationKey =
   | 'analytics.estimatedCost'
   | 'analytics.estimatedCostValue'
   | 'analytics.estimatedLabel'
+  | 'analytics.exactCostLabel'
   | 'analytics.firstMessage'
   | 'analytics.globalOverview'
   | 'analytics.globalOverviewDescription'
@@ -2259,6 +2279,7 @@ export type TranslationKey =
   | 'analytics.metricModeTokens'
   | 'analytics.min'
   | 'analytics.minutesUnit'
+  | 'analytics.mixedCostLabel'
   | 'analytics.modelDistribution'
   | 'analytics.mostUsedSkillsTitle'
   | 'analytics.mostUsedSubagentsTitle'
@@ -2289,6 +2310,7 @@ export type TranslationKey =
   | 'analytics.providerDistributionMeta'
   | 'analytics.providerScopeProjectTree'
   | 'analytics.rank'
+  | 'analytics.reasoning'
   | 'analytics.recentActivity'
   | 'analytics.recentActivityTrend'
   | 'analytics.remaining'
@@ -2376,6 +2398,8 @@ export type TranslationKey =
   | 'analytics.trend.upDescription'
   | 'analytics.trend.upSmallBase'
   | 'analytics.units'
+  | 'analytics.unknownProvider'
+  | 'analytics.unpricedModels'
   | 'analytics.viewDetails'
   | 'analytics.weekdayNames'
   | 'analytics.weekdayNamesShort'
@@ -3341,6 +3365,12 @@ export type TranslationKey =
   | 'session.nativeRename.warningCodex'
   | 'session.nativeRename.warningForgeCode'
   | 'session.nativeRename.warningOpenCode'
+  | 'session.noProjects.claudeDescription'
+  | 'session.noProjects.claudeHint'
+  | 'session.noProjects.claudeTitle'
+  | 'session.noProjects.description'
+  | 'session.noProjects.hint'
+  | 'session.noProjects.title'
   | 'session.pane.title'
   | 'session.refreshAllConversations'
   | 'session.rename'

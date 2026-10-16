@@ -11,8 +11,11 @@
 import type { ReactNode } from "react";
 import { OverlayScrollbarsComponent } from "overlayscrollbars-react";
 import { useTranslation } from "react-i18next";
-import { MessageSquare } from "lucide-react";
+import { FolderSearch, MessageSquare, Search } from "lucide-react";
 import { Icon } from "@/components/icon/Icon";
+import { Button } from "@/components/ui/button";
+import { useProviderDiscovery } from "@/hooks/useProviderDiscovery";
+import { cn } from "@/lib/utils";
 import { useAppStore } from "@/store/useAppStore";
 import { MessageViewer } from "@/components/MessageViewer";
 import { TokenStatsViewer } from "@/components/TokenStatsViewer";
@@ -64,25 +67,103 @@ export const BareFrame = ({ children }: { children: ReactNode }) => <>{children}
 // Screens
 // ---------------------------------------------------------------------------
 
-/** "Select a session": the empty screen, and a conversation without one. */
-export const EmptyScreen = () => {
-  const { t } = useTranslation();
-  return (
-    <div className="h-full flex">
-      <div className="flex-1 flex items-center justify-center">
-        <div className="text-center max-w-sm mx-auto">
-          <div className="w-20 h-20 rounded-2xl bg-muted/50 flex items-center justify-center mx-auto mb-6">
-            <Icon icon={MessageSquare} size={24} className="text-muted-foreground/50" />
-          </div>
-          <h3 className="text-title font-medium text-foreground mb-2">
-            {t("session.select")}
-          </h3>
-          <p className="text-body text-muted-foreground">
-            {t("session.selectDescription")}
-          </p>
+/** Centered icon + title + body, the shape of every empty main area. */
+const EmptyState = ({
+  icon,
+  title,
+  children,
+  className,
+}: {
+  icon: typeof MessageSquare;
+  title: string;
+  children: ReactNode;
+  className?: string;
+}) => (
+  <div className="h-full flex">
+    <div className="flex-1 flex items-center justify-center">
+      <div className={cn("text-center max-w-sm mx-auto", className)}>
+        <div className="w-20 h-20 rounded-2xl bg-muted/50 flex items-center justify-center mx-auto mb-6">
+          <Icon icon={icon} size={24} className="text-muted-foreground/50" />
         </div>
+        <h3 className="text-title font-medium text-foreground mb-2">{title}</h3>
+        {children}
       </div>
     </div>
+  </div>
+);
+
+/**
+ * No projects at all: says what was searched and where, instead of asking
+ * for a session the user cannot pick. Until the user has asked for other
+ * providers, only Claude Code was searched (startup never scans the rest),
+ * so the screen says "no Claude Code projects" and offers the same "Find
+ * other providers" action as the project tree.
+ */
+const NoProjectsState = () => {
+  const { t } = useTranslation();
+  const claudePath = useAppStore((s) => s.claudePath);
+  const { discover, isDiscovering, hasSearched } = useProviderDiscovery();
+  const copy = hasSearched
+    ? {
+        title: t("session.noProjects.title"),
+        description: t("session.noProjects.description"),
+        hint: "session.noProjects.hint" as const,
+      }
+    : {
+        title: t("session.noProjects.claudeTitle"),
+        description: t("session.noProjects.claudeDescription"),
+        hint: "session.noProjects.claudeHint" as const,
+      };
+  return (
+    // Korean breaks between words (keep-all), not inside them; Japanese and
+    // Chinese have no spaces and keep the default per-character breaks.
+    <EmptyState icon={FolderSearch} title={copy.title} className="px-4 [&:lang(ko)]:break-keep">
+      <p className="text-body text-muted-foreground">{copy.description}</p>
+      <code className="mt-2 mb-3 inline-block max-w-full break-all rounded-md bg-muted px-2 py-1 text-code text-foreground/80">
+        {claudePath || "~/.claude"}
+      </code>
+      <p className="text-list text-muted-foreground">
+        {t(copy.hint, {
+          settings: t("settingsManager.title"),
+          section: t("settings.customDirectories"),
+        })}
+      </p>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="mt-4"
+        onClick={discover}
+        disabled={isDiscovering}
+      >
+        <Icon icon={Search} size={14} aria-hidden="true" />
+        {isDiscovering
+          ? t("project.discoveringProviders")
+          : t("project.discoverProviders")}
+      </Button>
+    </EmptyState>
+  );
+};
+
+/**
+ * The empty screen, and a conversation without a session: "select a
+ * session", or - once loading is over and there are no projects at all -
+ * the no-history state.
+ */
+export const EmptyScreen = () => {
+  const { t } = useTranslation();
+  const hasNoProjects = useAppStore(
+    (s) =>
+      !s.isLoading &&
+      !s.isLoadingProjects &&
+      !s.isDetectingProviders &&
+      s.projects.length === 0
+  );
+  if (hasNoProjects) return <NoProjectsState />;
+  return (
+    <EmptyState icon={MessageSquare} title={t("session.select")}>
+      <p className="text-body text-muted-foreground">{t("session.selectDescription")}</p>
+    </EmptyState>
   );
 };
 
