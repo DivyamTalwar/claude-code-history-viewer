@@ -11,7 +11,7 @@ import { Tooltip, TooltipTrigger } from "../../ui/tooltip";
 import { ChartTooltip } from "../../ui/chart-tooltip";
 import { cn } from "@/lib/utils";
 import type { DailyStats } from "../../../types";
-import { formatNumber, getHeatColor } from "../utils";
+import { formatNumber, getHeatColor, getHeatTextColor } from "../utils";
 
 interface ActivityHeatmapProps {
   data: DailyStats[];
@@ -139,7 +139,7 @@ const MonthBlock: React.FC<{
         {weekdayLabels.map((label, i) => (
           <div
             key={i}
-            className="w-[14px] h-[14px] flex items-center justify-center text-caption font-medium text-muted-foreground/50"
+            className="w-[14px] h-[14px] flex items-center justify-center text-caption font-medium text-muted-foreground"
           >
             {label}
           </div>
@@ -166,14 +166,18 @@ const MonthBlock: React.FC<{
                       "w-[14px] h-[14px] rounded-sm cursor-pointer",
                       "transition-transform duration-150",
                       "hover:scale-125 hover:z-10",
-                      intensity > 0 && "hover:ring-1 hover:ring-white/30"
+                      "hover:ring-1 hover:ring-foreground/30"
                     )}
                     style={{ backgroundColor: heatColor }}
                     aria-label={`${cell.date}: ${cell.messageCount} ${t("analytics.tooltip.messages")}`}
                   >
-                    {/* Show day number only on 1st for orientation */}
+                    {/* Show day number only on 1st for orientation, in the
+                        text color readable on this cell's intensity. */}
                     {cell.dayNum === 1 && (
-                      <span className="text-caption text-foreground/40 leading-none flex items-center justify-center h-full">
+                      <span
+                        className="text-caption leading-none flex items-center justify-center h-full"
+                        style={{ color: getHeatTextColor(intensity) }}
+                      >
                         1
                       </span>
                     )}
