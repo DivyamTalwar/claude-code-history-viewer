@@ -48,6 +48,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import type { ExportFormat } from "@/types/export";
 import type { SubagentSession } from "@/types";
+import { useFindTarget } from "@/commands/findTarget";
 
 // max-height 계산: 버튼 1행 높이 × 3행 + 여유
 const SUBAGENT_ROW_HEIGHT_REM = 1.75;
@@ -129,6 +130,8 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
   const { t } = useTranslation();
   const scrollContainerRef = useRef<OverlayScrollbarsComponentRef>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  // ⌘F (`edit.find`) focuses this field.
+  useFindTarget(searchInputRef);
   const virtualHeaderRef = useRef<HTMLDivElement>(null);
 
   // Track when OverlayScrollbars is initialized

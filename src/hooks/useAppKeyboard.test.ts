@@ -1,12 +1,31 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { StrictMode, createElement, type ReactNode } from "react";
 import { renderHook } from "@testing-library/react";
 import { useAppKeyboard } from "./useAppKeyboard";
+import { registerFindTarget } from "@/commands/findTarget";
 
-const { openModalMock, toggleNavigatorMock, toggleMinimapMock, platformState } = vi.hoisted(() => ({
+// jsdom reports a Linux browser and no Tauri: the WebUI entries with Ctrl.
+const {
+  openModalMock,
+  toggleNavigatorMock,
+  toggleMinimapMock,
+  goBackMock,
+  goForwardMock,
+  platformState,
+  storeState,
+} = vi.hoisted(() => ({
   openModalMock: vi.fn(),
   toggleNavigatorMock: vi.fn(),
   toggleMinimapMock: vi.fn(),
-  platformState: { isMobile: false },
+  goBackMock: vi.fn(),
+  goForwardMock: vi.fn(),
+  platformState: { isMobile: false, isDesktop: false },
+  storeState: {
+    view: "conversation",
+    selectedProject: null as unknown,
+    selectedSession: null as unknown,
+    placeHistory: { back: [] as unknown[], forward: [] as unknown[] },
+  },
 }));
 
 vi.mock("@/contexts/modal", () => ({
@@ -17,10 +36,21 @@ vi.mock("@/contexts/platform", () => ({
   usePlatform: () => platformState,
 }));
 
-vi.mock("@/store/useAppStore", () => ({
-  useAppStore: (selector: (state: unknown) => unknown) =>
-    selector({ toggleNavigator: toggleNavigatorMock, toggleMinimap: toggleMinimapMock }),
+vi.mock("@/hooks/analytics/useAnalyticsNavigation", () => ({
+  useAnalyticsNavigation: () => ({
+    goBack: goBackMock,
+    goForward: goForwardMock,
+    switchToSettings: vi.fn(),
+    switchToArchive: vi.fn(),
+  }),
 }));
+
+vi.mock("@/store/useAppStore", () => {
+  const actions = () => ({ toggleNavigator: toggleNavigatorMock, toggleMinimap: toggleMinimapMock });
+  const useAppStore = (selector: (state: unknown) => unknown) => selector({ ...storeState, ...actions() });
+  useAppStore.getState = () => ({ ...storeState, ...actions() });
+  return { useAppStore };
+});
 
 const press = (key: string, modifiers: KeyboardEventInit = {}, target: EventTarget = window) => {
   const event = new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true, ...modifiers });
@@ -28,75 +58,149 @@ const press = (key: string, modifiers: KeyboardEventInit = {}, target: EventTarg
   return event;
 };
 
+const SESSION = { session_id: "s1", file_path: "/p/s1.jsonl", provider: "claude" };
+const PROJECT = { name: "p", path: "/p", provider: "claude" };
+
 describe("useAppKeyboard", () => {
   afterEach(() => {
     vi.clearAllMocks();
     platformState.isMobile = false;
+    storeState.view = "conversation";
+    storeState.selectedProject = null;
+    storeState.selectedSession = null;
+    storeState.placeHistory = { back: [], forward: [] };
     document.body.innerHTML = "";
   });
 
-  it("opens global search on Cmd/Ctrl+K", () => {
+  it("opens global search on Ctrl+K", () => {
     renderHook(() => useAppKeyboard());
     press("k", { ctrlKey: true });
     expect(openModalMock).toHaveBeenCalledWith("globalSearch");
   });
 
-  it("toggles the navigator on Cmd/Ctrl+Shift+M when not mobile", () => {
+  it("opens global search on Ctrl+K even from a text field", () => {
     renderHook(() => useAppKeyboard());
-    press("m", { ctrlKey: true, shiftKey: true });
+    const input = document.createElement("input");
+    document.body.appendChild(input);
+    press("k", { ctrlKey: true }, input);
+    expect(openModalMock).toHaveBeenCalledWith("globalSearch");
+  });
+
+  it("toggles the navigator on Ctrl+Shift+M when not mobile", () => {
+    renderHook(() => useAppKeyboard());
+    press("M", { ctrlKey: true, shiftKey: true });
     expect(toggleNavigatorMock).toHaveBeenCalledTimes(1);
   });
 
-  it("does not toggle the navigator on Cmd/Ctrl+Shift+M when mobile", () => {
+  it("does not toggle the navigator on Ctrl+Shift+M when mobile", () => {
     platformState.isMobile = true;
     renderHook(() => useAppKeyboard());
     press("m", { ctrlKey: true, shiftKey: true });
     expect(toggleNavigatorMock).not.toHaveBeenCalled();
   });
 
-  it("toggles the minimap on Cmd/Ctrl+Shift+F from anywhere, including when mobile", () => {
+  it("toggles the minimap on Ctrl+Shift+F from anywhere, including when mobile", () => {
     platformState.isMobile = true;
     renderHook(() => useAppKeyboard());
-    const event = press("f", { ctrlKey: true, shiftKey: true });
+    const event = press("F", { ctrlKey: true, shiftKey: true });
     expect(toggleMinimapMock).toHaveBeenCalledTimes(1);
     expect(event.defaultPrevented).toBe(true);
   });
 
-  it("does not fire the minimap shortcut when the target is a text input", () => {
+  it.each([
+    ["a text input", () => document.createElement("input")],
+    ["a textarea", () => document.createElement("textarea")],
+    ["a select", () => document.createElement("select")],
+    [
+      "contenteditable",
+      () => {
+        const div = document.createElement("div");
+        div.setAttribute("contenteditable", "true");
+        return div;
+      },
+    ],
+  ])("does not fire the minimap shortcut when the target is %s", (_, make) => {
     renderHook(() => useAppKeyboard());
-    const input = document.createElement("input");
-    document.body.appendChild(input);
-    const event = press("f", { ctrlKey: true, shiftKey: true }, input);
+    const field = make();
+    document.body.appendChild(field);
+    const event = press("f", { ctrlKey: true, shiftKey: true }, field);
     expect(toggleMinimapMock).not.toHaveBeenCalled();
     expect(event.defaultPrevented).toBe(false);
   });
 
-  it("does not fire the minimap shortcut when the target is a textarea", () => {
+  it("goes back and forward on Alt+Arrow (the WebUI fallback for ⌘[ ⌘])", () => {
+    storeState.placeHistory = { back: [{}], forward: [{}] };
     renderHook(() => useAppKeyboard());
-    const textarea = document.createElement("textarea");
-    document.body.appendChild(textarea);
-    const event = press("f", { ctrlKey: true, shiftKey: true }, textarea);
-    expect(toggleMinimapMock).not.toHaveBeenCalled();
+    press("ArrowLeft", { altKey: true });
+    press("ArrowRight", { altKey: true });
+    expect(goBackMock).toHaveBeenCalledTimes(1);
+    expect(goForwardMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("leaves Alt+Arrow to the browser when there is no history", () => {
+    renderHook(() => useAppKeyboard());
+    const event = press("ArrowLeft", { altKey: true });
+    expect(goBackMock).not.toHaveBeenCalled();
     expect(event.defaultPrevented).toBe(false);
   });
 
-  it("does not fire the minimap shortcut when the target is a select", () => {
+  const mountFindField = () => {
+    const input = document.body.appendChild(document.createElement("input"));
+    input.value = "earlier query";
+    return { input, unregister: registerFindTarget(() => input) };
+  };
+
+  it("focuses and selects the conversation's find field on Ctrl+F", () => {
+    storeState.selectedProject = PROJECT;
+    storeState.selectedSession = SESSION;
+    const { input, unregister } = mountFindField();
     renderHook(() => useAppKeyboard());
-    const select = document.createElement("select");
-    document.body.appendChild(select);
-    const event = press("f", { ctrlKey: true, shiftKey: true }, select);
-    expect(toggleMinimapMock).not.toHaveBeenCalled();
-    expect(event.defaultPrevented).toBe(false);
+    const event = press("f", { ctrlKey: true });
+    expect(document.activeElement).toBe(input);
+    expect([input.selectionStart, input.selectionEnd]).toEqual([0, input.value.length]);
+    expect(event.defaultPrevented).toBe(true);
+    unregister();
   });
 
-  it("does not fire the minimap shortcut when the target is contenteditable", () => {
+  it("leaves Ctrl+F to the browser outside a conversation", () => {
+    const { input, unregister } = mountFindField();
+    storeState.view = "analytics";
+    storeState.selectedProject = PROJECT;
     renderHook(() => useAppKeyboard());
-    const div = document.createElement("div");
-    div.setAttribute("contenteditable", "true");
-    document.body.appendChild(div);
-    const event = press("f", { ctrlKey: true, shiftKey: true }, div);
-    expect(toggleMinimapMock).not.toHaveBeenCalled();
+    const event = press("f", { ctrlKey: true });
+    expect(document.activeElement).not.toBe(input);
     expect(event.defaultPrevented).toBe(false);
+    unregister();
+  });
+
+  it("leaves Ctrl+F to the browser while the conversation has no find field", () => {
+    storeState.selectedProject = PROJECT;
+    storeState.selectedSession = SESSION;
+    const unregister = registerFindTarget(() => null);
+    renderHook(() => useAppKeyboard());
+    expect(press("f", { ctrlKey: true }).defaultPrevented).toBe(false);
+    unregister();
+  });
+
+  it("ignores shortcuts while an IME is composing", () => {
+    renderHook(() => useAppKeyboard());
+    press("k", { ctrlKey: true, isComposing: true });
+    press("k", { ctrlKey: true, keyCode: 229 } as KeyboardEventInit);
+    expect(openModalMock).not.toHaveBeenCalled();
+  });
+
+  it("runs a command once per key press under StrictMode", () => {
+    const wrapper = ({ children }: { children: ReactNode }) => createElement(StrictMode, null, children);
+    renderHook(() => useAppKeyboard(), { wrapper });
+    press("f", { ctrlKey: true, shiftKey: true });
+    expect(toggleMinimapMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("runs a command once even when the hook is mounted twice", () => {
+    renderHook(() => useAppKeyboard());
+    renderHook(() => useAppKeyboard());
+    press("f", { ctrlKey: true, shiftKey: true });
+    expect(toggleMinimapMock).toHaveBeenCalledTimes(1);
   });
 
   it("stops listening after unmount", () => {

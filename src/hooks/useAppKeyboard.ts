@@ -1,58 +1,31 @@
 import { useEffect } from "react";
-import { useModal } from "@/contexts/modal";
-import { usePlatform } from "@/contexts/platform";
-import { useAppStore } from "@/store/useAppStore";
+import { currentKeyEnvironment } from "@/commands/keys";
+import { COMMANDS } from "@/commands/registry";
+import { createShortcutHandler, NATIVE_MENU_COMMANDS } from "@/commands/shortcuts";
+import { useCommandContext } from "@/commands/useCommandContext";
 
 /**
- * True when the event target is a text input, textarea, select, or
- * contenteditable element, where a letter shortcut should be left to the
- * field instead of hijacked by a global handler.
- */
-function isEditableTarget(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) return false;
-  if (target.isContentEditable) return true;
-  return target.closest("input, textarea, select, [contenteditable]:not([contenteditable='false'])") !== null;
-}
-
-/**
- * Global keyboard shortcuts for the app.
- * - Cmd+K: open global search
- * - Cmd+Shift+M: toggle message navigator (desktop only)
- * - Cmd+Shift+F: toggle the session minimap (anywhere, including mobile; the
- *   strip's own mount gate decides whether that has any visible effect)
+ * The app's keyboard shortcuts: the manifest commands' shortcuts
+ * (`src/commands/manifest.json`), served by one window listener
+ * (`src/commands/shortcuts.ts`). Among them the three this hook used to
+ * hard-code: ⌘K (palette), ⌘⇧M (message navigator, not on mobile) and ⌘⇧F
+ * (minimap, not while typing).
+ *
+ * Mount once, at the app root. The listener is bound once and reads the
+ * live state through the command context when a key arrives.
  */
 export function useAppKeyboard() {
-  const { openModal } = useModal();
-  const { isMobile } = usePlatform();
-  const toggleNavigator = useAppStore((s) => s.toggleNavigator);
-  const toggleMinimap = useAppStore((s) => s.toggleMinimap);
+  const getContext = useCommandContext();
 
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
-        e.preventDefault();
-        openModal("globalSearch");
-      }
-      if (
-        (e.metaKey || e.ctrlKey) &&
-        e.shiftKey &&
-        e.key.toLowerCase() === "m"
-      ) {
-        e.preventDefault();
-        if (!isMobile) toggleNavigator();
-      }
-      if (
-        (e.metaKey || e.ctrlKey) &&
-        e.shiftKey &&
-        e.key.toLowerCase() === "f"
-      ) {
-        if (isEditableTarget(e.target)) return;
-        e.preventDefault();
-        toggleMinimap();
-      }
-    };
-
+    const env = currentKeyEnvironment();
+    const handleKeyDown = createShortcutHandler({
+      commands: COMMANDS,
+      env,
+      getContext,
+      nativeOwned: env.runtime === "desktop" ? NATIVE_MENU_COMMANDS : undefined,
+    });
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [openModal, toggleNavigator, toggleMinimap, isMobile]);
+  }, [getContext]);
 }

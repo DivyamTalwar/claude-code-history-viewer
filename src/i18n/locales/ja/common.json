@@ -210,5 +210,17 @@
   "common.a11y.skipToSessions": "セッション一覧へスキップ",
   "common.search": "検索",
   "common.showMore": "さらに表示",
-  "common.a11y.navigation": "ナビゲーション"
+  "common.a11y.navigation": "ナビゲーション",
+  "common.command.groupHeading": "コマンド",
+  "common.command.openPalette": "検索とコマンド",
+  "common.command.back": "戻る",
+  "common.command.forward": "進む",
+  "common.command.find": "会話内を検索",
+  "common.command.toggleNavigator": "メッセージナビゲーターを表示/非表示",
+  "common.command.toggleMinimap": "セッションミニマップを表示/非表示",
+  "common.command.openSettingsManager": "設定マネージャーを開く",
+  "common.command.openArchive": "アーカイブマネージャーを開く",
+  "common.command.sendFeedback": "フィードバックを送る…",
+  "common.command.checkForUpdates": "アップデートを確認…",
+  "common.command.failed": "コマンドを実行できませんでした: {{command}}"
 }
