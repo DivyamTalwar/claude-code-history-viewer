@@ -33,7 +33,7 @@ import { getPathLeaf, getProjectDisplayName } from "@/utils/pathUtils";
 import { getLocale } from "@/utils/time";
 import type { CommandId } from "@/commands/manifest";
 import { runCommand, type CommandContext } from "@/commands/registry";
-import { commandItemValue, paletteEntries } from "@/commands/paletteQuery";
+import { commandItemValue, paletteEntries, paletteValue } from "@/commands/paletteQuery";
 import { PaletteCommandGroup } from "./PaletteCommandGroup";
 import { PaletteComboboxLink } from "./PaletteComboboxLink";
 
@@ -461,7 +461,7 @@ export const GlobalSearchModal = ({
     // The palette's items: matching commands first, then the message results.
     const commandEntries = paletteEntries(query, getCommandContext(), t);
     const messageItemValue = (groupKey: string, index: number, result: GlobalSearchResult) =>
-        `message:${groupKey}:${index}:${result.uuid}`;
+        paletteValue(`message:${groupKey}:${index}:${result.uuid}`);
     const firstItemValue = (() => {
         const command = commandEntries.find((entry) => entry.enabled);
         if (command) return commandItemValue(command.command.id);

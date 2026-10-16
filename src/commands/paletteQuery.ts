@@ -4,6 +4,14 @@
 import type { CommandId } from "./manifest";
 import { isCommandEnabled, paletteCommands, type AppCommand, type CommandContext } from "./registry";
 
+/**
+ * A palette item value as cmdk stores it: cmdk 1.1.1 trims an item's value
+ * before writing its `data-value` (and the root's controlled value), so a
+ * value is built and looked up in that form, or one ending in whitespace
+ * (a message id) names no option.
+ */
+export const paletteValue = (value: string): string => value.trim();
+
 /** cmdk item value of a command; message results use another prefix. */
 export const commandItemValue = (id: CommandId): string => `command:${id}`;
 

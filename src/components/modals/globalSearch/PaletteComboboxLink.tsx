@@ -13,12 +13,14 @@
  * `aria-autocomplete="list"`).
  */
 import { useLayoutEffect, type RefObject } from "react";
+import { paletteValue } from "@/commands/paletteQuery";
 
 /** The rendered cmdk option for `value`, if it is listed. */
 function findPaletteOption(list: HTMLElement, value: string): HTMLElement | undefined {
-    if (!value) return undefined;
+    const wanted = paletteValue(value);
+    if (!wanted) return undefined;
     return Array.from(list.querySelectorAll<HTMLElement>("[cmdk-item]")).find(
-        (item) => item.getAttribute("data-value") === value,
+        (item) => item.getAttribute("data-value") === wanted,
     );
 }
 

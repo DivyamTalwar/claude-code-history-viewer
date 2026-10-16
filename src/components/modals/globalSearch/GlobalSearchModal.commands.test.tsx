@@ -266,6 +266,16 @@ describe("⌘K palette: combobox semantics", () => {
         expect(selectedOption()).toBe(again);
         expect(input()).toHaveAttribute("aria-activedescendant", again.id);
     });
+
+    it("finds the highlighted result when its uuid ends in whitespace (cmdk trims data-value)", async () => {
+        mockApi.mockResolvedValue([{ ...helloResult, uuid: "m1 " }]);
+        render(<Harness />);
+        fireEvent.change(input(), { target: { value: "hello" } });
+        await waitFor(() => expect(screen.getByRole("option", { name: /hello world/ })).toBeInTheDocument());
+        const hello = screen.getByRole("option", { name: /hello world/ });
+        expect(selectedOption()).toBe(hello);
+        expect(input()).toHaveAttribute("aria-activedescendant", hello.id);
+    });
 });
 
 describe("⌘K palette: keys on the filter controls", () => {
