@@ -116,6 +116,7 @@ function setUpPalette() {
         canGoBack: true,
         canGoForward: false,
         hasFindTarget: true,
+        ownPlace: () => () => true,
     };
 }
 

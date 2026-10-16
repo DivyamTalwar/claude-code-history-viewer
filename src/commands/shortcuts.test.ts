@@ -28,6 +28,7 @@ function makeContext(overrides: Partial<CommandContext> = {}): CommandContext {
     canGoBack: true,
     canGoForward: true,
     hasFindTarget: true,
+    ownPlace: () => () => true,
     actions,
     ...overrides,
   };

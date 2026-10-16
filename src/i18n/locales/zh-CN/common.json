@@ -221,5 +221,6 @@
   "common.command.openSettingsManager": "打开设置管理器",
   "common.command.openArchive": "打开归档管理器",
   "common.command.sendFeedback": "发送反馈…",
-  "common.command.checkForUpdates": "检查更新…"
+  "common.command.checkForUpdates": "检查更新…",
+  "common.command.failed": "命令执行失败：{{command}}"
 }

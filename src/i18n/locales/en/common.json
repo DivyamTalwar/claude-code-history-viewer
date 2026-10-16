@@ -221,5 +221,6 @@
   "common.command.openSettingsManager": "Open Settings Manager",
   "common.command.openArchive": "Open Archive Manager",
   "common.command.sendFeedback": "Send Feedback…",
-  "common.command.checkForUpdates": "Check for Updates…"
+  "common.command.checkForUpdates": "Check for Updates…",
+  "common.command.failed": "Command failed: {{command}}"
 }

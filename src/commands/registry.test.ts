@@ -14,6 +14,10 @@ import {
   type CommandContext,
 } from "./registry";
 import en from "@/i18n/locales/en/common.json";
+import i18n from "@/i18n";
+import { toast } from "sonner";
+
+vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
 
 const ENVIRONMENTS: KeyEnvironment[] = [
   { os: "mac", runtime: "desktop" },
@@ -44,6 +48,7 @@ function makeContext(overrides: Partial<CommandContext> = {}): CommandContext {
     canGoBack: false,
     canGoForward: false,
     hasFindTarget: false,
+    ownPlace: vi.fn(() => () => true),
     actions,
     ...overrides,
   };
@@ -202,5 +207,48 @@ describe("command registry", () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(error).toHaveBeenCalled();
     error.mockRestore();
+  });
+
+  describe("a failing async command", () => {
+    const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+    it("tells the user which command failed", async () => {
+      vi.mocked(toast.error).mockClear();
+      const error = vi.spyOn(console, "error").mockImplementation(() => {});
+      const ctx = makeContext({ canGoBack: true });
+      vi.mocked(ctx.actions.goBack).mockRejectedValueOnce(new Error("boom"));
+      expect(runCommand("go.back", ctx)).toBe(true);
+      await flush();
+      expect(en).toHaveProperty(["common.command.failed"]);
+      expect(toast.error).toHaveBeenCalledTimes(1);
+      expect(toast.error).toHaveBeenCalledWith(
+        i18n.t("common.command.failed", { command: i18n.t("common.command.back") }),
+      );
+      error.mockRestore();
+    });
+
+    it("says nothing once another navigation has superseded the command's own", async () => {
+      vi.mocked(toast.error).mockClear();
+      const error = vi.spyOn(console, "error").mockImplementation(() => {});
+      let owned = true;
+      const ctx = makeContext({ canGoBack: true, ownPlace: vi.fn(() => () => owned) });
+      vi.mocked(ctx.actions.goBack).mockRejectedValueOnce(new Error("boom"));
+      expect(runCommand("go.back", ctx)).toBe(true);
+      owned = false; // the user moved on before the failure landed
+      await flush();
+      expect(error).toHaveBeenCalled();
+      expect(toast.error).not.toHaveBeenCalled();
+      error.mockRestore();
+    });
+
+    it("takes ownership after the command has started its navigation", () => {
+      // `navigate` advances the epoch before its first await, so ownership
+      // taken after `run` belongs to the command's own navigation.
+      const ctx = makeContext({ canGoBack: true });
+      runCommand("go.back", ctx);
+      const [ran] = vi.mocked(ctx.actions.goBack).mock.invocationCallOrder;
+      const [owned] = vi.mocked(ctx.ownPlace).mock.invocationCallOrder;
+      expect(owned).toBeGreaterThan(ran as number);
+    });
   });
 });

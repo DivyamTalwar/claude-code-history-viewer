@@ -221,5 +221,6 @@
   "common.command.openSettingsManager": "設定マネージャーを開く",
   "common.command.openArchive": "アーカイブマネージャーを開く",
   "common.command.sendFeedback": "フィードバックを送る…",
-  "common.command.checkForUpdates": "アップデートを確認…"
+  "common.command.checkForUpdates": "アップデートを確認…",
+  "common.command.failed": "コマンドを実行できませんでした: {{command}}"
 }

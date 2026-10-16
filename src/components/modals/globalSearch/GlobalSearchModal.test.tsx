@@ -13,6 +13,7 @@ const getCommandContext = (): CommandContext => ({
     canGoBack: false,
     canGoForward: false,
     hasFindTarget: false,
+    ownPlace: () => () => true,
     actions: {
         openPalette: vi.fn(),
         goBack: vi.fn(),

@@ -9,6 +9,7 @@ import { useCallback, useEffect, useRef } from "react";
 import { useModal } from "@/contexts/modal";
 import { usePlatform } from "@/contexts/platform";
 import { useAnalyticsNavigation } from "@/hooks/analytics/useAnalyticsNavigation";
+import { ownPlace } from "@/navigation/ownership";
 import { selectPlace } from "@/store/slices/navigationSlice";
 import { useAppStore } from "@/store/useAppStore";
 import { focusFindTarget, hasFindTarget } from "./findTarget";
@@ -53,6 +54,7 @@ export function useCommandContext(): () => CommandContext {
       canGoBack: state.placeHistory.back.length > 0,
       canGoForward: state.placeHistory.forward.length > 0,
       hasFindTarget: hasFindTarget(),
+      ownPlace: () => ownPlace(useAppStore.getState),
       actions: current,
     };
   }, []);

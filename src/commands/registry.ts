@@ -19,7 +19,10 @@ import {
   TextSearch,
   type LucideIcon,
 } from "lucide-react";
+import { toast } from "sonner";
 import { SCREEN_ICONS } from "@/components/icon/screenIcons";
+import i18n from "i18next";
+import type { PlaceOwner } from "@/navigation/ownership";
 import type { Place } from "@/navigation/place";
 import type { Runtime } from "./keys";
 import { COMMAND_MANIFEST, type CommandId, type CommandManifestEntry } from "./manifest";
@@ -33,6 +36,11 @@ export interface CommandContext {
   canGoForward: boolean;
   /** A conversation screen with its find field is mounted (`findTarget.ts`). */
   hasFindTarget: boolean;
+  /**
+   * Take ownership of the current place (`src/navigation/ownership.ts`): the
+   * owner stays true until the next navigation begins.
+   */
+  ownPlace: () => PlaceOwner;
   actions: CommandActions;
 }
 
@@ -146,12 +154,22 @@ export const isCommandEnabled = (command: AppCommand, ctx: CommandContext): bool
 /**
  * Run a command by id. An unknown, unavailable or disabled command is
  * refused (false) and nothing runs.
+ *
+ * A command that fails asynchronously is reported with a toast naming it -
+ * unless another navigation has begun since, which owns the screen now
+ * (`src/navigation/ownership.ts`). `navigate` advances the epoch before its
+ * first await, so ownership taken right after `run` returns is the command's
+ * own navigation's.
  */
 export function runCommand(id: string, ctx: CommandContext): boolean {
   const command = getCommand(id);
   if (!command || !isCommandEnabled(command, ctx)) return false;
-  Promise.resolve(command.run(ctx)).catch((error: unknown) => {
+  const result = command.run(ctx);
+  const ownsFeedback = ctx.ownPlace();
+  Promise.resolve(result).catch((error: unknown) => {
     console.error(`Command ${id} failed:`, error);
+    if (!ownsFeedback()) return;
+    toast.error(i18n.t("common.command.failed", { command: i18n.t(command.labelKey) }));
   });
   return true;
 }

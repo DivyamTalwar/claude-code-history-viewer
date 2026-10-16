@@ -221,5 +221,6 @@
   "common.command.openSettingsManager": "설정 관리자 열기",
   "common.command.openArchive": "아카이브 관리자 열기",
   "common.command.sendFeedback": "피드백 보내기…",
-  "common.command.checkForUpdates": "업데이트 확인…"
+  "common.command.checkForUpdates": "업데이트 확인…",
+  "common.command.failed": "명령 실행 실패: {{command}}"
 }
