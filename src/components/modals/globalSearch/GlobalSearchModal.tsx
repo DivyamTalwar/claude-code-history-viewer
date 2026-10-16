@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from "react";
+import { Command as CommandPrimitive } from "cmdk";
 import { api } from "@/services/api";
 import { useTranslation } from "react-i18next";
 import {
@@ -30,6 +31,10 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { getPathLeaf, getProjectDisplayName } from "@/utils/pathUtils";
 import { getLocale } from "@/utils/time";
+import type { CommandId } from "@/commands/manifest";
+import { runCommand, type CommandContext } from "@/commands/registry";
+import { commandItemValue, paletteEntries } from "@/commands/paletteQuery";
+import { PaletteCommandGroup } from "./PaletteCommandGroup";
 
 type GlobalSearchResult = ClaudeMessage;
 
@@ -38,6 +43,8 @@ type MessageTypeFilter = "all" | "user" | "assistant";
 interface GlobalSearchModalProps {
     isOpen: boolean;
     onClose: () => void;
+    /** Live context of the palette's commands (`useCommandContext`). */
+    getCommandContext: () => CommandContext;
 }
 
 // Backend has no offset paging; results are truncated at this count and the
@@ -111,12 +118,12 @@ type SearchResultGroup = {
 export const GlobalSearchModal = ({
     isOpen,
     onClose,
+    getCommandContext,
 }: GlobalSearchModalProps) => {
     const { t, i18n } = useTranslation();
     const [query, setQuery] = useState("");
     const [results, setResults] = useState<GlobalSearchResult[]>([]);
     const [isSearching, setIsSearching] = useState(false);
-    const [selectedIndex, setSelectedIndex] = useState(0);
     // sessionId / actual_session_id → summary, filled lazily per project so
     // results can show the conversation title instead of an id prefix.
     const [sessionTitles, setSessionTitles] = useState<Record<string, string>>({});
@@ -124,7 +131,9 @@ export const GlobalSearchModal = ({
     const titleSweepTokenRef = useRef(0);
     const [messageTypeFilter, setMessageTypeFilter] = useState<MessageTypeFilter>("all");
     const inputRef = useRef<HTMLInputElement>(null);
-    const resultsContainerRef = useRef<HTMLDivElement>(null);
+    // A command picked in the palette runs once the palette has closed and
+    // released focus (`onCloseAutoFocus`), so ⌘F's find field keeps it.
+    const pendingCommandRef = useRef<CommandId | null>(null);
     const debounceTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     // Bumped on every result click and on close — cancels an in-flight
     // session-resolution sweep so it stops issuing project requests.
@@ -230,15 +239,6 @@ export const GlobalSearchModal = ({
         })();
     }, [groupedResults]);
 
-    // Flatten grouped results for keyboard navigation
-    const flattenedResults = useMemo(() => {
-        const flat: GlobalSearchResult[] = [];
-        for (const group of groupedResults.values()) {
-            flat.push(...group.items);
-        }
-        return flat;
-    }, [groupedResults]);
-
     // Get session display name for a search result
     const getSessionName = useCallback((result: GlobalSearchResult): string | undefined => {
         if (!result.sessionId || result.sessionId === "unknown-session") return undefined;
@@ -298,7 +298,6 @@ export const GlobalSearchModal = ({
                         : { claudePath: nativeClaudePath, query: trimmedQuery, filters, limit: MAX_RESULTS },
                 );
                 setResults(searchResults);
-                setSelectedIndex(0);
             } catch (error) {
                 console.error("Global search failed:", error);
                 setResults([]);
@@ -438,48 +437,64 @@ export const GlobalSearchModal = ({
         [projects, sessions, navigate, clearTargetMessage, onClose, t],
     );
 
-    // Keyboard navigation
-    const handleKeyDown = useCallback(
-        (e: React.KeyboardEvent) => {
-            if (flattenedResults.length === 0) return;
-
-            switch (e.key) {
-                case "ArrowDown":
-                    e.preventDefault();
-                    setSelectedIndex((prev) =>
-                        prev < flattenedResults.length - 1 ? prev + 1 : 0,
-                    );
-                    break;
-                case "ArrowUp":
-                    e.preventDefault();
-                    setSelectedIndex((prev) =>
-                        prev > 0 ? prev - 1 : flattenedResults.length - 1,
-                    );
-                    break;
-                case "Enter":
-                    e.preventDefault();
-                    if (flattenedResults[selectedIndex]) {
-                        handleSelectResult(flattenedResults[selectedIndex]);
-                    }
-                    break;
-                case "Escape":
-                    e.preventDefault();
-                    onClose();
-                    break;
-            }
-        },
-        [flattenedResults, selectedIndex, handleSelectResult, onClose],
+    // The palette's items: matching commands first, then the message results.
+    const commandEntries = paletteEntries(query, getCommandContext(), t);
+    const messageItemValue = (groupKey: string, index: number, result: GlobalSearchResult) =>
+        `message:${groupKey}:${index}:${result.uuid}`;
+    const firstItemValue = (() => {
+        const command = commandEntries.find((entry) => entry.enabled);
+        if (command) return commandItemValue(command.command.id);
+        const [first] = groupedResults.entries();
+        const firstResult = first?.[1].items[0];
+        return first && firstResult ? messageItemValue(first[0], 0, firstResult) : "";
+    })();
+    // The highlighted item. It belongs to one query and result set: when
+    // either changes, the highlight starts again at the first item, as the
+    // message list's did before it moved into cmdk.
+    const [selection, setSelection] = useState<{
+        query: string;
+        results: GlobalSearchResult[];
+        value: string;
+    } | null>(null);
+    const selectedValue =
+        selection && selection.query === query && selection.results === results
+            ? selection.value
+            : firstItemValue;
+    const handleSelectionChange = useCallback(
+        (value: string) => setSelection({ query, results, value }),
+        [query, results],
     );
 
-    // Scroll selected item into view
-    useEffect(() => {
-        if (resultsContainerRef.current && flattenedResults.length > 0) {
-            const selectedElement = resultsContainerRef.current.querySelector(
-                `[data-index="${selectedIndex}"]`,
-            );
-            selectedElement?.scrollIntoView({ block: "nearest" });
-        }
-    }, [selectedIndex, flattenedResults.length]);
+    // Arrow keys and Enter belong to the cmdk list (commands and results
+    // alike); cmdk ignores Enter while an IME is composing.
+    const handleKeyDown = useCallback(
+        (e: React.KeyboardEvent) => {
+            if (e.key === "Escape") {
+                e.preventDefault();
+                onClose();
+            }
+        },
+        [onClose],
+    );
+
+    const handleRunCommand = useCallback(
+        (id: CommandId) => {
+            pendingCommandRef.current = id;
+            onClose();
+        },
+        [onClose],
+    );
+
+    const handleCloseAutoFocus = useCallback(
+        (event: Event) => {
+            const id = pendingCommandRef.current;
+            if (!id) return;
+            pendingCommandRef.current = null;
+            event.preventDefault();
+            runCommand(id, getCommandContext());
+        },
+        [getCommandContext],
+    );
 
     // Focus input when modal opens
     useEffect(() => {
@@ -490,7 +505,6 @@ export const GlobalSearchModal = ({
             resolveTokenRef.current++;
             setQuery("");
             setResults([]);
-            setSelectedIndex(0);
             setSelectedProjectPath("all");
             setMessageTypeFilter("all");
             setSessionTitles({});
@@ -593,16 +607,24 @@ export const GlobalSearchModal = ({
         );
     };
 
-    let currentResultIndex = 0;
-
     return (
         <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
             <DialogContent
                 className="sm:max-w-2xl p-0 gap-0 overflow-hidden"
                 onKeyDown={handleKeyDown}
+                onCloseAutoFocus={handleCloseAutoFocus}
                 showCloseButton={false}
                 aria-label={t("globalSearch.title")}
             >
+              <CommandPrimitive
+                value={selectedValue}
+                onValueChange={handleSelectionChange}
+                shouldFilter={false}
+                vimBindings={false}
+                loop
+                label={t("common.commandPalette")}
+                className="flex flex-col min-h-0 outline-none"
+              >
                 {/* Search Header */}
                 <div className="flex items-center gap-3 px-4 py-3 border-b border-border">
                     <Search className="w-4 h-4 text-muted-foreground shrink-0" />
@@ -686,11 +708,13 @@ export const GlobalSearchModal = ({
                     )}
                 </div>
 
-                {/* Results */}
-                <div
-                    ref={resultsContainerRef}
+                {/* Commands, then message results: one cmdk list */}
+                <CommandPrimitive.List
+                    label={t("globalSearch.title")}
                     className="max-h-100 overflow-y-auto"
                 >
+                    <PaletteCommandGroup entries={commandEntries} onRun={handleRunCommand} />
+
                     {/* Loading skeleton */}
                     {isSearching && results.length === 0 && (
                         <div className="py-4 space-y-3 px-4">
@@ -779,19 +803,13 @@ export const GlobalSearchModal = ({
                                         </div>
 
                                         {/* Results in this project */}
-                                        {group.items.map((result) => {
-                                            const index = currentResultIndex++;
-                                            const isSelected = index === selectedIndex;
-
+                                        {group.items.map((result, index) => {
                                             return (
-                                                <button
+                                                <CommandPrimitive.Item
                                                     key={result.uuid}
-                                                    data-index={index}
-                                                    onClick={() => handleSelectResult(result)}
-                                                    className={cn(
-                                                        "w-full text-left px-4 py-2.5 hover:bg-muted/50 transition-colors",
-                                                        isSelected && "bg-muted"
-                                                    )}
+                                                    value={messageItemValue(groupKey, index, result)}
+                                                    onSelect={() => handleSelectResult(result)}
+                                                    className="w-full text-left px-4 py-2.5 cursor-pointer transition-colors data-[selected=true]:bg-muted"
                                                 >
                                                     <div className="flex items-start gap-3">
                                                         <div className="flex-1 min-w-0">
@@ -828,7 +846,7 @@ export const GlobalSearchModal = ({
                                                             </p>
                                                         </div>
                                                     </div>
-                                                </button>
+                                                </CommandPrimitive.Item>
                                             );
                                         })}
                                     </div>
@@ -836,7 +854,7 @@ export const GlobalSearchModal = ({
                             )}
                         </div>
                     )}
-                </div>
+                </CommandPrimitive.List>
 
                 {/* Footer with keyboard hints */}
                 <div className="flex items-center justify-between px-4 py-2 border-t border-border bg-muted/30 text-list text-muted-foreground">
@@ -877,6 +895,7 @@ export const GlobalSearchModal = ({
                         </span>
                     )}
                 </div>
+              </CommandPrimitive>
             </DialogContent>
         </Dialog>
     );
