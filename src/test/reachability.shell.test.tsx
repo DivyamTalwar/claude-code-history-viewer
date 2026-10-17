@@ -28,8 +28,9 @@ vi.mock("@/hooks/useUpdater", () => ({
   useUpdater: () => ({ state: { isChecking: false, currentVersion: "1.0.0", hasUpdate: false } }),
 }));
 vi.mock("@tauri-apps/api/event", () => ({ listen: async () => () => {} }));
+const platformState = vi.hoisted(() => ({ isMobile: false }));
 vi.mock("@/contexts/platform", () => ({
-  usePlatform: () => ({ platform: "desktop", isDesktop: true, isMobile: false }),
+  usePlatform: () => ({ platform: "desktop", isDesktop: true, isMobile: platformState.isMobile }),
   DesktopOnly: ({ children }: { children: ReactNode }) => <>{children}</>,
   MobileOnly: () => null,
 }));
@@ -139,7 +140,7 @@ beforeEach(async () => {
     selectedSession: S1,
     view: "conversation",
     isMetadataLoaded: true,
-    isNavigatorOpen: false,
+    isInspectorOpen: false,
     placeHistory: {
       back: [{ view: "analytics", project: PROJECT, session: S1 }],
       forward: [{ view: "board", project: PROJECT, session: S1 }],
@@ -150,6 +151,7 @@ beforeEach(async () => {
 
 afterEach(() => {
   vi.restoreAllMocks();
+  platformState.isMobile = false;
 });
 
 async function renderShell() {
@@ -252,7 +254,7 @@ describe("§6 reachability through the real shell", () => {
       ["common.command.openArchive", () => expect(state().view).toBe("archive")],
       ["common.command.sendFeedback", () => expect(modal("feedback")).not.toBeNull()],
       ["common.command.back", () => expect(state().view).toBe("analytics")],
-      ["common.command.toggleNavigator", () => expect(state().isNavigatorOpen).toBe(true)],
+      ["common.command.toggleInspector", () => expect(state().isInspectorOpen).toBe(true)],
     ] as const)("%s runs from the palette", async (labelKey, expectEffect) => {
       await renderShell();
       await runFromPalette(labelKey);
@@ -293,14 +295,76 @@ describe("§6 reachability through the real shell", () => {
       await waitFor(() => expect(state().view).toBe("conversation"));
     });
 
-    it("the inspector button opens and closes the message navigator", async () => {
+    it("the inspector button opens and closes the inspector, on its outline (the message navigator)", async () => {
       await renderShell();
+      expect(document.getElementById("inspector")).toBeNull();
       expect(document.querySelector('[data-screen="MessageNavigator"]')).toBeNull();
       await activate(within(header()).getByRole("button", { name: t("common.toolbar.inspector") }));
-      expect(state().isNavigatorOpen).toBe(true);
+      expect(state().isInspectorOpen).toBe(true);
+      expect(document.getElementById("inspector")).not.toBeNull();
       expect(document.querySelector('[data-screen="MessageNavigator"]')).not.toBeNull();
       await activate(within(header()).getByRole("button", { name: t("common.toolbar.inspector") }));
-      expect(state().isNavigatorOpen).toBe(false);
+      expect(state().isInspectorOpen).toBe(false);
+      expect(document.getElementById("inspector")).toBeNull();
+    });
+
+    it.each([
+      ["no session is open", { selectedSession: null }],
+      ["the screen has no inspector", { view: "analytics" }],
+    ] as const)("where %s, the inspector button is disabled and ⌘⇧M keeps the saved state", async (_, patch) => {
+      useAppStore.setState(patch as never);
+      await renderShell();
+      const toggle = within(header()).getByRole("button", { name: t("common.toolbar.inspector") });
+      expect(toggle).toBeDisabled();
+      await act(async () => {
+        fireEvent.keyDown(window, { key: "M", ctrlKey: true, shiftKey: true });
+      });
+      expect(state().isInspectorOpen).toBe(false);
+      expect(document.getElementById("inspector")).toBeNull();
+    });
+
+    it("beside an open conversation, ⌘⇧M opens the inspector (the control for the row above)", async () => {
+      await renderShell();
+      await act(async () => {
+        fireEvent.keyDown(window, { key: "M", ctrlKey: true, shiftKey: true });
+      });
+      expect(state().isInspectorOpen).toBe(true);
+      expect(document.getElementById("inspector")).not.toBeNull();
+    });
+
+    it("the inspector button says whether the panel is open and which element it controls", async () => {
+      await renderShell();
+      const toggle = within(header()).getByRole("button", { name: t("common.toolbar.inspector") });
+      expect(toggle).toHaveAttribute("aria-expanded", "false");
+      await activate(toggle);
+      expect(toggle).toHaveAttribute("aria-expanded", "true");
+      expect(toggle).toHaveAttribute("aria-controls", "inspector");
+      expect(document.getElementById(toggle.getAttribute("aria-controls")!)).not.toBeNull();
+    });
+
+    it.each(["tokens", "info"] as const)("on a phone, a saved open %s inspector is not mounted and loads nothing", async (tab) => {
+      platformState.isMobile = true;
+      useAppStore.setState({ isInspectorOpen: true, inspectorTab: tab } as never);
+      await renderShell();
+      expect(document.getElementById("inspector")).toBeNull();
+      const commands = apiMock.mock.calls.map(([c]) => String(c));
+      expect(commands.filter((c) => /token_stats/.test(c))).toEqual([]);
+      // The preference itself is kept for the desktop.
+      expect(state().isInspectorOpen).toBe(true);
+    });
+
+    it("opening the inspector focuses its tab; Escape closes it and returns focus to the toolbar button", async () => {
+      await renderShell();
+      const toggle = within(header()).getByRole("button", { name: t("common.toolbar.inspector") });
+      await activate(toggle);
+      const outline = await screen.findByRole("tab", { name: t("common.inspector.tab.outline") });
+      await waitFor(() => expect(document.activeElement).toBe(outline));
+      await act(async () => {
+        fireEvent.keyDown(outline, { key: "Escape" });
+      });
+      expect(state().isInspectorOpen).toBe(false);
+      expect(document.getElementById("inspector")).toBeNull();
+      expect(document.activeElement).toBe(toggle);
     });
 
     it("the palette button opens the palette", async () => {

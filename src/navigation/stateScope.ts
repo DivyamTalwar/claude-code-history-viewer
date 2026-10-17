@@ -98,6 +98,9 @@ export const STATE_SCOPE: Readonly<Record<string, StateScope>> = {
   // Whose the token stats are, and the project load's failure.
   projectTokenStatsOwner: "screen",
   sessionTokenStatsOwner: "screen",
+  // The session load's failure, and whose (the inspector's Tokens tab).
+  sessionTokenStatsError: "screen",
+  sessionTokenStatsErrorOwner: "screen",
   projectTokenStatsError: "screen",
   projectTokenStatsErrorOwner: "screen",
   analytics: "screen",
@@ -162,7 +165,11 @@ export const STATE_SCOPE: Readonly<Record<string, StateScope>> = {
   messageFilter: "app",
   userOnlyFilter: "app",
   showParallelTasksInNavigator: "app",
-  isNavigatorOpen: "app",
+  // The inspector (T9a): open state, tab and width are window-wide
+  // preferences, not a tab's - switching tabs keeps the panel as it was.
+  isInspectorOpen: "app",
+  inspectorTab: "app",
+  inspectorWidth: "app",
   navigatorViewMode: "app",
   isMinimapOpen: "app",
   isRecentEditsDockOpen: "app",

@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { SCREEN_ICONS } from "@/components/icon/screenIcons";
+import { isInspectorAvailable } from "@/components/Inspector/inspectorAvailability";
 import i18n from "i18next";
 import type { PlaceOwner } from "@/navigation/ownership";
 import type { Place } from "@/navigation/place";
@@ -56,7 +57,7 @@ export interface CommandActions {
   goBack: () => unknown;
   goForward: () => unknown;
   focusFind: () => void;
-  toggleNavigator: () => void;
+  toggleInspector: () => void;
   toggleMinimap: () => void;
   openSettingsManager: () => unknown;
   openArchive: () => unknown;
@@ -130,10 +131,13 @@ const HANDLERS: Record<CommandId, CommandHandler> = {
     // "find in this conversation"; behind a dialog it does not.
     keys: { inFields: true },
   },
-  "view.toggleNavigator": {
+  "view.toggleInspector": {
     icon: SCREEN_ICONS.inspector,
-    enabled: (ctx) => !ctx.isMobile,
-    run: (ctx) => ctx.actions.toggleNavigator(),
+    // Only where the panel can show: elsewhere a toggle would flip the saved
+    // open state unseen, and the panel would pop open later.
+    enabled: (ctx) =>
+      isInspectorAvailable({ isMobile: ctx.isMobile, view: ctx.place.view, hasSession: ctx.place.session != null }),
+    run: (ctx) => ctx.actions.toggleInspector(),
     keys: { inFields: true, inDialogs: true },
   },
   "view.toggleMinimap": {

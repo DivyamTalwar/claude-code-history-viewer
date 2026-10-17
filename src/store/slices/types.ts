@@ -127,6 +127,9 @@ export interface AppStoreState {
   /** Whose the token stats are (`navigation/screenOwner.ts`): project / session file path. */
   projectTokenStatsOwner: string | null;
   sessionTokenStatsOwner: string | null;
+  /** The session token stats load's failure, and the session file it was for. */
+  sessionTokenStatsError: string | null;
+  sessionTokenStatsErrorOwner: string | null;
   /** The project token stats load's failure, and the project it was for. */
   projectTokenStatsError: string | null;
   projectTokenStatsErrorOwner: string | null;
@@ -219,9 +222,13 @@ export interface AppStoreState {
   activeSessionNearBottom: boolean;
 
   // Navigator state
-  isNavigatorOpen: boolean;
   navigatorViewMode: import('./navigatorSlice').NavigatorViewMode;
   visibleMessageUuid: string | null;
+
+  // Inspector state (plan T9a; window-wide preferences)
+  isInspectorOpen: boolean;
+  inspectorTab: import('./inspectorSlice').InspectorTabId;
+  inspectorWidth: number;
 
   // Minimap state
   isMinimapOpen: boolean;
@@ -461,9 +468,13 @@ export interface AppStoreActions {
   triggerSessionRefresh: (projectPath: string, sessionPath: string) => Promise<void>;
   setActiveSessionNearBottom: (nearBottom: boolean) => void;
 
+  // Inspector actions
+  toggleInspector: () => void;
+  setInspectorOpen: (open: boolean) => void;
+  setInspectorTab: (tab: import('./inspectorSlice').InspectorTabId) => void;
+  setInspectorWidth: (width: number) => void;
+
   // Navigator actions
-  toggleNavigator: () => void;
-  setNavigatorOpen: (open: boolean) => void;
   setNavigatorViewMode: (mode: import('./navigatorSlice').NavigatorViewMode) => void;
   toggleNavigatorViewMode: () => void;
   setVisibleMessageUuid: (uuid: string | null) => void;

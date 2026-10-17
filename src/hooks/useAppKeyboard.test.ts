@@ -7,7 +7,7 @@ import { registerFindTarget } from "@/commands/findTarget";
 // jsdom reports a Linux browser and no Tauri: the WebUI entries with Ctrl.
 const {
   openModalMock,
-  toggleNavigatorMock,
+  setInspectorOpenMock,
   toggleMinimapMock,
   goBackMock,
   goForwardMock,
@@ -15,7 +15,7 @@ const {
   storeState,
 } = vi.hoisted(() => ({
   openModalMock: vi.fn(),
-  toggleNavigatorMock: vi.fn(),
+  setInspectorOpenMock: vi.fn(),
   toggleMinimapMock: vi.fn(),
   goBackMock: vi.fn(),
   goForwardMock: vi.fn(),
@@ -27,6 +27,7 @@ const {
     placeHistory: { back: [] as unknown[], forward: [] as unknown[] },
     documents: [{ id: "t1" }] as unknown[],
     activeDocumentId: "t1",
+    isInspectorOpen: false,
   },
 }));
 
@@ -48,7 +49,7 @@ vi.mock("@/hooks/analytics/useAnalyticsNavigation", () => ({
 }));
 
 vi.mock("@/store/useAppStore", () => {
-  const actions = () => ({ toggleNavigator: toggleNavigatorMock, toggleMinimap: toggleMinimapMock });
+  const actions = () => ({ setInspectorOpen: setInspectorOpenMock, toggleMinimap: toggleMinimapMock });
   const useAppStore = (selector: (state: unknown) => unknown) => selector({ ...storeState, ...actions() });
   useAppStore.getState = () => ({ ...storeState, ...actions() });
   return { useAppStore };
@@ -88,17 +89,39 @@ describe("useAppKeyboard", () => {
     expect(openModalMock).toHaveBeenCalledWith("globalSearch");
   });
 
-  it("toggles the navigator on Ctrl+Shift+M when not mobile", () => {
+  it("opens the inspector on Ctrl+Shift+M when not mobile", () => {
+    storeState.selectedProject = PROJECT;
+    storeState.selectedSession = SESSION;
     renderHook(() => useAppKeyboard());
     press("M", { ctrlKey: true, shiftKey: true });
-    expect(toggleNavigatorMock).toHaveBeenCalledTimes(1);
+    expect(setInspectorOpenMock).toHaveBeenCalledTimes(1);
+    expect(setInspectorOpenMock).toHaveBeenCalledWith(true);
   });
 
-  it("does not toggle the navigator on Ctrl+Shift+M when mobile", () => {
+  it.each([
+    ["no session is open", () => {}],
+    [
+      "the screen has no inspector",
+      () => {
+        storeState.view = "analytics";
+        storeState.selectedProject = PROJECT;
+        storeState.selectedSession = SESSION;
+      },
+    ],
+  ])("does not toggle the inspector on Ctrl+Shift+M when %s", (_, arrange) => {
+    arrange();
+    renderHook(() => useAppKeyboard());
+    press("M", { ctrlKey: true, shiftKey: true });
+    expect(setInspectorOpenMock).not.toHaveBeenCalled();
+  });
+
+  it("does not toggle the inspector on Ctrl+Shift+M when mobile", () => {
+    storeState.selectedProject = PROJECT;
+    storeState.selectedSession = SESSION;
     platformState.isMobile = true;
     renderHook(() => useAppKeyboard());
     press("m", { ctrlKey: true, shiftKey: true });
-    expect(toggleNavigatorMock).not.toHaveBeenCalled();
+    expect(setInspectorOpenMock).not.toHaveBeenCalled();
   });
 
   it("toggles the minimap on Ctrl+Shift+F from anywhere, including when mobile", () => {
