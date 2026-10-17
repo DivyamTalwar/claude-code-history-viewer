@@ -10,6 +10,7 @@ import { OverlayScrollbarsComponent, type OverlayScrollbarsComponentRef } from "
 import { MessageCircle, ChevronDown, ChevronUp, Search, X, Camera, Download, ArrowLeft, Bot, ChevronRight } from "lucide-react";
 import { Icon } from "@/components/icon/Icon";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { LoadingSpinner, LoadingState } from "@/components/ui/loading";
 
@@ -37,6 +38,8 @@ import {
   applyMessageDisplayFilter,
 } from "./helpers";
 import { useAppStore } from "../../store/useAppStore";
+import { registerScrollAnchorSource } from "@/navigation/scrollAnchor";
+import type { ScrollAnchor } from "@/navigation/documents";
 import { useMinimapVisible } from "../../hooks/useMinimapVisible";
 import { useExpandRegistry } from "../../store/expandRegistryStore";
 import { useExport } from "../../hooks/useExport";
@@ -51,6 +54,8 @@ import type { SubagentSession } from "@/types";
 import { useFindTarget } from "@/commands/findTarget";
 
 // max-height 계산: 버튼 1행 높이 × 3행 + 여유
+/** Closer to the bottom than this, a tab saves "the bottom" rather than a message. */
+const ANCHOR_BOTTOM_PX = 100;
 const SUBAGENT_ROW_HEIGHT_REM = 1.75;
 const SUBAGENT_PANEL_VISIBLE_ROWS = 3;
 const SUBAGENT_PANEL_MAX_HEIGHT_REM =
@@ -199,6 +204,12 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
   // Selectors, not a destructured useAppStore() call, so existing test
   // mocks that don't stub these two fields keep working unaffected.
   const navigatorViewMode = useAppStore((s) => s.navigatorViewMode);
+  // A tab being reopened brings its scroll position (T8, plan §4.3).
+  const pendingAnchor = useAppStore((s) => s.pendingAnchor) ?? null;
+  // The tab on screen: switching tabs starts the find field empty.
+  const activeDocumentId = useAppStore((s) => s.activeDocumentId);
+  const sessionPath = selectedSession?.file_path ?? null;
+  const anchorHere = pendingAnchor && pendingAnchor.sessionPath === sessionPath ? pendingAnchor : null;
   const setVisibleMessageUuid = useAppStore((s) => s.setVisibleMessageUuid);
 
   // Export must cover the COMPLETE session even when only a window is
@@ -247,7 +258,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
     handleClearSearch: handleClearSearchState,
   } = useSearchState({
     onSearchChange,
-    sessionId: selectedSession?.session_id,
+    resetKey: `${activeDocumentId ?? ""}:${selectedSession?.session_id ?? ""}`,
   });
 
   // 매치된 메시지 UUID Set (효율적인 조회용)
@@ -615,7 +626,8 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
     virtualizer,
     getScrollIndex,
     scrollElementReady,
-    targetMessageUuid,
+    // A saved anchor, like a target, replaces the initial scroll to the bottom.
+    targetMessageUuid: targetMessageUuid ?? anchorHere?.anchor?.messageUuid ?? null,
     onNearBottomChange: setActiveSessionNearBottom,
     firstItemKey: messages[0]?.uuid ?? null,
   });
@@ -633,6 +645,10 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
   const anchorRestoringRef = useRef(false);
   // uuid currently being ensured into the window (deep link / search match)
   const ensureInFlightRef = useRef<string | null>(null);
+  // The setting of the explicit target (`targetRequest`) already looked up:
+  // one lookup per setting, so a target restored after A→B→A gets its own
+  // even while the superseded one is still pending.
+  const targetLookupRef = useRef<number | null>(null);
 
   const handleLoadEarlier = useCallback(() => {
     if (pagination.isLoadingMore || !pagination.hasMore) return;
@@ -720,10 +736,102 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
     const p = useAppStore.getState().pagination;
     if (!p.hasMore || ensureInFlightRef.current) return;
     ensureInFlightRef.current = currentMatchUuid;
-    void ensureMessageLoaded(currentMatchUuid).finally(() => {
-      ensureInFlightRef.current = null;
-    });
-  }, [currentMatchUuid, uuidToIndexMap, ensureMessageLoaded]);
+    ensureMessageLoaded(currentMatchUuid)
+      .catch((error: unknown) => {
+        console.error("Failed to load the page holding a search match:", error);
+        toast.error(t("common.error.unexpected"));
+      })
+      .finally(() => {
+        ensureInFlightRef.current = null;
+      });
+  }, [currentMatchUuid, uuidToIndexMap, ensureMessageLoaded, t]);
+
+  // ─── Tab scroll anchor (T8, plan §4.3) ─────────────────────────────────
+  // A tab switch saves the first visible message and its offset (null at
+  // the bottom); reopening the tab restores it once the list is measured,
+  // loading older pages first when it lives there. An explicit target wins.
+  const readAnchorRef = useRef<() => ScrollAnchor | null>(() => null);
+  useEffect(() => {
+    readAnchorRef.current = () => {
+      const viewport = getScrollElement();
+      if (!viewport) return null;
+      const { scrollTop, scrollHeight, clientHeight } = viewport;
+      if (scrollHeight - scrollTop - clientHeight < ANCHOR_BOTTOM_PX) return null;
+      const row = virtualizer
+        .getVirtualItems()
+        .find((r) => r.start + r.size > scrollTop && flattenedMessages[r.index]?.type === "message");
+      const item = row ? flattenedMessages[row.index] : undefined;
+      return row && item?.type === "message" ? { messageUuid: item.message.uuid, offset: row.start - scrollTop } : null;
+    };
+  });
+  useEffect(() => {
+    if (!sessionPath) return;
+    return registerScrollAnchorSource({ sessionPath, read: () => readAnchorRef.current() });
+  }, [sessionPath]);
+
+  useEffect(() => {
+    const pending = anchorHere;
+    if (!pending || !scrollElementReady || isLoading || flattenedMessages.length === 0) return;
+    const { clearPendingAnchor } = useAppStore.getState();
+    if (targetMessageUuid) {
+      clearPendingAnchor(pending);
+      return;
+    }
+    const viewport = getScrollElement();
+    if (!viewport) return;
+    const saved = pending.anchor;
+    const index = saved
+      ? flattenedMessages.findIndex((item) => item.type === "message" && item.message.uuid === saved.messageUuid)
+      : -1;
+    if (saved && index === -1) {
+      const p = useAppStore.getState().pagination;
+      if (p.hasMore) {
+        if (!ensureInFlightRef.current) {
+          ensureInFlightRef.current = saved.messageUuid;
+          // A failed load drops the anchor as a missing message does (the
+          // view stays at the newest messages) and always frees the guard,
+          // which a search match into an older page also waits on.
+          ensureMessageLoaded(saved.messageUuid)
+            .then((found) => {
+              if (!found) useAppStore.getState().clearPendingAnchor(pending);
+            })
+            .catch((error: unknown) => {
+              console.error("Failed to restore the tab's scroll position:", error);
+              useAppStore.getState().clearPendingAnchor(pending);
+              toast.error(t("common.error.unexpected"));
+            })
+            .finally(() => {
+              ensureInFlightRef.current = null;
+            });
+        }
+        return;
+      }
+      // The message is gone from the session: the bottom, as for a new open.
+    }
+    const restore = () => {
+      if (!saved || index === -1) {
+        viewport.scrollTop = viewport.scrollHeight;
+        return;
+      }
+      const [start] = virtualizer.getOffsetForIndex(index, "start") ?? [];
+      if (typeof start === "number") viewport.scrollTop = start - saved.offset;
+    };
+    anchorRestoringRef.current = true;
+    restore();
+    const passes = [
+      setTimeout(restore, 50),
+      setTimeout(restore, 200),
+      setTimeout(() => {
+        restore();
+        anchorRestoringRef.current = false;
+        useAppStore.getState().clearPendingAnchor(pending);
+      }, 450),
+    ];
+    return () => {
+      passes.forEach(clearTimeout);
+      anchorRestoringRef.current = false;
+    };
+  }, [anchorHere, scrollElementReady, isLoading, flattenedMessages, targetMessageUuid, getScrollElement, virtualizer, ensureMessageLoaded, t]);
 
   // Handle Deep Linking / Scrolling to Target
   useEffect(() => {
@@ -736,14 +844,12 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
       if (index === -1) {
         // Target may live in an unloaded older page — extend the window.
         // The effect re-runs when flattenedMessages grows and then scrolls.
-        const p = useAppStore.getState().pagination;
-        if (p.hasMore && !ensureInFlightRef.current) {
-          const uuid = targetMessageUuid;
-          ensureInFlightRef.current = uuid;
-          void ensureMessageLoaded(uuid).then((found) => {
-            ensureInFlightRef.current = null;
-            if (!found) clearTargetMessage();
-          });
+        const { pagination: p, targetRequest, lookUpTargetMessage } = useAppStore.getState();
+        if (p.hasMore && targetLookupRef.current !== targetRequest) {
+          // The lookup clears the target it was started for only while that
+          // is still the target (plan §4.3: document id and epoch).
+          targetLookupRef.current = targetRequest;
+          void lookUpTargetMessage();
         }
         return;
       }

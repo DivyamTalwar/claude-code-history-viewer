@@ -26,12 +26,25 @@ import {
 import {
   listenForWebUIDeepLinks,
   readWebUIDeepLink,
+  stampWebUITab,
 } from "./utils/webuiDeepLink";
 import {
-  viewAfterLeavingProject,
   viewForProjectSwitch,
 } from "./navigation/place";
 import { projectListing } from "./navigation/library";
+import {
+  openHintInTab,
+  openInNewTab,
+  openMatchInTab,
+  openTabAtUrl,
+  planUrlMove,
+  reportStoredTabsProblems,
+  retryUnavailableTab,
+  restoreActiveTab,
+  startTabsPersistence,
+  type TabScreens,
+} from "./navigation/tabs";
+import { OpenSessionInNewTabContext } from "./contexts/openInNewTab";
 
 import "./App.css";
 
@@ -39,7 +52,28 @@ import "./App.css";
 interface PendingHintIntent {
   hint: SessionHint;
   messageId: string | null;
-  options: { epoch: number; record?: boolean };
+  options: HintRunOptions & { epoch: number };
+}
+
+interface HintRunOptions {
+  epoch?: number;
+  record?: boolean;
+  /**
+   * Where the session opens: its own tab (a CLI launch, startup, a URL of a
+   * closed tab - plan §4.3), the tab a URL names, or the active tab (an old
+   * URL naming no tab).
+   */
+  target?: "tab" | "active" | { tabId: string };
+}
+
+/** How a hint's match opens for `target` (`HintRunOptions.target`). */
+function openMatchFor(target: HintRunOptions["target"]) {
+  if (target === "active") return undefined;
+  if (typeof target === "object") {
+    const { tabId } = target;
+    return (...args: Parameters<typeof openHintInTab>) => openMatchInTab(tabId, ...args);
+  }
+  return openHintInTab;
 }
 
 function App() {
@@ -53,6 +87,7 @@ function App() {
     messages,
     isLoading,
     isLoadingProjects,
+    projectsScanned,
     isLoadingSessions,
     isLoadingMoreSessions,
     isLoadingMessages,
@@ -129,14 +164,6 @@ function App() {
   // per process, even if project loading renders multiple times.
   const cliPreloadAttempted = useRef(false);
 
-  // Keep the latest projects list in a ref so the second-invocation event
-  // listener (which is set up once and lives for the process lifetime) can
-  // always see the current list without re-subscribing on every render.
-  const projectsRef = useRef(projects);
-  useEffect(() => {
-    projectsRef.current = projects;
-  }, [projects]);
-
   // Phase 3: second-invocation routing. If a `cli-session-hint` event or a
   // WebUI popstate arrives before projects finish loading, stash the latest
   // intent here so the first load path can pick it up. Only the *latest* is
@@ -146,18 +173,35 @@ function App() {
   // whether it records history (a popstate never does).
   const pendingIntentRef = useRef<PendingHintIntent | null>(null);
 
+  // Opening a tab loads its screen's data the way the toolbar tabs do.
+  const openView = analyticsActions.openView;
+  const tabScreens = useMemo<TabScreens>(() => ({ openView }), [openView]);
+  const tabScreensRef = useRef(tabScreens);
+  useEffect(() => {
+    tabScreensRef.current = tabScreens;
+  }, [tabScreens]);
+
+  // Tabs are saved as they change (`tabs.v1`); a store that could not be
+  // read is reported once.
+  useEffect(() => {
+    reportStoredTabsProblems();
+    stampWebUITab();
+    return startTabsPersistence();
+  }, []);
+
   /** Open a CLI / deep-link hint; see `openSessionHint` for the epoch rule. */
   const runPreloadWithHint = useCallback(
     (
       hint: SessionHint,
       messageId: string | null = null,
-      options: { epoch?: number; record?: boolean } = {},
+      options: HintRunOptions = {},
     ) => {
       const epoch = options.epoch ?? useAppStore.getState().beginNavigation();
       openSessionHint(hint, {
         messageId,
         epoch,
         record: options.record,
+        openMatch: openMatchFor(options.target),
         t: (key, fallback) => t(key, fallback ?? key),
       }).catch((error) => {
         if (useAppStore.getState().navigationEpoch !== epoch) return;
@@ -168,9 +212,13 @@ function App() {
     [t],
   );
 
+  // Startup waits for the first project scan to complete - an empty one
+  // included (§4.3 barrier): a restored tab whose project is gone then says
+  // so inside the tab instead of waiting forever.
+  const projectsReady = !isLoadingProjects && (projectsScanned || projects.length > 0);
   useEffect(() => {
     if (cliPreloadAttempted.current) return;
-    if (isLoadingProjects || projects.length === 0) return;
+    if (!projectsReady) return;
     cliPreloadAttempted.current = true;
     // Drain a hint that arrived before projects loaded, if any. Otherwise use
     // the Tauri-managed first-launch hint.
@@ -187,10 +235,22 @@ function App() {
     void fetchStartupSessionHint().then((hint) => {
       // A second invocation, a deep link or the user may have navigated while
       // the startup command was resolving. The newer request owns navigation.
-      if (!hint || useAppStore.getState().navigationEpoch !== observedEpoch) return;
+      if (useAppStore.getState().navigationEpoch !== observedEpoch) return;
+      // Startup priority (plan §4.3): the hint first; the restored tab opens
+      // only when there is none (barrier: after the hint was asked for).
+      if (!hint) {
+        void restoreActiveTab(tabScreensRef.current);
+        return;
+      }
       runPreloadWithHint(hint, readWebUIDeepLink().messageId);
     });
-  }, [isLoadingProjects, projects, runPreloadWithHint]);
+  }, [projectsReady, runPreloadWithHint]);
+
+  // A tab that could not find its project opens once a later scan lists it.
+  useEffect(() => {
+    if (!cliPreloadAttempted.current) return;
+    void retryUnavailableTab(tabScreensRef.current);
+  }, [projects]);
 
   // Second-invocation routing. `tauri-plugin-single-instance` (CLI re-exec)
   // and macOS `RunEvent::Opened` (Spotlight/Dock/Finder) both emit
@@ -213,7 +273,7 @@ function App() {
           // Projects not yet loaded: stash and let the first-load effect
           // consume the latest hint. This handles the race where the user
           // re-invokes the CLI before the initial project scan finishes.
-          if (!cliPreloadAttempted.current || projectsRef.current.length === 0) {
+          if (!cliPreloadAttempted.current) {
             pendingIntentRef.current = { hint, messageId: null, options: { epoch } };
             return;
           }
@@ -232,58 +292,53 @@ function App() {
     };
   }, [runPreloadWithHint]);
 
-  // Browser back/forward (WebUI). Each popstate is a navigation that adds no
-  // history of its own: no URL write, no back/forward entry.
+  // Browser back/forward (WebUI). Each popstate is one navigation that adds
+  // no history of its own: no URL write, no back/forward entry. It claims its
+  // epoch first and every step after - the tab coming forward, the move
+  // inside it, a lookup of the URL's session - runs under that epoch, so a
+  // later navigation supersedes all of it and it writes nothing more.
+  // A URL names the tab its session was open in (§9b F1): that tab comes
+  // forward at the URL's place; a tab closed since gets a new one.
   useEffect(
     () =>
       listenForWebUIDeepLinks((deepLink) => {
         const epoch = useAppStore.getState().beginNavigation();
         const popOptions = { history: "none", record: false, epoch } as const;
-        if (!deepLink.sessionId) {
-          pendingIntentRef.current = null;
-          void navigate(
-            {
-              project: null,
-              view: viewAfterLeavingProject(useAppStore.getState().view),
-            },
-            popOptions,
-          );
+        const sessionId = deepLink.sessionId;
+        if (!cliPreloadAttempted.current) {
+          // Before startup has opened anything, the latest URL with a session
+          // is kept for it; one without a session leaves the restore alone.
+          pendingIntentRef.current = sessionId
+            ? {
+                hint: { kind: "uuid", value: sessionId },
+                messageId: deepLink.messageId,
+                options: { epoch, record: false, target: "tab" },
+              }
+            : null;
           return;
         }
 
-        if (!cliPreloadAttempted.current || projectsRef.current.length === 0) {
-          pendingIntentRef.current = {
-            hint: { kind: "uuid", value: deepLink.sessionId },
-            messageId: deepLink.messageId,
-            options: { epoch, record: false },
-          };
-          return;
+        const move = planUrlMove(deepLink);
+        switch (move.kind) {
+          case "stay":
+            return;
+          case "here":
+            // The URL names a conversation, so the screen is the
+            // conversation, and its target is exactly the URL's (none
+            // clears it).
+            void navigate({ view: "conversation", messageId: deepLink.messageId }, popOptions);
+            return;
+          case "tab":
+            void openTabAtUrl(move.tabId, deepLink, tabScreensRef.current, epoch);
+            return;
+          case "resolve":
+            if (!sessionId) return;
+            runPreloadWithHint({ kind: "uuid", value: sessionId }, deepLink.messageId, {
+              epoch,
+              record: false,
+              target: move.into === "newTab" ? "tab" : move.into,
+            });
         }
-
-        const state = useAppStore.getState();
-        const currentSessionId =
-          state.selectedSession?.actual_session_id ||
-          state.selectedSession?.session_id;
-
-        // The URL names a conversation, so the screen is the conversation,
-        // and its target is exactly the URL's (none clears it).
-        if (currentSessionId === deepLink.sessionId) {
-          void navigate(
-            { view: "conversation", messageId: deepLink.messageId },
-            popOptions,
-          );
-          return;
-        }
-
-        void navigate(
-          { project: null, view: viewAfterLeavingProject(state.view) },
-          popOptions,
-        );
-        runPreloadWithHint(
-          { kind: "uuid", value: deepLink.sessionId },
-          deepLink.messageId,
-          { epoch, record: false },
-        );
       }),
     [navigate, runPreloadWithHint],
   );
@@ -390,6 +445,14 @@ function App() {
     [navigate, t]
   );
 
+  // ⌘+click on a session row: the same open, in a new tab (T8).
+  const handleSessionOpenInNewTab = useCallback(
+    (session: ClaudeSession, owner?: ClaudeProject) => {
+      void openInNewTab(() => handleSessionSelect(session, owner));
+    },
+    [handleSessionSelect]
+  );
+
   const handleTokenStatClick = useCallback(
     (stats: SessionTokenStats) => {
       const session = sessions.find(
@@ -448,6 +511,7 @@ function App() {
   );
 
   return (
+    <OpenSessionInNewTabContext.Provider value={handleSessionOpenInNewTab}>
     <AppLayout
       projects={projects}
       sessions={sessions}
@@ -503,6 +567,7 @@ function App() {
       globalOverviewDescription={globalOverviewDescription}
       liveStatusMessage={liveStatusMessage}
     />
+    </OpenSessionInNewTabContext.Provider>
   );
 }
 

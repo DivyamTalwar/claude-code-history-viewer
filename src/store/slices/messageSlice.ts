@@ -16,7 +16,8 @@ import type {
   SessionComparison,
   SubagentSession,
 } from "../../types";
-import { AppErrorType } from "../../types";
+import i18n from "../../i18n";
+import { errorDetail } from "@/utils/errorDetail";
 import type { StateCreator } from "zustand";
 import { clearSearchIndex } from "../../utils/searchIndex";
 import type { FullAppStore } from "./types";
@@ -62,6 +63,12 @@ export interface MessageSliceState {
   projectTokenStatsSummary: ProjectStatsSummary | null;
   projectConversationTokenStatsSummary: ProjectStatsSummary | null;
   projectTokenStatsPagination: ProjectTokenStatsPagination;
+  /** Whose the token stats are (`navigation/screenOwner.ts`): project / session file path. */
+  projectTokenStatsOwner: string | null;
+  sessionTokenStatsOwner: string | null;
+  /** The project token stats load's failure, and the project it was for. */
+  projectTokenStatsError: string | null;
+  projectTokenStatsErrorOwner: string | null;
   // SubAgent navigation
   subagentSessions: SubagentSession[];
   parentSessionStack: ClaudeSession[];
@@ -86,6 +93,12 @@ export interface SelectSessionOptions extends WebUINavigationOptions {
    * cache): it is opened from this instead of fetched.
    */
   cachedMessages?: ClaudeMessage[];
+  /**
+   * The subagent path to open `session` under, root first (a tab restoring
+   * its subagent transcript). Given, it replaces the current path and decides
+   * the sidechain filter: non-empty = a subagent, `[]` = top level.
+   */
+  parentStack?: ClaudeSession[];
 }
 
 export interface MessageSliceActions {
@@ -213,6 +226,10 @@ const initialMessageState: MessageSliceState = {
   projectTokenStatsSummary: null,
   projectConversationTokenStatsSummary: null,
   projectTokenStatsPagination: createInitialPaginationWithCount(TOKENS_STATS_PAGE_SIZE),
+  projectTokenStatsOwner: null,
+  sessionTokenStatsOwner: null,
+  projectTokenStatsError: null,
+  projectTokenStatsErrorOwner: null,
   subagentSessions: [],
   parentSessionStack: [],
   toolUseToSubagentMap: EMPTY_SUBAGENT_MAP as Map<string, string>,
@@ -480,10 +497,13 @@ export const createMessageSlice: StateCreator<
     // 이 값을 이후 로직 전체에서 참조해야 await 중 stack 변이로 인한 blank 화면·sidechain leak 방지.
     const isInPlaceReload = get().selectedSession?.file_path === session.file_path;
     const wasInSubagent = get().parentSessionStack.length > 0;
-    const shouldTreatAsSubagent =
-      isSubagentNav || (isInPlaceReload && wasInSubagent);
+    const explicitStack = options?.parentStack;
+    const shouldTreatAsSubagent = explicitStack
+      ? explicitStack.length > 0
+      : isSubagentNav || (isInPlaceReload && wasInSubagent);
     const preserveStack = shouldTreatAsSubagent;
     isSubagentNav = false;
+    if (explicitStack) set({ parentSessionStack: explicitStack });
 
     if (isInPlaceReload) {
       if (get().messages.length === 0) {
@@ -500,7 +520,7 @@ export const createMessageSlice: StateCreator<
         isLoadingMessages: true,
         subagentSessions: [],
         toolUseToSubagentMap: EMPTY_SUBAGENT_MAP as Map<string, string>,
-        ...(preserveStack ? {} : { parentSessionStack: [] }),
+        ...(preserveStack || explicitStack ? {} : { parentSessionStack: [] }),
       });
 
       // Message filters intentionally persist across session switches (see
@@ -618,7 +638,10 @@ export const createMessageSlice: StateCreator<
       if (shouldTreatAsSubagent) {
         toast.error(`Failed to load subagent messages: ${message}`);
       } else {
-        get().setError({ type: AppErrorType.UNKNOWN, message });
+        // The conversation lives in a tab: its failure (a session deleted
+        // or moved while open) is the tab's in-tab state, not the app's
+        // error screen (T8).
+        get().markSessionUnavailable(session.file_path);
       }
     } finally {
       // The spinner this load raised is its own to stop, abandoned or not -
@@ -745,7 +768,6 @@ export const createMessageSlice: StateCreator<
       isLatest: () => requestId === getRequestId("sessionTokenStats"),
     });
     try {
-      get().setError(null);
       const dateOptions = normalizeDateFilterOptions(get().dateFilter);
       const breakdown = canLoadConversationBreakdown();
       const [stats, conversationStatsRaw] = await Promise.all([
@@ -771,18 +793,20 @@ export const createMessageSlice: StateCreator<
       ]);
       const conversationStats = breakdown ? conversationStatsRaw : stats;
       if (!owner.ownsData()) return;
-      set({ sessionTokenStats: stats, sessionConversationTokenStats: conversationStats });
+      set({
+        sessionTokenStats: stats,
+        sessionConversationTokenStats: conversationStats,
+        sessionTokenStatsOwner: sessionPath,
+      });
     } catch (error) {
       console.error("Failed to load session token stats:", error);
       if (!owner.ownsData()) return;
-      set({ sessionTokenStats: null, sessionConversationTokenStats: null });
+      set({ sessionTokenStats: null, sessionConversationTokenStats: null, sessionTokenStatsOwner: null });
       if (!owner.ownsFeedback()) return;
+      // The token stats screen is one tab's: it says so there, and the
+      // tabs stay (never the app's error screen).
       const message = error instanceof Error ? error.message : String(error);
       toast.error(`Failed to load session token stats: ${message}`);
-      get().setError({
-        type: AppErrorType.UNKNOWN,
-        message: `Failed to load token stats: ${error}`,
-      });
     } finally {
       endTokenStatsLoading(loadingEpoch);
     }
@@ -805,8 +829,10 @@ export const createMessageSlice: StateCreator<
         projectTokenStatsPagination: {
           ...initialMessageState.projectTokenStatsPagination,
         },
+        projectTokenStatsOwner: null,
+        projectTokenStatsError: null,
+        projectTokenStatsErrorOwner: null,
       });
-      get().setError(null);
 
       const dateOptions = normalizeDateFilterOptions(get().dateFilter);
       const breakdown = canLoadConversationBreakdown();
@@ -895,21 +921,25 @@ export const createMessageSlice: StateCreator<
           hasMore: billingResponse.has_more,
           isLoadingMore: false,
         },
+        projectTokenStatsOwner: projectPath,
       });
     } catch (error) {
       console.error("Failed to load project token stats:", error);
       if (!owner.ownsData()) return;
+      const message = i18n.t("error.tokenStatsLoadFailed", { detail: errorDetail(error) });
+      // The screen's own error state, for this project only.
       set({
         projectTokenStats: [],
         projectConversationTokenStats: [],
         projectTokenStatsSummary: null,
         projectConversationTokenStatsSummary: null,
+        projectTokenStatsOwner: null,
+        projectTokenStatsError: message,
+        projectTokenStatsErrorOwner: projectPath,
       });
       if (!owner.ownsFeedback()) return;
-      get().setError({
-        type: AppErrorType.UNKNOWN,
-        message: `Failed to load project token stats: ${error}`,
-      });
+      // One tab's screen: a notification, never the app's error screen.
+      toast.error(message);
     } finally {
       endTokenStatsLoading(loadingEpoch);
     }
@@ -1027,7 +1057,7 @@ export const createMessageSlice: StateCreator<
         })
       : billing;
     if (owns()) {
-      get().setAnalyticsProjectConversationSummary(conversation);
+      get().setAnalyticsProjectConversationSummary(conversation, projectPath);
     }
     return billing;
   },
@@ -1068,6 +1098,10 @@ export const createMessageSlice: StateCreator<
       projectTokenStatsPagination: createInitialPaginationWithCount(
         TOKENS_STATS_PAGE_SIZE
       ),
+      projectTokenStatsOwner: null,
+      sessionTokenStatsOwner: null,
+      projectTokenStatsError: null,
+      projectTokenStatsErrorOwner: null,
     });
   },
 

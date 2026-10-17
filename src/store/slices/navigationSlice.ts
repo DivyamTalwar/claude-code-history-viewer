@@ -47,6 +47,7 @@ import {
   type View,
 } from "@/navigation/place";
 import { INITIAL_PAGINATION } from "./messageSlice";
+import type { PendingAnchor } from "./documentSlice";
 import {
   loadRecent,
   pushRecent,
@@ -73,6 +74,12 @@ export interface NavigateTarget {
   sessionMessages?: ClaudeMessage[];
   /** An explicit message target inside the session (search, deep link, CLI). */
   messageId?: string | null;
+  /**
+   * `session` is a subagent transcript opened from these parents, root first
+   * (a tab restoring its subagent path, plan §4.3). Given, it replaces the
+   * subagent path; `[]` opens `session` at top level.
+   */
+  subagentStack?: ClaudeSession[];
 }
 
 export interface NavigateOptions {
@@ -86,6 +93,11 @@ export interface NavigateOptions {
    * navigated since, the call is a no-op and resolves `false`.
    */
   epoch?: number;
+  /**
+   * The scroll position to restore once the session shows (a tab being
+   * reopened, plan §4.3). Every other navigation drops a pending one.
+   */
+  anchor?: PendingAnchor;
 }
 
 /** One back/forward history entry: the place plus its explicit target. */
@@ -110,6 +122,12 @@ export interface NavigationSliceState {
   targetMessageUuid: string | null;
   shouldHighlightTarget: boolean;
   /**
+   * Which setting of the target is current: advances whenever the target is
+   * set or cleared. Work on behalf of a target (its lookup) owns it only
+   * while this is unchanged; uuid and tab id alone repeat after A→B→A.
+   */
+  targetRequest: number;
+  /**
    * Sessions the user opened, newest first (the sidebar library's "Recent",
    * plan T7). Persisted (`library.recent.v1`), at most 12.
    */
@@ -131,6 +149,14 @@ export interface NavigationSliceActions {
   stepPlaceHistory: (direction: "back" | "forward") => PlaceHistoryEntry | null;
   navigateToMessage: (uuid: string, options?: WebUINavigationOptions) => void;
   clearTargetMessage: () => void;
+  /**
+   * Page the explicit target into the loaded window (it may live in an older
+   * page) and resolve whether it is there. When it is not, the target is
+   * cleared - only while it is still the target this lookup was started for
+   * (`targetRequest`): a late answer must not clear a target set since, even
+   * the same uuid restored in the same tab after A→B→A (plan §4.3, §9b).
+   */
+  lookUpTargetMessage: () => Promise<boolean>;
 }
 
 export type NavigationSlice = NavigationSliceState & NavigationSliceActions;
@@ -166,6 +192,7 @@ export const initialNavigationState: NavigationSliceState = {
   placeHistory: { back: [], forward: [] },
   targetMessageUuid: null,
   shouldHighlightTarget: false,
+  targetRequest: 0,
   recentSessions: [],
 };
 
@@ -196,8 +223,23 @@ export const createNavigationSlice: StateCreator<
     const history = options.history ?? "push";
     const from = entryOf(start);
 
-    // Board hover is a property of the board screen, not of a place.
-    set({ navigationEpoch: epoch, boardHoverSession: null });
+    // Board hover is a property of the board screen, not of a place. A
+    // pending scroll anchor belongs to the tab opening that set it.
+    set({
+      navigationEpoch: epoch,
+      boardHoverSession: null,
+      pendingAnchor: options.anchor ?? null,
+    });
+    // A tab that could not be opened is the user's own again once they
+    // move inside it: cleared as the move begins, so nothing retries the
+    // tab meanwhile, and a session that fails to load in this move marks
+    // it again (`markSessionUnavailable`).
+    const activeId = start.activeDocumentId;
+    if (start.documents.some((d) => d.id === activeId && d.unavailable)) {
+      set(({ documents }) => ({
+        documents: documents.map((d) => (d.id === activeId ? { ...d, unavailable: null } : d)),
+      }));
+    }
 
     const openProject = start.selectedProject;
     const dropsProject = target.project === null && openProject !== null;
@@ -249,11 +291,19 @@ export const createNavigationSlice: StateCreator<
     // Every step below lands after the project load: only while this
     // navigation still owns the place.
     if (!ownsPlace()) return false;
+    // The project's sessions could not be read (its folder deleted since the
+    // last scan): its tab says so in place (`markProjectUnavailable`), and
+    // nothing of the place opens - not its session, not its target.
+    if (opensProject && get().selectedProject === null) {
+      set({ hydratedDocumentId: get().activeDocumentId, tabsRestorePending: false });
+      return true;
+    }
 
     if (target.session) {
       await get().selectSession(target.session, {
         history: historyMode(),
         cachedMessages: target.sessionMessages,
+        parentStack: target.subagentStack,
       });
     } else if (target.session === null && get().selectedSession) {
       set({
@@ -312,6 +362,14 @@ export const createNavigationSlice: StateCreator<
         }));
       }
     }
+    // The live state is now the active tab's (plan §4.3): a snapshot taken
+    // from here on records it.
+    set({
+      hydratedDocumentId: get().activeDocumentId,
+      // The user (or a hint) moved before the restored tab opened: what
+      // they chose stays, the restore is off.
+      tabsRestorePending: false,
+    });
     return true;
   },
 
@@ -332,9 +390,12 @@ export const createNavigationSlice: StateCreator<
   },
 
   navigateToMessage: (uuid, options) => {
+    // An explicit target outranks a saved scroll position (plan §4.3).
     set({
       targetMessageUuid: uuid,
       shouldHighlightTarget: true,
+      targetRequest: get().targetRequest + 1,
+      pendingAnchor: null,
     });
 
     const session = get().selectedSession;
@@ -351,5 +412,17 @@ export const createNavigationSlice: StateCreator<
     set({
       targetMessageUuid: null,
       shouldHighlightTarget: false,
+      targetRequest: get().targetRequest + 1,
     }),
+
+  lookUpTargetMessage: async () => {
+    const uuid = get().targetMessageUuid;
+    if (!uuid) return false;
+    // Taken before the await: this lookup owns the target it was started for.
+    const request = get().targetRequest;
+    const owns = () => get().targetRequest === request;
+    const found = await get().ensureMessageLoaded(uuid);
+    if (!found && owns()) get().clearTargetMessage();
+    return found;
+  },
 });

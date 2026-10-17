@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-10-16T15:10:16.991Z
- * 총 키 개수: 2104
+ * 생성 시간: 2026-10-16T22:23:58.219Z
+ * 총 키 개수: 2138
  * Namespace 수: 11
  */
 
@@ -40,7 +40,7 @@ export type I18nNamespace =
   | 'recentEdits';
 
 /**
- * common namespace의 번역 키 (228개)
+ * common namespace의 번역 키 (257개)
  * 파일: locales/{lang}/common.json
  */
 export type CommonKeys =
@@ -61,13 +61,26 @@ export type CommonKeys =
   | 'common.collapse'
   | 'common.command.back'
   | 'common.command.checkForUpdates'
+  | 'common.command.closeTab'
   | 'common.command.failed'
   | 'common.command.find'
   | 'common.command.forward'
+  | 'common.command.goToLastTab'
+  | 'common.command.goToTab1'
+  | 'common.command.goToTab2'
+  | 'common.command.goToTab3'
+  | 'common.command.goToTab4'
+  | 'common.command.goToTab5'
+  | 'common.command.goToTab6'
+  | 'common.command.goToTab7'
+  | 'common.command.goToTab8'
   | 'common.command.groupHeading'
+  | 'common.command.newTab'
+  | 'common.command.nextTab'
   | 'common.command.openArchive'
   | 'common.command.openPalette'
   | 'common.command.openSettingsManager'
+  | 'common.command.previousTab'
   | 'common.command.sendFeedback'
   | 'common.command.toggleMinimap'
   | 'common.command.toggleNavigator'
@@ -209,6 +222,22 @@ export type CommonKeys =
   | 'common.settings.view.title'
   | 'common.show'
   | 'common.showMore'
+  | 'common.tabs.all_one'
+  | 'common.tabs.all_other'
+  | 'common.tabs.closeNamed'
+  | 'common.tabs.closeThis'
+  | 'common.tabs.count_one'
+  | 'common.tabs.count_other'
+  | 'common.tabs.empty'
+  | 'common.tabs.label'
+  | 'common.tabs.limitReached'
+  | 'common.tabs.openScreenFailed'
+  | 'common.tabs.restoreCorrupt'
+  | 'common.tabs.restoreDropped_one'
+  | 'common.tabs.restoreDropped_other'
+  | 'common.tabs.unavailable.project'
+  | 'common.tabs.unavailable.session'
+  | 'common.tabs.unavailableTitle'
   | 'common.time.daysAgo_one'
   | 'common.time.daysAgo_other'
   | 'common.time.duration'
@@ -1424,7 +1453,7 @@ export type ToolsKeys =
   | 'tools.webSearch';
 
 /**
- * error namespace의 번역 키 (38개)
+ * error namespace의 번역 키 (43개)
  * 파일: locales/{lang}/error.json
  */
 export type ErrorKeys =
@@ -1453,10 +1482,15 @@ export type ErrorKeys =
   | 'error.emailTemplate.whatWereDoing'
   | 'error.errorInfo'
   | 'error.loadBoard'
+  | 'error.refreshFailed'
   | 'error.reportDescription'
   | 'error.reportError'
   | 'error.restartApp'
   | 'error.savePresetFailed'
+  | 'error.searchFailed'
+  | 'error.sessionListLoadFailed'
+  | 'error.sessionListReloadFailed'
+  | 'error.tokenStatsLoadFailed'
   | 'error.toolExecutionError'
   | 'error.troubleshooting'
   | 'error.troubleshootingSteps.reportPersistent'
@@ -2557,13 +2591,26 @@ export type TranslationKey =
   | 'common.collapse'
   | 'common.command.back'
   | 'common.command.checkForUpdates'
+  | 'common.command.closeTab'
   | 'common.command.failed'
   | 'common.command.find'
   | 'common.command.forward'
+  | 'common.command.goToLastTab'
+  | 'common.command.goToTab1'
+  | 'common.command.goToTab2'
+  | 'common.command.goToTab3'
+  | 'common.command.goToTab4'
+  | 'common.command.goToTab5'
+  | 'common.command.goToTab6'
+  | 'common.command.goToTab7'
+  | 'common.command.goToTab8'
   | 'common.command.groupHeading'
+  | 'common.command.newTab'
+  | 'common.command.nextTab'
   | 'common.command.openArchive'
   | 'common.command.openPalette'
   | 'common.command.openSettingsManager'
+  | 'common.command.previousTab'
   | 'common.command.sendFeedback'
   | 'common.command.toggleMinimap'
   | 'common.command.toggleNavigator'
@@ -2705,6 +2752,22 @@ export type TranslationKey =
   | 'common.settings.view.title'
   | 'common.show'
   | 'common.showMore'
+  | 'common.tabs.all_one'
+  | 'common.tabs.all_other'
+  | 'common.tabs.closeNamed'
+  | 'common.tabs.closeThis'
+  | 'common.tabs.count_one'
+  | 'common.tabs.count_other'
+  | 'common.tabs.empty'
+  | 'common.tabs.label'
+  | 'common.tabs.limitReached'
+  | 'common.tabs.openScreenFailed'
+  | 'common.tabs.restoreCorrupt'
+  | 'common.tabs.restoreDropped_one'
+  | 'common.tabs.restoreDropped_other'
+  | 'common.tabs.unavailable.project'
+  | 'common.tabs.unavailable.session'
+  | 'common.tabs.unavailableTitle'
   | 'common.time.daysAgo_one'
   | 'common.time.daysAgo_other'
   | 'common.time.duration'
@@ -2803,10 +2866,15 @@ export type TranslationKey =
   | 'error.emailTemplate.whatWereDoing'
   | 'error.errorInfo'
   | 'error.loadBoard'
+  | 'error.refreshFailed'
   | 'error.reportDescription'
   | 'error.reportError'
   | 'error.restartApp'
   | 'error.savePresetFailed'
+  | 'error.searchFailed'
+  | 'error.sessionListLoadFailed'
+  | 'error.sessionListReloadFailed'
+  | 'error.tokenStatsLoadFailed'
   | 'error.toolExecutionError'
   | 'error.troubleshooting'
   | 'error.troubleshootingSteps.reportPersistent'

@@ -66,9 +66,23 @@ const {
     isLoadingRecentEditsDock: false,
     isLoadingMoreRecentEditsDock: false,
     isRecentEditsDockOpen: true,
-    recentEditsDock: { uniqueFilesCount: 3, totalEditsCount: 7 },
+    // Screen data is shown only with its owner's place
+    // (`navigation/screenOwner.ts`): this fixture's is the open project and
+    // session. The dock answers its project-wide request
+    // (`recentEditsDockRequestKey`: path, scope, grouping, session).
+    recentEditsScope: "project",
+    recentEditsGroupingProject: "file",
+    recentEditsDock: {
+      uniqueFilesCount: 3,
+      totalEditsCount: 7,
+      requestKey: JSON.stringify(["/tmp/project", "project", "file", ""]),
+    },
     analytics: {
-      recentEditsPagination: { isLoadingMore: false },
+      recentEdits: { files: [], total_edits_count: 0, unique_files_count: 0 },
+      recentEditsOwner: "/tmp/project",
+      recentEditsPagination: { hasMore: false },
+      isLoadingRecentEdits: false,
+      recentEditsError: null,
       projectSummary: null,
       projectConversationSummary: null,
       sessionComparison: null,
@@ -91,6 +105,8 @@ const {
     projectTokenStatsSummary: { total: "summary" },
     projectConversationTokenStatsSummary: { total: "conversation-summary" },
     projectTokenStatsPagination: { hasMore: false },
+    projectTokenStatsOwner: "/tmp/project",
+    sessionTokenStatsOwner: "/tmp/session.jsonl",
     sessionSearch: { query: "", matches: [], currentMatchIndex: -1, filterType: "content" },
     initializeApp: vi.fn(async () => {}),
     selectProject: vi.fn(async () => {}),
@@ -107,6 +123,12 @@ const {
     loadMoreSessions: vi.fn(async () => {}),
     view: "conversation",
     navigationEpoch: 0,
+    // Conversation tabs (T8): one tab, the live state.
+    documents: [],
+    parentSessionStack: [],
+    activeDocumentId: "t1",
+    hydratedDocumentId: "t1",
+    tabsRestoreReport: { corrupt: false, dropped: 0 },
     navigate: vi.fn(async () => true),
     beginNavigation: vi.fn(() => 1),
     reloadCurrent: vi.fn(async () => {}),
@@ -148,6 +170,7 @@ const {
   const storeMock = ((selector?: (s: typeof state) => unknown) =>
     typeof selector === "function" ? selector(state) : state) as StoreMock;
   storeMock.getState = () => state;
+  (storeMock as unknown as { subscribe: () => () => void }).subscribe = () => () => {};
 
   const analytics = {
     recentEdits: { files: [], total_edits_count: 0, unique_files_count: 0 },
@@ -250,6 +273,8 @@ vi.mock("@/components/SettingsManager", () => ({ SettingsManager: stub("Settings
 vi.mock("@/components/SessionBoard/SessionBoard", () => ({ SessionBoard: stub("SessionBoard") }));
 vi.mock("@/components/ArchiveManager", () => ({ ArchiveManager: stub("ArchiveManager") }));
 vi.mock("@/components/mobile/BottomTabBar", () => ({ BottomTabBar: stub("BottomTabBar") }));
+// The conversation tab strip (T8) has its own tests (navigation.tabs.*).
+vi.mock("@/layouts/shell/TabStrip", () => ({ TabStrip: stub("TabStrip") }));
 vi.mock("@/components/mobile/MobileNavigatorSheet", () => ({
   MobileNavigatorSheet: stub("MobileNavigatorSheet"),
 }));

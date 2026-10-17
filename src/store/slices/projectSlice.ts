@@ -35,6 +35,7 @@ import {
   PROVIDER_IDS,
 } from "../../utils/providers";
 import { INITIAL_PAGINATION } from "./messageSlice";
+import { errorDetail } from "@/utils/errorDetail";
 import { viewAfterLeavingProject } from "@/navigation/place";
 import { nextRequestId, getRequestId } from "../../utils/requestId";
 import {
@@ -57,6 +58,13 @@ export interface ProjectSliceState {
   selectedSession: ClaudeSession | null;
   isLoading: boolean;
   isLoadingProjects: boolean;
+  /**
+   * A project scan has completed and published its list - possibly empty.
+   * Startup waits for this, not for a non-empty list: before the first scan
+   * the list is empty too, and an empty scan must still let the restored
+   * tabs say what they could not find (T8).
+   */
+  projectsScanned: boolean;
   isLoadingSessions: boolean;
   isLoadingMoreSessions: boolean;
   isRefreshingAllConversations: boolean;
@@ -99,6 +107,7 @@ const initialProjectState: ProjectSliceState = {
   selectedSession: null,
   isLoading: false,
   isLoadingProjects: false,
+  projectsScanned: false,
   isLoadingSessions: false,
   isLoadingMoreSessions: false,
   isRefreshingAllConversations: false,
@@ -119,6 +128,17 @@ const dedupeSessionsById = (sessions: ClaudeSession[]): ClaudeSession[] => {
   }
   return deduped;
 };
+
+/**
+ * Whether a session-list failure means the project's folder is gone. The
+ * backend resolves the folder first (`load.rs`: "Failed to resolve
+ * project_path: ...", `canonicalize`), so a missing folder is that message
+ * with the OS's not-found code: `os error 2` (ENOENT / ERROR_FILE_NOT_FOUND)
+ * or, on Windows, `os error 3` (ERROR_PATH_NOT_FOUND). Every other failure -
+ * a permission, a busy file, a dropped WebUI connection - may pass.
+ */
+export const isProjectFolderGone = (error: unknown): boolean =>
+  /Failed to resolve [^:]*path: .*\(os error [23]\)/.test(errorDetail(error));
 
 /**
  * Ask the backend whether a selected session that is not on the reloaded first
@@ -283,7 +303,16 @@ export const createProjectSlice: StateCreator<
   [],
   [],
   ProjectSlice
-> = (set, get) => ({
+> = (set, get) => {
+  /**
+   * Projects whose session list last failed to load for a reason other than
+   * a missing folder. The watcher reloads on every write, so a failure that
+   * lasts (a file held busy, a dropped connection) is told once per run of
+   * failures; the next load that succeeds ends the run.
+   */
+  const listFailureReported = new Set<string>();
+
+  return {
   ...initialProjectState,
 
   initializeApp: async () => {
@@ -527,7 +556,7 @@ export const createProjectSlice: StateCreator<
         );
       }
       if (!owner.ownsData()) return;
-      set({ projects });
+      set({ projects, projectsScanned: true });
       if (
         projects.length === 0 &&
         providerErrors.length > 0 &&
@@ -671,12 +700,10 @@ export const createProjectSlice: StateCreator<
     } catch (error) {
       console.error("Failed to refresh all conversations:", error);
       if (!owner.ownsFeedback()) return;
+      // A refresh reloads the open place: its failure is said once, and the
+      // tabs stay (the scan's own failure is raised by `scanProjects`).
       const message = error instanceof Error ? error.message : String(error);
       toast.error(`Failed to refresh conversations: ${message}`);
-      get().setError({
-        type: AppErrorType.UNKNOWN,
-        message,
-      });
     } finally {
       set({ isRefreshingAllConversations: false });
     }
@@ -771,6 +798,7 @@ export const createProjectSlice: StateCreator<
             (await lookUpSessionBeyondPage(provider, project, held, get().excludeSidechain));
 
       if (!owner.ownsData()) return;
+      listFailureReported.delete(project.path);
 
       // A session found beyond page 1 is appended so the open session stays
       // visible; `loadMoreSessions` dedupes it when its own page arrives.
@@ -799,7 +827,21 @@ export const createProjectSlice: StateCreator<
     } catch (error) {
       console.error("Failed to load project sessions:", error);
       if (!owner.ownsFeedback()) return;
-      set({ error: { type: AppErrorType.UNKNOWN, message: String(error) } });
+      if (isProjectFolderGone(error)) {
+        // The project belongs to the tab showing it: a list whose folder was
+        // deleted since the last scan is that tab's in-tab notice, never the
+        // app's error screen, which would hide every tab.
+        listFailureReported.delete(project.path);
+        get().markProjectUnavailable(project.path);
+        return;
+      }
+      // Anything else may pass (a busy file, a dropped connection, a
+      // permission): the rows on screen stay, and the next reload - the
+      // watcher's next tick - tries again.
+      if (!listFailureReported.has(project.path)) {
+        listFailureReported.add(project.path);
+        toast.error(i18n.t("error.sessionListReloadFailed", { detail: errorDetail(error) }));
+      }
     } finally {
       if (owner.ownsSpinner()) {
         set({ isLoadingSessions: false });
@@ -858,7 +900,8 @@ export const createProjectSlice: StateCreator<
     } catch (error) {
       console.error("Failed to load more project sessions:", error);
       if (!owner.ownsFeedback()) return;
-      set({ error: { type: AppErrorType.UNKNOWN, message: String(error) } });
+      // The rows already listed stay usable; only the next page failed.
+      toast.error(i18n.t("error.sessionListLoadFailed", { detail: errorDetail(error) }));
     } finally {
       if (owner.ownsSpinner()) {
         set({ isLoadingMoreSessions: false });
@@ -1008,4 +1051,5 @@ export const createProjectSlice: StateCreator<
 
     return "none";
   },
-});
+};
+};
