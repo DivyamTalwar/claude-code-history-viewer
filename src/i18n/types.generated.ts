@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-10-17T06:19:45.426Z
- * 총 키 개수: 2159
+ * 생성 시간: 2026-10-17T10:21:53.672Z
+ * 총 키 개수: 2156
  * Namespace 수: 11
  */
 
@@ -40,7 +40,7 @@ export type I18nNamespace =
   | 'recentEdits';
 
 /**
- * common namespace의 번역 키 (278개)
+ * common namespace의 번역 키 (277개)
  * 파일: locales/{lang}/common.json
  */
 export type CommonKeys =
@@ -49,7 +49,6 @@ export type CommonKeys =
   | 'common.a11y.skipToInspector'
   | 'common.a11y.skipToMain'
   | 'common.a11y.skipToProjects'
-  | 'common.a11y.skipToRecentEdits'
   | 'common.a11y.skipToSettings'
   | 'common.add'
   | 'common.appDescription'
@@ -324,7 +323,7 @@ export type CommonKeys =
   | 'time.yesterday';
 
 /**
- * analytics namespace의 번역 키 (206개)
+ * analytics namespace의 번역 키 (209개)
  * 파일: locales/{lang}/analytics.json
  */
 export type AnalyticsKeys =
@@ -461,6 +460,9 @@ export type AnalyticsKeys =
   | 'analytics.sessionsUnit'
   | 'analytics.showMoreSessions'
   | 'analytics.startTime'
+  | 'analytics.subTab.label'
+  | 'analytics.subTab.overview'
+  | 'analytics.subTab.tokens'
   | 'analytics.successRate'
   | 'analytics.timeline.activeDays'
   | 'analytics.timeline.clearFilter'
@@ -2189,7 +2191,7 @@ export type FeedbackKeys =
   | 'feedback.types.other';
 
 /**
- * recentEdits namespace의 번역 키 (70개)
+ * recentEdits namespace의 번역 키 (65개)
  * 파일: locales/{lang}/recentEdits.json
  */
 export type RecentEditsKeys =
@@ -2204,7 +2206,6 @@ export type RecentEditsKeys =
   | 'recentEdits.densityFull'
   | 'recentEdits.description'
   | 'recentEdits.diff'
-  | 'recentEdits.dockToPanel'
   | 'recentEdits.edited'
   | 'recentEdits.footerInfo'
   | 'recentEdits.groupBy'
@@ -2213,13 +2214,13 @@ export type RecentEditsKeys =
   | 'recentEdits.jumpToLatestEdit'
   | 'recentEdits.jumpToMessage'
   | 'recentEdits.lines'
-  | 'recentEdits.loadMore'
   | 'recentEdits.loading'
   | 'recentEdits.missingOnDisk'
   | 'recentEdits.noEdits'
   | 'recentEdits.noEditsDescription'
   | 'recentEdits.noLinesToShow'
   | 'recentEdits.noMissingFiles'
+  | 'recentEdits.noMissingFilesLoaded'
   | 'recentEdits.noProjectSelected'
   | 'recentEdits.noSearchResults'
   | 'recentEdits.panelOptions'
@@ -2255,13 +2256,9 @@ export type RecentEditsKeys =
   | 'recentEdits.timestamp'
   | 'recentEdits.title'
   | 'recentEdits.unavailableForProvider'
-  | 'recentEdits.undockToPage'
   | 'recentEdits.viewAdded'
-  | 'recentEdits.viewAsPage'
-  | 'recentEdits.viewAsSidebar'
   | 'recentEdits.viewContent'
   | 'recentEdits.viewModeGroup'
-  | 'recentEdits.viewModeLabel'
   | 'recentEdits.viewRemoved';
 
 /**
@@ -2430,6 +2427,9 @@ export type TranslationKey =
   | 'analytics.sessionsUnit'
   | 'analytics.showMoreSessions'
   | 'analytics.startTime'
+  | 'analytics.subTab.label'
+  | 'analytics.subTab.overview'
+  | 'analytics.subTab.tokens'
   | 'analytics.successRate'
   | 'analytics.timeline.activeDays'
   | 'analytics.timeline.clearFilter'
@@ -2600,7 +2600,6 @@ export type TranslationKey =
   | 'common.a11y.skipToInspector'
   | 'common.a11y.skipToMain'
   | 'common.a11y.skipToProjects'
-  | 'common.a11y.skipToRecentEdits'
   | 'common.a11y.skipToSettings'
   | 'common.add'
   | 'common.appDescription'
@@ -3275,7 +3274,6 @@ export type TranslationKey =
   | 'recentEdits.densityFull'
   | 'recentEdits.description'
   | 'recentEdits.diff'
-  | 'recentEdits.dockToPanel'
   | 'recentEdits.edited'
   | 'recentEdits.footerInfo'
   | 'recentEdits.groupBy'
@@ -3284,13 +3282,13 @@ export type TranslationKey =
   | 'recentEdits.jumpToLatestEdit'
   | 'recentEdits.jumpToMessage'
   | 'recentEdits.lines'
-  | 'recentEdits.loadMore'
   | 'recentEdits.loading'
   | 'recentEdits.missingOnDisk'
   | 'recentEdits.noEdits'
   | 'recentEdits.noEditsDescription'
   | 'recentEdits.noLinesToShow'
   | 'recentEdits.noMissingFiles'
+  | 'recentEdits.noMissingFilesLoaded'
   | 'recentEdits.noProjectSelected'
   | 'recentEdits.noSearchResults'
   | 'recentEdits.panelOptions'
@@ -3326,13 +3324,9 @@ export type TranslationKey =
   | 'recentEdits.timestamp'
   | 'recentEdits.title'
   | 'recentEdits.unavailableForProvider'
-  | 'recentEdits.undockToPage'
   | 'recentEdits.viewAdded'
-  | 'recentEdits.viewAsPage'
-  | 'recentEdits.viewAsSidebar'
   | 'recentEdits.viewContent'
   | 'recentEdits.viewModeGroup'
-  | 'recentEdits.viewModeLabel'
   | 'recentEdits.viewRemoved'
   | 'redactedThinkingRenderer.description'
   | 'redactedThinkingRenderer.title'

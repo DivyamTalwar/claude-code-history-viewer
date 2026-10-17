@@ -3,9 +3,9 @@
  *
  * Every `View` of the place model has one entry. The shell reads it for the
  * main-area body (`component` inside its `frame`), the content header
- * (`icon`, `titleKey`, `header.subtitle`), the header's view tabs (`tab`)
- * and the mobile analytics sub-nav. Nothing else in `src/layouts` picks a
- * component, title or icon per view; the registry test holds that line. The
+ * (`icon`, `titleKey`, `header.subtitle`) and the header's view tabs
+ * (`tab`). Nothing else in `src/layouts` picks a component, title or icon
+ * per view; the registry test holds that line. The
  * screens the right-hand inspector sits beside are the inspector's own rule
  * (`components/Inspector/inspectorAvailability.ts`), shared with the command
  * registry, which must not import the screens.
@@ -13,7 +13,10 @@
  * A screen has one icon (`SCREEN_ICONS`, decision page section 7): the header
  * tab draws the entry's `icon`, so a tab and its content header cannot
  * disagree (the board once showed a message icon in its header and columns on
- * its tab; token stats showed coins and activity).
+ * its tab).
+ *
+ * Token statistics are no entry (T9b): they are the analytics screen's
+ * "tokens" sub-tab (`AnalyticsSubTabs`, the place's `analyticsTab`).
  */
 import type { ComponentType, ReactNode } from "react";
 import type { TFunction } from "i18next";
@@ -33,7 +36,6 @@ import {
   RecentEditsScreen,
   ScrollFrame,
   SettingsScreen,
-  TokenStatsScreen,
   type ViewScreenProps,
 } from "./screens";
 
@@ -50,22 +52,16 @@ export interface ViewEntry {
   component: ComponentType<ViewScreenProps>;
   /** What the body sits in inside the view panel. */
   frame: ComponentType<{ children: ReactNode }>;
-  /** The screen's mark: header tab, content header, mobile sub-nav. */
+  /** The screen's mark: header tab, content header. */
   icon: LucideIcon;
   /**
-   * The screen's name (content header, mobile sub-nav). An i18n key that
+   * The screen's name (content header). An i18n key that
    * must exist in `en`; checked by the registry test rather than by type,
    * as the generated key union does not cover every namespace.
    */
   titleKey: string;
   /** The content header above the body; null for screens without one. */
   header: { subtitle: (context: HeaderContext) => string } | null;
-  /**
-   * A related screen the content header links to (desktop; the mobile
-   * sub-nav lists them). Token stats has no toolbar tab until it becomes an
-   * analytics sub-tab (plan C1, T9b), so analytics links to it.
-   */
-  related?: { view: View; labelKey: string };
 }
 
 /** A header view tab: its label (which may differ from the title). It draws the entry's icon. */
@@ -78,7 +74,7 @@ export type ViewRegistry = {
   [V in View]: ViewEntry & (V extends ToolbarView ? { tab: TabEntry } : { tab?: never });
 };
 
-/** The open session's summary, or a placeholder (project analytics and token stats). */
+/** The open session's summary, or a placeholder (project analytics). */
 const sessionSummary = ({ t, selectedSession }: HeaderContext) =>
   selectedSession?.summary || t("session.summaryNotFound");
 
@@ -105,15 +101,6 @@ export const VIEW_REGISTRY: ViewRegistry = {
     titleKey: "analytics.dashboard",
     header: { subtitle: sessionSummary },
     tab: { labelKey: "analytics.dashboard" },
-    related: { view: "tokenStats", labelKey: "messages.tokenStats.title" },
-  },
-  tokenStats: {
-    component: TokenStatsScreen,
-    frame: ScrollFrame,
-    icon: SCREEN_ICONS.tokenStats,
-    titleKey: "messages.tokenStats.title",
-    header: { subtitle: sessionSummary },
-    related: { view: "analytics", labelKey: "analytics.dashboard" },
   },
   edits: {
     component: RecentEditsScreen,
@@ -165,12 +152,15 @@ export const TOOLBAR_TAB_ORDER: readonly ToolbarView[] = [
   "board",
 ];
 
-/** The project screens the mobile layout switches between under its header. */
-export type MobileAnalyticsView = "analytics" | "tokenStats" | "edits";
+/**
+ * The project screens that show the phone's analytics nav row under their
+ * header (`MobileAnalyticsSubNav`: Overview · Tokens · Edits). Token
+ * statistics are analytics' "tokens" sub-tab (T9b), not a screen.
+ */
+export type MobileAnalyticsView = "analytics" | "edits";
 
 export const MOBILE_ANALYTICS_VIEWS: readonly MobileAnalyticsView[] = [
   "analytics",
-  "tokenStats",
   "edits",
 ];
 
@@ -181,7 +171,6 @@ export const isMobileAnalyticsView = (view: View): view is MobileAnalyticsView =
 export type ScreenFlags = Pick<
   UseAnalyticsReturn["computed"],
   | "isMessagesView"
-  | "isTokenStatsView"
   | "isAnalyticsView"
   | "isGlobalStatsView"
   | "isRecentEditsView"
@@ -199,7 +188,6 @@ const SCREEN_FLAGS: ReadonlyArray<readonly [keyof ScreenFlags, View]> = [
   ["isRecentEditsView", "edits"],
   ["isAnalyticsView", "analytics"],
   ["isGlobalStatsView", "globalStats"],
-  ["isTokenStatsView", "tokenStats"],
   ["isEmptyView", "empty"],
 ];
 

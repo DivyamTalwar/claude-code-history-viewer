@@ -37,9 +37,8 @@ const { useAppStoreMock, appStoreState, resetStoreLoadFlags } = vi.hoisted(() =>
     isLoadingGlobalStats: false,
     isLoadingBoard: false,
     isMetadataLoading: false,
-    isLoadingRecentEditsDock: false,
-    isLoadingMoreRecentEditsDock: false,
-    analytics: { recentEditsPagination: { isLoadingMore: false } },
+    isLoadingRecentEdits: false,
+    isLoadingMoreRecentEdits: false,
     archive: {
       isLoadingArchives: false,
       isLoadingSessions: false,
@@ -80,7 +79,6 @@ const { useAppStoreMock, appStoreState, resetStoreLoadFlags } = vi.hoisted(() =>
     reloadCurrent: vi.fn(async () => {}),
     setBoardHoverSession: vi.fn(),
     loadMoreProjectTokenStats: vi.fn(async () => {}),
-    loadMoreRecentEdits: vi.fn(async () => {}),
     updateUserSettings: vi.fn(),
     getGroupedProjects: vi.fn(() => ({ groups: [], ungrouped: [] })),
     getDirectoryGroupedProjects: vi.fn(() => ({ groups: [] })),
@@ -124,9 +122,8 @@ const { useAppStoreMock, appStoreState, resetStoreLoadFlags } = vi.hoisted(() =>
     state.isLoadingGlobalStats = false;
     state.isLoadingBoard = false;
     state.isMetadataLoading = false;
-    state.isLoadingRecentEditsDock = false;
-    state.isLoadingMoreRecentEditsDock = false;
-    state.analytics.recentEditsPagination.isLoadingMore = false;
+    state.isLoadingRecentEdits = false;
+    state.isLoadingMoreRecentEdits = false;
     state.pagination.isLoadingMore = false;
     Object.assign(state.archive, {
       isLoadingArchives: false,
@@ -231,16 +228,11 @@ vi.mock("@/layouts/Header/SettingDropdown/ModalContainer", () => ({
 vi.mock("@/hooks/useAnalytics", () => ({
   useAnalytics: () => ({
     state: {
-      recentEdits: null,
-      recentEditsPagination: null,
-      isLoadingRecentEdits: false,
-      recentEditsError: null,
       recentEditsSearchQuery: "",
     },
     actions: {
       clearAll: vi.fn(),
       switchToMessages: vi.fn(),
-      switchToTokenStats: vi.fn(),
       switchToBoard: vi.fn(),
       switchToRecentEdits: vi.fn(),
       switchToAnalytics: vi.fn(),
@@ -257,7 +249,8 @@ vi.mock("@/hooks/useAnalytics", () => ({
 const { computedMock, resetComputedMock } = vi.hoisted(() => {
   const defaults = {
     isMessagesView: true,
-    isTokenStatsView: false,
+    isAnalyticsOverview: false,
+    isAnalyticsTokens: false,
     isAnalyticsView: false,
     isGlobalStatsView: false,
     isRecentEditsView: false,
@@ -389,7 +382,7 @@ describe("App accessibility smoke", () => {
   it.each([
     ["settings", { isSettingsView: true }],
     ["analytics", { isAnalyticsView: true }],
-    ["token stats", { isTokenStatsView: true }],
+    ["analytics tokens sub-tab", { isAnalyticsView: true, isAnalyticsTokens: true }],
     ["board", { isBoardView: true }],
     // Archive is left out: its branch reads archive state this mock does not
     // carry, so including it would test the fixture rather than the gating.
@@ -507,9 +500,8 @@ describe("App accessibility smoke", () => {
     ["an analytics view is loading", () => { computedMock.isAnyLoading = true; }, "false"],
     ["session metadata is loading", () => { appStoreState.isMetadataLoading = true; }, "false"],
     ["another message page is loading", () => { appStoreState.pagination.isLoadingMore = true; }, "false"],
-    ["the recent-edits dock is loading", () => { appStoreState.isLoadingRecentEditsDock = true; }, "false"],
-    ["another recent-edits dock page is loading", () => { appStoreState.isLoadingMoreRecentEditsDock = true; }, "false"],
-    ["another recent-edits page is loading", () => { appStoreState.analytics.recentEditsPagination.isLoadingMore = true; }, "false"],
+    ["the Edits screen's rows are loading", () => { appStoreState.isLoadingRecentEdits = true; }, "false"],
+    ["another page of the Edits screen is loading", () => { appStoreState.isLoadingMoreRecentEdits = true; }, "false"],
   ])("reports data-ready while %s", (_label, arrange, expected) => {
     arrange();
 

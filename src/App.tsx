@@ -183,7 +183,7 @@ function App() {
     tabScreensRef.current = tabScreens;
   }, [tabScreens]);
 
-  // Tabs are saved as they change (`tabs.v1`); a store that could not be
+  // Tabs are saved as they change (`tabs.v2`); a store that could not be
   // read is reported once.
   useEffect(() => {
     reportStoredTabsProblems();
@@ -376,21 +376,6 @@ function App() {
     onResizeEnd: setInspectorWidth,
   });
 
-  // Recent Edits dock resize (right side, sibling of the navigator).
-  // Wider than the navigator's 280 by default: the row carries a filename, line
-  // counts and a time on one line.
-  const {
-    width: recentEditsDockWidth,
-    isResizing: isRecentEditsDockResizing,
-    handleMouseDown: handleRecentEditsDockResizeStart,
-  } = useResizablePanel({
-    defaultWidth: 340,
-    minWidth: 260,
-    maxWidth: 520,
-    storageKey: "recent-edits-width",
-    direction: "left",
-  });
-
   // Global stats is a screen of the current place: the project/session stay
   // as its context, so the sidebar and sessions column keep them and one
   // click returns to the conversation.
@@ -548,9 +533,6 @@ function App() {
       isInspectorResizing={isInspectorResizing}
       handleInspectorResizeStart={handleInspectorResizeStart}
       isInspectorOpen={isInspectorOpen}
-      recentEditsDockWidth={recentEditsDockWidth}
-      isRecentEditsDockResizing={isRecentEditsDockResizing}
-      handleRecentEditsDockResizeStart={handleRecentEditsDockResizeStart}
       groupingMode={groupingMode}
       worktreeGroups={worktreeGroups}
       directoryGroups={directoryGroups}

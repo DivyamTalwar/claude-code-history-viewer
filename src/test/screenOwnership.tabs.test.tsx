@@ -63,11 +63,9 @@ import { activateTab, openInNewTab, type TabScreens } from "@/navigation/tabs";
 import { AnalyticsDashboard } from "@/components/AnalyticsDashboard";
 import { formatNumber } from "@/components/AnalyticsDashboard/utils";
 import { SessionBoard } from "@/components/SessionBoard/SessionBoard";
-import { RecentEditsPanel } from "@/components/RecentEditsViewer/RecentEditsPanel";
-import { RecentEditsDock } from "@/layouts/shell/RecentEditsDock";
-import { RecentEditsScreen, TokenStatsScreen } from "@/layouts/shell/screens";
+import { AnalyticsScreen, RecentEditsScreen } from "@/layouts/shell/screens";
 import { ThemeProvider } from "@/contexts/theme";
-import type { View } from "@/navigation/place";
+import type { AnalyticsTab, View } from "@/navigation/place";
 
 const project = (name: string): ClaudeProject => ({
   name,
@@ -242,15 +240,19 @@ function realScreens(): TabScreens {
  * Tab A on X's `view` (loaded), tab B on Y's (loaded once), back on A.
  * Returns B's id; the caller holds Y's requests and switches.
  */
-async function twoTabs(view: View, screens: TabScreens): Promise<{ tabA: string; tabB: string }> {
+async function twoTabs(
+  view: View,
+  screens: TabScreens,
+  analyticsTab?: AnalyticsTab,
+): Promise<{ tabA: string; tabB: string }> {
   await act(async () => {
-    await state().navigate({ project: X, view });
+    await state().navigate({ project: X, view, analyticsTab });
     await screens.openView(view);
   });
   const tabA = state().activeDocumentId!;
   await act(async () => {
     await openInNewTab(async () => {
-      await state().navigate({ project: Y, view });
+      await state().navigate({ project: Y, view, analyticsTab });
       await screens.openView(view);
     });
   });
@@ -358,21 +360,22 @@ describe("project analytics shows only its own project's summary", () => {
   });
 });
 
-describe("token stats shows only its own project's stats", () => {
+describe("the analytics tokens sub-tab shows only its own project's stats", () => {
   const renderTokenStats = () =>
     render(
-      <TokenStatsScreen
-        view="tokenStats"
+      <AnalyticsScreen
+        view="analytics"
         analyticsState={{} as never}
         analyticsActions={{} as never}
         onTokenStatClick={() => {}}
+        isMobile={false}
       />,
     );
 
   it("held: B shows loading, never X's rows", async () => {
     const screens = realScreens();
     renderTokenStats();
-    const { tabB } = await twoTabs("tokenStats", screens);
+    const { tabB } = await twoTabs("analytics", screens, "tokens");
     expect(screen.getByText("token row only in x")).toBeInTheDocument();
 
     const list = hold("load_provider_sessions_page", Y);
@@ -395,7 +398,7 @@ describe("token stats shows only its own project's stats", () => {
   it("failed: B shows its own error, never X's rows", async () => {
     const screens = realScreens();
     renderTokenStats();
-    const { tabB } = await twoTabs("tokenStats", screens);
+    const { tabB } = await twoTabs("analytics", screens, "tokens");
 
     const stats = hold("get_project_token_stats", Y);
     const switching = startSwitch(tabB, screens);
@@ -453,51 +456,11 @@ describe("the board shows only its own project's sessions", () => {
   });
 });
 
-describe("recent edits shows only its own project's edits", () => {
+describe("the Edits screen shows only its own project's edits", () => {
   const xRow = () => screen.queryAllByText(/only-in-x\.ts/)[0] ?? null;
   const wrap = (node: ReactNode) => <ThemeProvider>{node}</ThemeProvider>;
-
-  it("the dock: held, B shows loading (no X rows, no X counts in the header); failed, B's error", async () => {
-    const screens = realScreens();
-    render(wrap(<RecentEditsDock width={340} isResizing={false} onResizeStart={() => {}} />));
-    // The dock beside a transcript: its own loader runs for the open project.
-    const { tabB } = await twoTabs("conversation", screens);
-    await waitFor(() => expect(xRow()).toBeInTheDocument());
-    expect(screen.getByText("recentEdits.stats")).toBeInTheDocument();
-
-    const edits = hold("get_recent_edits", Y);
-    const switching = startSwitch(tabB, screens);
-    await waitFor(() => expect(state().selectedProject?.path).toBe(Y.path));
-    expect(xRow()).not.toBeInTheDocument();
-    expect(screen.queryByText("recentEdits.stats")).not.toBeInTheDocument();
-    await act(async () => void (await switching));
-    await waitFor(() => expect(arrived.has(`get_recent_edits@${Y.path}`)).toBe(true));
-    expect(xRow()).not.toBeInTheDocument();
-
-    await act(async () => edits.reject(new Error("y edits failed")));
-    await settle();
-    expect(xRow()).not.toBeInTheDocument();
-    expect(screen.getByText("y edits failed")).toBeInTheDocument();
-  });
-
-  it("the panel never shows an earlier request's rows or error under another project", async () => {
-    const screens = realScreens();
-    render(wrap(<RecentEditsPanel />));
-    const { tabB } = await twoTabs("conversation", screens);
-    await waitFor(() => expect(xRow()).toBeInTheDocument());
-
-    const list = hold("load_provider_sessions_page", Y);
-    const switching = startSwitch(tabB, screens);
-    await waitFor(() => expect(state().selectedProject?.path).toBe(Y.path));
-    expect(xRow()).not.toBeInTheDocument();
-    await act(async () => list.resolve({ sessions: [Y1], total: 1, nextOffset: 1, hasMore: false }));
-    await act(async () => void (await switching));
-    await settle();
-    expect(screen.getAllByText(/only-in-y\.ts/).length).toBeGreaterThan(0);
-  });
-
-  it("the page: held, B shows loading, never X's rows; failed, B's error", async () => {
-    const screens = realScreens();
+  /** The Edits screen as the shell mounts it (T9b: the only recent-edits surface). */
+  function renderEditsScreen() {
     const { result } = renderHook(() => useAnalyticsNavigation());
     function Page() {
       return (
@@ -506,19 +469,26 @@ describe("recent edits shows only its own project's edits", () => {
           analyticsState={useAppStore((s) => s.analytics)}
           analyticsActions={result.current}
           onTokenStatClick={() => {}}
+          isMobile={false}
         />
       );
     }
     render(wrap(<Page />));
+  }
+
+  it("held: B shows loading (no X rows, no X counts); failed, B's own error", async () => {
+    const screens = realScreens();
+    renderEditsScreen();
     const { tabB } = await twoTabs("edits", screens);
     await waitFor(() => expect(xRow()).toBeInTheDocument());
+    expect(screen.getByText("recentEdits.stats")).toBeInTheDocument();
 
     const list = hold("load_provider_sessions_page", Y);
     const edits = hold("get_recent_edits", Y);
-    // The page's loader records its failure on the screen and rethrows it.
-    const switching = startSwitch(tabB, screens).catch(() => false);
+    const switching = startSwitch(tabB, screens);
     await waitFor(() => expect(state().selectedProject?.path).toBe(Y.path));
     expect(xRow()).not.toBeInTheDocument();
+    expect(screen.queryByText("recentEdits.stats")).not.toBeInTheDocument();
     await act(async () => list.resolve({ sessions: [Y1], total: 1, nextOffset: 1, hasMore: false }));
     await waitFor(() => expect(arrived.has(`get_recent_edits@${Y.path}`)).toBe(true));
     expect(xRow()).not.toBeInTheDocument();
@@ -528,5 +498,109 @@ describe("recent edits shows only its own project's edits", () => {
     await settle();
     expect(xRow()).not.toBeInTheDocument();
     expect(screen.getByText(/y edits failed/)).toBeInTheDocument();
+  });
+
+  it("answered: B shows its own rows; switching back shows X's again without a refetch", async () => {
+    const screens = realScreens();
+    renderEditsScreen();
+    const { tabA, tabB } = await twoTabs("edits", screens);
+    await waitFor(() => expect(xRow()).toBeInTheDocument());
+
+    await act(async () => void (await activateTab(tabB, screens)));
+    await settle();
+    expect(screen.getAllByText(/only-in-y\.ts/).length).toBeGreaterThan(0);
+    expect(xRow()).not.toBeInTheDocument();
+
+    await act(async () => void (await activateTab(tabA, screens)));
+    await settle();
+    expect(xRow()).toBeInTheDocument();
+    expect(screen.queryAllByText(/only-in-y\.ts/)).toHaveLength(0);
+  });
+
+  /**
+   * T9b review P2: X's Edits load is owned by X (the T2 `ownWork` rule). The
+   * move to Y opens a screen that asks the Edits slot nothing, so neither its
+   * request key nor its generation changes - only the place does - and the
+   * late answer must still not land in the shared slot. Its spinner clears.
+   */
+  async function startEditsLoadOnX(screens: TabScreens): Promise<{ loading: Promise<void> }> {
+    hold("get_recent_edits", X);
+    let loading!: Promise<void>;
+    act(() => {
+      loading = (async () => {
+        await state().navigate({ project: X, view: "edits" });
+        await screens.openView("edits");
+      })();
+    });
+    await waitFor(() => expect(arrived.has(`get_recent_edits@${X.path}`)).toBe(true));
+    // Wrapped: an async function returning the promise itself would adopt it.
+    return { loading };
+  }
+  const releaseX = async (loading: Promise<void>, outcome: "answer" | "fail") => {
+    const held = holds.get(`get_recent_edits@${X.path}`)!;
+    holds.delete(`get_recent_edits@${X.path}`);
+    await act(async () => {
+      if (outcome === "answer") held.resolve(editsOf(X));
+      else held.reject(new Error("x edits failed"));
+      await loading;
+    });
+    await settle();
+  };
+
+  it.each(["answer", "fail"] as const)(
+    "switching project mid-load: X's late %s never commits while Y is open",
+    async (outcome) => {
+      const screens = realScreens();
+      const { loading } = await startEditsLoadOnX(screens);
+      await act(async () => {
+        await state().navigate({ project: Y, session: Y1, view: "conversation" });
+      });
+      expect(state().selectedProject?.path).toBe(Y.path);
+
+      await releaseX(loading, outcome);
+      expect(state().selectedProject?.path).toBe(Y.path);
+      expect(state().recentEditsList).toBeNull();
+      expect(state().recentEditsError).toBeNull();
+      expect(state().isLoadingRecentEdits).toBe(false);
+    },
+  );
+
+  it("switching tabs mid-load: X's late answer never commits under tab B's project; back on A, X loads again", async () => {
+    const screens = realScreens();
+    const { loading } = await startEditsLoadOnX(screens);
+    const tabA = state().activeDocumentId!;
+    await act(async () => {
+      await openInNewTab(async () => {
+        await state().navigate({ project: Y, view: "analytics" });
+        await screens.openView("analytics");
+      });
+    });
+    expect(state().selectedProject?.path).toBe(Y.path);
+
+    await releaseX(loading, "answer");
+    expect(state().recentEditsList).toBeNull();
+    expect(state().isLoadingRecentEdits).toBe(false);
+
+    // Nothing is stranded: tab A's Edits screen reads X again and shows it.
+    renderEditsScreen();
+    await act(async () => void (await activateTab(tabA, screens)));
+    await settle();
+    await waitFor(() => expect(xRow()).toBeInTheDocument());
+    expect(state().recentEditsList?.request.projectPath).toBe(X.path);
+  });
+
+  it("session scope asks the backend for the open session's edits only", async () => {
+    const screens = realScreens();
+    useAppStore.setState({ recentEditsScope: "session" });
+    renderEditsScreen();
+    await act(async () => {
+      await state().navigate({ project: X, session: X1, view: "edits" });
+      await screens.openView("edits");
+    });
+    await waitFor(() => expect(xRow()).toBeInTheDocument());
+    const sessionCalls = apiMock.mock.calls.filter(
+      ([command, args]) => command === "get_recent_edits" && (args as Record<string, unknown>).sessionFilePath === X1.file_path
+    );
+    expect(sessionCalls.length).toBeGreaterThan(0);
   });
 });

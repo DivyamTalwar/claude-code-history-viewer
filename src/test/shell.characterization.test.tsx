@@ -6,7 +6,7 @@
  * tree is snapshotted: skip links, sidebar and sessions column, the content
  * header (icon, title, subtitle), the mobile analytics sub-nav, the view
  * panel with the component the screen renders and the props it receives, the
- * right-hand navigator and recent-edits dock, the status bar and the mobile
+ * right-hand inspector, the status bar and the mobile
  * chrome. View bodies are stubs that print their props, so the snapshot pins
  * the shell's choices, not the views' own markup.
  *
@@ -63,26 +63,12 @@ const {
     isLoadingGlobalStats: false,
     isLoadingBoard: false,
     isMetadataLoading: false,
-    isLoadingRecentEditsDock: false,
-    isLoadingMoreRecentEditsDock: false,
-    isRecentEditsDockOpen: true,
-    // Screen data is shown only with its owner's place
-    // (`navigation/screenOwner.ts`): this fixture's is the open project and
-    // session. The dock answers its project-wide request
-    // (`recentEditsDockRequestKey`: path, scope, grouping, session).
+    isLoadingRecentEdits: false,
+    isLoadingMoreRecentEdits: false,
+    // No dock (T9b): the Edits screen reads its own rows.
     recentEditsScope: "project",
     recentEditsGroupingProject: "file",
-    recentEditsDock: {
-      uniqueFilesCount: 3,
-      totalEditsCount: 7,
-      requestKey: JSON.stringify(["/tmp/project", "project", "file", ""]),
-    },
     analytics: {
-      recentEdits: { files: [], total_edits_count: 0, unique_files_count: 0 },
-      recentEditsOwner: "/tmp/project",
-      recentEditsPagination: { hasMore: false },
-      isLoadingRecentEdits: false,
-      recentEditsError: null,
       projectSummary: null,
       projectConversationSummary: null,
       sessionComparison: null,
@@ -122,6 +108,7 @@ const {
     loadGlobalStats: vi.fn(async () => {}),
     loadMoreSessions: vi.fn(async () => {}),
     view: "conversation",
+    analyticsTab: "overview",
     navigationEpoch: 0,
     // Conversation tabs (T8): one tab, the live state.
     documents: [],
@@ -134,10 +121,7 @@ const {
     reloadCurrent: vi.fn(async () => {}),
     setBoardHoverSession: vi.fn(),
     setAnalyticsMetricMode: vi.fn(),
-    setRecentEditsMode: vi.fn(),
-    setRecentEditsDockOpen: vi.fn(),
     loadMoreProjectTokenStats: vi.fn(async () => {}),
-    loadMoreRecentEdits: vi.fn(async () => {}),
     updateUserSettings: vi.fn(),
     getGroupedProjects: vi.fn(() => ({ groups: [], ungrouped: [] })),
     getDirectoryGroupedProjects: vi.fn(() => ({ groups: [] })),
@@ -177,16 +161,13 @@ const {
   (storeMock as unknown as { subscribe: () => () => void }).subscribe = () => () => {};
 
   const analytics = {
-    recentEdits: { files: [], total_edits_count: 0, unique_files_count: 0 },
-    recentEditsPagination: { hasMore: false },
-    isLoadingRecentEdits: false,
-    recentEditsError: null,
     recentEditsSearchQuery: "query",
   };
 
   const defaults = {
     isMessagesView: false,
-    isTokenStatsView: false,
+    isAnalyticsOverview: false,
+    isAnalyticsTokens: false,
     isAnalyticsView: false,
     isGlobalStatsView: false,
     isRecentEditsView: false,
@@ -249,22 +230,6 @@ vi.mock("@/components/MessageNavigator", () => ({
     <aside id={props.asideId}>{stub("MessageNavigator")(props)}</aside>
   ),
 }));
-/** How often the recent-edits dock's panel mounted and unmounted. */
-const { dockLifecycle } = vi.hoisted(() => ({ dockLifecycle: { mounts: 0, unmounts: 0 } }));
-vi.mock("@/components/PanelDock", async () => {
-  const { useEffect } = await import("react");
-  return {
-    PanelDock: (props: { asideId?: string } & Record<string, unknown>) => {
-      useEffect(() => {
-        dockLifecycle.mounts += 1;
-        return () => {
-          dockLifecycle.unmounts += 1;
-        };
-      }, []);
-      return <aside id={props.asideId}>{stub("PanelDock")(props)}</aside>;
-    },
-  };
-});
 vi.mock("@/components/TokenStatsViewer", () => ({ TokenStatsViewer: stub("TokenStatsViewer") }));
 vi.mock("@/components/AnalyticsDashboard", () => ({
   AnalyticsDashboard: stub("AnalyticsDashboard"),
@@ -294,12 +259,10 @@ vi.mock("@/components/ui/sheet", () => ({
 vi.mock("@/layouts/Header/Header", () => ({ Header: () => <header id="app-header" /> }));
 vi.mock("@/layouts/Header/SettingDropdown/ModalContainer", () => ({ ModalContainer: () => null }));
 vi.mock("@/contexts/theme", () => ({ useTheme: () => ({ isDarkMode: false }) }));
-// Wide viewport: the sessions column and the recent-edits dock can render.
+// Wide viewport: the sessions column can render.
 vi.mock("@/hooks/useMediaQuery", () => ({
   useMediaQuery: () => true,
-  useIsXlUp: () => true,
   useIsLgUp: () => true,
-  XL_BREAKPOINT: 1280,
 }));
 
 vi.mock("@/hooks/useAnalytics", () => ({
@@ -308,7 +271,6 @@ vi.mock("@/hooks/useAnalytics", () => ({
     actions: {
       clearAll: vi.fn(),
       switchToMessages: vi.fn(),
-      switchToTokenStats: vi.fn(),
       switchToBoard: vi.fn(),
       switchToRecentEdits: vi.fn(),
       switchToAnalytics: vi.fn(),
@@ -383,7 +345,14 @@ const SCREENS: ScreenCase[] = [
     },
   ],
   ["empty with a kept session", () => Object.assign(computedMock, { isEmptyView: true })],
-  ["token stats", () => Object.assign(computedMock, { isTokenStatsView: true })],
+  [
+    // Token stats became analytics' "tokens" sub-tab (T9b).
+    "analytics tokens sub-tab",
+    () => {
+      Object.assign(computedMock, { isAnalyticsView: true, isAnalyticsTokens: true });
+      appStoreState.analyticsTab = "tokens";
+    },
+  ],
   ["analytics", () => Object.assign(computedMock, { isAnalyticsView: true })],
   [
     "analytics without a session",
@@ -415,6 +384,7 @@ describe("shell characterization", () => {
     resetComputedMock();
     appStoreState.selectedProject = initialProject;
     appStoreState.selectedSession = initialSession;
+    appStoreState.analyticsTab = "overview";
   });
 
   describe.each([
@@ -431,46 +401,20 @@ describe("shell characterization", () => {
 });
 
 /*
-  The dock's lifetime on the transcript screen, as T2 (develop e3b84091) had
-  it: the dock sat beside the transcript or beside the "select a session"
-  placeholder, two different trees, so clearing or restoring the session
-  remounted it (its scroll, focus and local state start over), while
-  switching between two sessions kept it. The shell split must not change it.
+  The dock is gone (T9b): no screen, at any width, renders a recent-edits
+  panel beside it. The Edits screen is the one recent-edits surface.
 */
-describe("recent-edits dock lifetime on the transcript screen", () => {
-  const initialSession = appStoreState.selectedSession as Record<string, unknown>;
-
+describe("no recent-edits dock beside any screen (T9b)", () => {
   beforeAll(async () => {
     await i18n.changeLanguage("en");
   });
 
-  beforeEach(() => {
+  it.each(SCREENS)("%s", (_label, arrange) => {
     resetComputedMock();
     platformMock.isMobile = false;
-    appStoreState.selectedSession = initialSession;
-    Object.assign(dockLifecycle, { mounts: 0, unmounts: 0 });
-    Object.assign(computedMock, { isMessagesView: true });
-  });
-
-  it("keeps the dock across a switch to another session", () => {
-    const { rerender } = render(<App />);
-    expect(dockLifecycle).toEqual({ mounts: 1, unmounts: 0 });
-
-    appStoreState.selectedSession = { ...initialSession, session_id: "session-2" };
-    rerender(<App />);
-    expect(dockLifecycle).toEqual({ mounts: 1, unmounts: 0 });
-  });
-
-  it("remounts the dock when the session is cleared, and again when one is opened", () => {
-    const { rerender } = render(<App />);
-    expect(dockLifecycle).toEqual({ mounts: 1, unmounts: 0 });
-
-    appStoreState.selectedSession = null;
-    rerender(<App />);
-    expect(dockLifecycle).toEqual({ mounts: 2, unmounts: 1 });
-
-    appStoreState.selectedSession = initialSession;
-    rerender(<App />);
-    expect(dockLifecycle).toEqual({ mounts: 3, unmounts: 2 });
+    arrange();
+    const { container } = render(<App />);
+    expect(container.querySelector("#recent-edits-dock, [data-stub='PanelDock']")).toBeNull();
+    expect(container.querySelector("a[href='#recent-edits-dock']")).toBeNull();
   });
 });

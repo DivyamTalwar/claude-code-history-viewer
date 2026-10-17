@@ -51,10 +51,50 @@ const { useAppStoreMock, appStoreState, analyticsState, computedMock, resetCompu
       isLoadingGlobalStats: false,
       isLoadingBoard: false,
       isMetadataLoading: false,
-      isLoadingRecentEditsDock: false,
-      isLoadingMoreRecentEditsDock: false,
+      isLoadingRecentEdits: false,
+      isLoadingMoreRecentEdits: false,
+      // A populated Edits screen answering its own request (project scope,
+      // file grouping), so the viewer renders its list header rather than
+      // its loading or empty state.
+      recentEditsScope: "project",
+      recentEditsGroupingProject: "file",
+      recentEditsGroupingSession: "edit",
+      recentEditsDensity: "standard",
+      recentEditsMissingOnly: false,
+      recentEditsError: null,
+      recentEditsRequestedKey: null,
+      recentEditsList: (() => {
+        const request = {
+          projectPath: "/tmp/project",
+          scope: "project",
+          grouping: "file",
+          sessionFilePath: "/tmp/session.jsonl",
+        };
+        return {
+          files: [
+            {
+              file_path: "/tmp/project/src/a.ts",
+              timestamp: "2026-08-21T00:00:00.000Z",
+              session_id: "session-1",
+              operation_type: "edit",
+              content_after_change: "after",
+              lines_added: 1,
+              lines_removed: 0,
+            },
+          ],
+          totalEditsCount: 1,
+          uniqueFilesCount: 1,
+          projectCwd: "/tmp/project",
+          offset: 0,
+          limit: 20,
+          hasMore: false,
+          // `recentEditsRequestKey(request)`: the same serialization, inlined
+          // because a hoisted block cannot import.
+          requestKey: JSON.stringify([request.projectPath, request.scope, request.grouping, ""]),
+          request,
+        };
+      })(),
       analytics: {
-        recentEditsPagination: { isLoadingMore: false },
         projectSummary: null,
         projectConversationSummary: null,
         sessionComparison: null,
@@ -108,6 +148,7 @@ const { useAppStoreMock, appStoreState, analyticsState, computedMock, resetCompu
       clearSessionSearch: vi.fn(),
       loadGlobalStats: vi.fn(async () => {}),
       view: "conversation",
+      analyticsTab: "overview",
       navigationEpoch: 0,
       // Conversation tabs (T8): one tab, the live state.
       documents: [],
@@ -120,10 +161,14 @@ const { useAppStoreMock, appStoreState, analyticsState, computedMock, resetCompu
       reloadCurrent: vi.fn(async () => {}),
       setBoardHoverSession: vi.fn(),
       setAnalyticsMetricMode: vi.fn(),
-      setRecentEditsMode: vi.fn(),
-      setRecentEditsDockOpen: vi.fn(),
       loadMoreProjectTokenStats: vi.fn(async () => {}),
-      loadMoreRecentEdits: vi.fn(async () => {}),
+      loadRecentEditsList: vi.fn(async () => {}),
+      loadMoreRecentEditsList: vi.fn(async () => {}),
+      markRecentEditRestored: vi.fn(),
+      setRecentEditsScope: vi.fn(),
+      setRecentEditsDensity: vi.fn(),
+      setRecentEditsGrouping: vi.fn(),
+      setRecentEditsMissingOnly: vi.fn(),
       updateUserSettings: vi.fn(),
       getGroupedProjects: vi.fn(() => ({ groups: [], ungrouped: [] })),
       getDirectoryGroupedProjects: vi.fn(() => ({ groups: [] })),
@@ -162,35 +207,14 @@ const { useAppStoreMock, appStoreState, analyticsState, computedMock, resetCompu
     storeMock.getState = () => state;
     (storeMock as unknown as { subscribe: () => () => void }).subscribe = () => () => {};
 
-    // A populated recent-edits page, so the viewer renders its list header
-    // rather than its empty state.
     const analytics = {
-      recentEdits: {
-        requestedProjectPath: "/tmp/project",
-        files: [
-          {
-            file_path: "/tmp/project/src/a.ts",
-            timestamp: "2026-08-21T00:00:00.000Z",
-            session_id: "session-1",
-            operation_type: "edit",
-            content_after_change: "after",
-            lines_added: 1,
-            lines_removed: 0,
-          },
-        ],
-        total_edits_count: 1,
-        unique_files_count: 1,
-        project_cwd: "/tmp/project",
-      },
-      recentEditsPagination: null,
-      isLoadingRecentEdits: false,
-      recentEditsError: null,
       recentEditsSearchQuery: "",
     };
 
     const defaults = {
       isMessagesView: false,
-      isTokenStatsView: false,
+      isAnalyticsOverview: false,
+      isAnalyticsTokens: false,
       isAnalyticsView: false,
       isGlobalStatsView: false,
       isRecentEditsView: false,
@@ -245,7 +269,6 @@ vi.mock("@/hooks/useAnalytics", () => ({
     actions: {
       clearAll: vi.fn(),
       switchToMessages: vi.fn(),
-      switchToTokenStats: vi.fn(),
       switchToBoard: vi.fn(),
       switchToRecentEdits: vi.fn(),
       switchToAnalytics: vi.fn(),
@@ -300,9 +323,14 @@ type ViewCase = {
 
 const VIEWS: ViewCase[] = [
   {
-    label: "token stats",
-    titleKey: "messages.tokenStats.title",
-    arrange: () => Object.assign(computedMock, { isTokenStatsView: true }),
+    // Token stats are analytics' "tokens" sub-tab (T9b): the analytics title,
+    // once, above the sub-tabs and the token statistics.
+    label: "analytics (tokens sub-tab)",
+    titleKey: "analytics.dashboard",
+    arrange: () => {
+      Object.assign(computedMock, { isAnalyticsView: true, isAnalyticsTokens: true });
+      appStoreState.analyticsTab = "tokens";
+    },
   },
   {
     label: "analytics (project)",
@@ -367,6 +395,7 @@ describe("view title invariant", () => {
   beforeEach(() => {
     resetComputedMock();
     appStoreState.selectedProject = initialProject;
+    appStoreState.analyticsTab = "overview";
   });
 
   it.each(VIEWS)("$label: the title is shown exactly once, as the heading", ({ titleKey, arrange }) => {

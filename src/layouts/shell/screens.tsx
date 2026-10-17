@@ -18,10 +18,15 @@ import { useProviderDiscovery } from "@/hooks/useProviderDiscovery";
 import { cn } from "@/lib/utils";
 import { useShallow } from "zustand/react/shallow";
 import { useAppStore } from "@/store/useAppStore";
-import { selectRecentEditsPage, selectTokenStats } from "@/navigation/screenOwner";
+import { selectTokenStats } from "@/navigation/screenOwner";
 import { MessageViewer } from "@/components/MessageViewer";
 import { TokenStatsViewer } from "@/components/TokenStatsViewer";
 import { AnalyticsDashboard } from "@/components/AnalyticsDashboard";
+import { AnalyticsSubTabs } from "@/components/AnalyticsDashboard/AnalyticsSubTabs";
+import {
+  ANALYTICS_SUBTAB_PANEL_ID,
+  analyticsSubTabId,
+} from "@/components/AnalyticsDashboard/analyticsSubTabIds";
 import { RecentEditsViewer } from "@/components/RecentEditsViewer";
 import { SettingsManager } from "@/components/SettingsManager";
 import { SessionBoard } from "@/components/SessionBoard/SessionBoard";
@@ -37,6 +42,8 @@ export interface ViewScreenProps {
   analyticsState: UseAnalyticsReturn["state"];
   analyticsActions: UseAnalyticsReturn["actions"];
   onTokenStatClick: (stats: SessionTokenStats) => void;
+  /** The phone layout: analytics' sub-tabs live in the nav row above the screen. */
+  isMobile: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -205,16 +212,54 @@ export const ConversationScreen = ({ analyticsActions }: ViewScreenProps) => {
   );
 };
 
-/** Project analytics and global stats: one body, so a switch keeps it mounted. */
-export const AnalyticsScreen = ({ view, analyticsActions }: ViewScreenProps) => (
-  <AnalyticsDashboard
-    isGlobalScope={view === "globalStats"}
-    onRetry={() => void analyticsActions.refreshAnalytics()}
-  />
-);
+/**
+ * Project analytics and global stats: one body, so a switch keeps the
+ * dashboard mounted. Project analytics has two sub-tabs (T9b): the overview
+ * dashboard and the token statistics, which were a screen of their own. The
+ * selected one is the place's (`analyticsTab`); choosing one navigates. On
+ * phones the sub-tabs are items of the one analytics nav row above the screen
+ * (`MobileAnalyticsSubNav`, with Edits), so the body draws no tablist there.
+ */
+export const AnalyticsScreen = ({ view, analyticsActions, onTokenStatClick, isMobile }: ViewScreenProps) => {
+  const analyticsTab = useAppStore((s) => s.analyticsTab);
+  const isProjectAnalytics = view === "analytics";
+  const hasSubTabs = isProjectAnalytics && !isMobile;
+  const showsTokens = isProjectAnalytics && analyticsTab === "tokens";
+  return (
+    <>
+      {hasSubTabs && (
+        <AnalyticsSubTabs
+          value={analyticsTab}
+          onChange={(tab) => {
+            // The sub-tab's loader records its failure on screen (its error
+            // state); the log keeps the cause.
+            analyticsActions.switchToAnalytics(tab).catch((error: unknown) => {
+              console.error("Failed to open the analytics sub-tab:", error);
+            });
+          }}
+        />
+      )}
+      {/* The same element on both screens, so the dashboard stays mounted. */}
+      <div
+        id={hasSubTabs ? ANALYTICS_SUBTAB_PANEL_ID : undefined}
+        role={hasSubTabs ? "tabpanel" : undefined}
+        aria-labelledby={hasSubTabs ? analyticsSubTabId(analyticsTab) : undefined}
+      >
+        {showsTokens ? (
+          <TokenStatsPanel onTokenStatClick={onTokenStatClick} />
+        ) : (
+          <AnalyticsDashboard
+            isGlobalScope={view === "globalStats"}
+            onRetry={() => void analyticsActions.refreshAnalytics()}
+          />
+        )}
+      </div>
+    </>
+  );
+};
 
-/** Transitional (plan C1) until token stats becomes an analytics tab (T9b). */
-export const TokenStatsScreen = ({ onTokenStatClick }: ViewScreenProps) => {
+/** The analytics "tokens" sub-tab: the project's and session's token statistics. */
+const TokenStatsPanel = ({ onTokenStatClick }: Pick<ViewScreenProps, "onTokenStatClick">) => {
   const selectedProject = useAppStore((s) => s.selectedProject);
   // Only the open place's stats (`navigation/screenOwner.ts`).
   const stats = useAppStore(useShallow(selectTokenStats));
@@ -244,22 +289,14 @@ export const TokenStatsScreen = ({ onTokenStatClick }: ViewScreenProps) => {
   );
 };
 
-export const RecentEditsScreen = ({ analyticsState }: ViewScreenProps) => {
-  const selectedProject = useAppStore((s) => s.selectedProject);
-  const loadMoreRecentEdits = useAppStore((s) => s.loadMoreRecentEdits);
-  // Only the open project's edits (`navigation/screenOwner.ts`).
-  const page = useAppStore(useShallow(selectRecentEditsPage));
-  return (
-    <RecentEditsViewer
-      recentEdits={page.recentEdits}
-      pagination={page.pagination}
-      onLoadMore={() => selectedProject && loadMoreRecentEdits(selectedProject.path)}
-      isLoading={page.isLoading}
-      error={page.error}
-      initialSearchQuery={analyticsState.recentEditsSearchQuery}
-    />
-  );
-};
+/**
+ * The Edits screen: the one recent-edits surface (T9b). It reads its rows
+ * from the store itself, keyed by the request they answer
+ * (`navigation/screenOwner.ts`).
+ */
+export const RecentEditsScreen = ({ analyticsState }: ViewScreenProps) => (
+  <RecentEditsViewer initialSearchQuery={analyticsState.recentEditsSearchQuery} />
+);
 
 export const BoardScreen = () => <SessionBoard />;
 
