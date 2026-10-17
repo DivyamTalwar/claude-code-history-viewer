@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-10-17T10:21:53.672Z
- * 총 키 개수: 2156
+ * 생성 시간: 2026-10-17T13:56:07.587Z
+ * 총 키 개수: 2182
  * Namespace 수: 11
  */
 
@@ -1659,7 +1659,7 @@ export type MessageKeys =
   | 'navigator.viewMode.toggle';
 
 /**
- * renderers namespace의 번역 키 (409개)
+ * renderers namespace의 번역 키 (435개)
  * 파일: locales/{lang}/renderers.json
  */
 export type RenderersKeys =
@@ -1851,19 +1851,45 @@ export type RenderersKeys =
   | 'globalSearch.filterType.all'
   | 'globalSearch.filterType.assistant'
   | 'globalSearch.filterType.user'
+  | 'globalSearch.group.messages'
+  | 'globalSearch.group.projects'
+  | 'globalSearch.group.sessions'
   | 'globalSearch.hint'
+  | 'globalSearch.live.found'
+  | 'globalSearch.live.scopeCleared'
+  | 'globalSearch.live.scopePinned'
+  | 'globalSearch.messages.composing'
+  | 'globalSearch.messages.failed'
+  | 'globalSearch.messages.minChars'
+  | 'globalSearch.messages.none'
+  | 'globalSearch.messages.notSearched'
+  | 'globalSearch.messages.retry'
+  | 'globalSearch.messages.searching'
+  | 'globalSearch.messages.unsearchable'
   | 'globalSearch.navigate'
   | 'globalSearch.navigationFailed'
   | 'globalSearch.noPreview'
   | 'globalSearch.noResults'
+  | 'globalSearch.openInNewTab'
   | 'globalSearch.placeholder'
   | 'globalSearch.results'
   | 'globalSearch.resultsCapped'
+  | 'globalSearch.scope.all'
+  | 'globalSearch.scope.label'
+  | 'globalSearch.scope.pinAction'
+  | 'globalSearch.scope.pinned'
+  | 'globalSearch.scope.pinnedAria'
+  | 'globalSearch.scope.project'
+  | 'globalSearch.scope.projectUnavailable'
+  | 'globalSearch.scope.tabHint'
   | 'globalSearch.searchFailed'
   | 'globalSearch.searching'
   | 'globalSearch.select'
   | 'globalSearch.sessionNotFound'
+  | 'globalSearch.sessions.failed'
   | 'globalSearch.shortcutHint'
+  | 'globalSearch.showAllMessages'
+  | 'globalSearch.showMore'
   | 'globalSearch.tips.filters'
   | 'globalSearch.tips.minChars'
   | 'globalSearch.tips.navigate'
@@ -3027,19 +3053,45 @@ export type TranslationKey =
   | 'globalSearch.filterType.all'
   | 'globalSearch.filterType.assistant'
   | 'globalSearch.filterType.user'
+  | 'globalSearch.group.messages'
+  | 'globalSearch.group.projects'
+  | 'globalSearch.group.sessions'
   | 'globalSearch.hint'
+  | 'globalSearch.live.found'
+  | 'globalSearch.live.scopeCleared'
+  | 'globalSearch.live.scopePinned'
+  | 'globalSearch.messages.composing'
+  | 'globalSearch.messages.failed'
+  | 'globalSearch.messages.minChars'
+  | 'globalSearch.messages.none'
+  | 'globalSearch.messages.notSearched'
+  | 'globalSearch.messages.retry'
+  | 'globalSearch.messages.searching'
+  | 'globalSearch.messages.unsearchable'
   | 'globalSearch.navigate'
   | 'globalSearch.navigationFailed'
   | 'globalSearch.noPreview'
   | 'globalSearch.noResults'
+  | 'globalSearch.openInNewTab'
   | 'globalSearch.placeholder'
   | 'globalSearch.results'
   | 'globalSearch.resultsCapped'
+  | 'globalSearch.scope.all'
+  | 'globalSearch.scope.label'
+  | 'globalSearch.scope.pinAction'
+  | 'globalSearch.scope.pinned'
+  | 'globalSearch.scope.pinnedAria'
+  | 'globalSearch.scope.project'
+  | 'globalSearch.scope.projectUnavailable'
+  | 'globalSearch.scope.tabHint'
   | 'globalSearch.searchFailed'
   | 'globalSearch.searching'
   | 'globalSearch.select'
   | 'globalSearch.sessionNotFound'
+  | 'globalSearch.sessions.failed'
   | 'globalSearch.shortcutHint'
+  | 'globalSearch.showAllMessages'
+  | 'globalSearch.showMore'
   | 'globalSearch.tips.filters'
   | 'globalSearch.tips.minChars'
   | 'globalSearch.tips.navigate'
