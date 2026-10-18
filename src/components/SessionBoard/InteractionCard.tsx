@@ -22,6 +22,7 @@ import { getCardSemantics } from "@/utils/cardSemantics";
 import { ExpandedCard } from "./ExpandedCard";
 import { formatCommandMessageText } from "@/utils/commandMessage";
 import { useFormat } from "@/lib/format/useFormat";
+import { scrollBehavior } from "@/utils/motion";
 interface InteractionCardProps {
     message: ClaudeMessage;
     zoomLevel: ZoomLevel;
@@ -99,7 +100,7 @@ export const InteractionCard = memo(({
         if (isExpanded && cardRef.current) {
             setTriggerRect(cardRef.current.getBoundingClientRect());
             // Scroll card into view if expanded
-            cardRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            cardRef.current.scrollIntoView({ behavior: scrollBehavior(), block: 'nearest' });
         }
     }, [isExpanded]);
 

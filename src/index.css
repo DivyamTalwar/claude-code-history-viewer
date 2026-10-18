@@ -670,9 +670,9 @@
 @theme static {
   --text-*: initial;
   --text-caption: calc(0.75rem * var(--app-font-scale));
-  --text-caption--line-height: 1.4;
+  --text-caption--line-height: var(--leading-caption);
   --text-list: calc(0.8125rem * var(--app-font-scale));
-  --text-list--line-height: 1.4;
+  --text-list--line-height: var(--leading-list);
   --text-body: calc(0.9375rem * var(--app-font-scale));
   --text-body--line-height: var(--leading-body);
   --text-code: calc(0.8125rem * var(--app-font-scale));
@@ -701,22 +701,34 @@
   --font-ui: "IBM Plex Sans", -apple-system, "Segoe UI", sans-serif;
   --font-code: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
   --leading-body: 1.55;
+  /* Caption and list steps: 1.4, and 1.5 for Hangul / Kana / Han at 12-13px
+     (F1b, G-CJ3). */
+  --leading-caption: 1.4;
+  --leading-list: 1.4;
 }
 :root:lang(ko) {
   --font-ui: "IBM Plex Sans", "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", "Noto Sans CJK KR", sans-serif;
   --leading-body: 1.7;
+  --leading-caption: 1.5;
+  --leading-list: 1.5;
 }
 :root:lang(ja) {
   --font-ui: "IBM Plex Sans", "Hiragino Sans", "Yu Gothic UI", "Noto Sans JP", "Noto Sans CJK JP", sans-serif;
   --leading-body: 1.7;
+  --leading-caption: 1.5;
+  --leading-list: 1.5;
 }
 :root:lang(zh-CN), :root:lang(zh-Hans) {
   --font-ui: "IBM Plex Sans", "PingFang SC", "Microsoft YaHei UI", "Noto Sans SC", "Noto Sans CJK SC", sans-serif;
   --leading-body: 1.7;
+  --leading-caption: 1.5;
+  --leading-list: 1.5;
 }
 :root:lang(zh-TW), :root:lang(zh-Hant), :root:lang(zh-HK) {
   --font-ui: "IBM Plex Sans", "PingFang TC", "Microsoft JhengHei UI", "Noto Sans TC", "Noto Sans CJK TC", sans-serif;
   --leading-body: 1.7;
+  --leading-caption: 1.5;
+  --leading-list: 1.5;
 }
 
 /* === Theme inline mapping === */
@@ -928,9 +940,65 @@
     font-feature-settings: 'liga' on, 'calt' on;
   }
 
-  /* Focus styles */
+  /* Keyboard focus (F1b, G-ST1): one ring for every focusable element, from
+     the F1a focus tokens. :focus-visible keeps it off mouse clicks on
+     buttons; a component that draws its own ring still wins (utilities). */
   :focus-visible {
-    @apply outline-none;
+    outline: var(--focus-ring-width) solid var(--focus-ring);
+    outline-offset: var(--focus-ring-offset);
+  }
+
+  /* Reduced motion (F1b, G-MO1): no animation, transition or smooth scroll
+     anywhere (JS scrolls ask src/utils/motion.ts). Loading spinners stand
+     still; their icon and busy state remain. Important declarations in a
+     layer beat every unlayered and later-layer one. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation: none !important;
+      transition: none !important;
+      scroll-behavior: auto !important;
+    }
+  }
+
+  /* Forced colours (F1b, G-FC1): the selected item and the focused one stay
+     visible and look different — selected = Highlight border + 2px
+     underline, focus = a CanvasText outline (box-shadow rings are dropped
+     in this mode, so the outline is forced on every focus). */
+  @media (forced-colors: active) {
+    :focus-visible {
+      outline: 2px solid CanvasText !important;
+      outline-offset: 2px !important;
+    }
+
+    [aria-selected="true"],
+    [aria-pressed="true"],
+    [aria-checked="true"],
+    [aria-current]:not([aria-current="false"]),
+    [data-state="on"],
+    [data-state="active"],
+    [data-state="checked"] {
+      border-color: Highlight !important;
+      text-decoration-line: underline !important;
+      text-decoration-color: Highlight !important;
+      text-decoration-thickness: 2px !important;
+      text-underline-offset: 0.25em;
+    }
+  }
+
+  /* CJK line breaking (F1b, G-CJ2, plan D12): Korean breaks between words
+     (keep-all; anywhere stops a long path or English word from overflowing).
+     Japanese and Chinese keep their normal per-character breaking - keep-all
+     there would glue whole sentences - with strict kinsoku rules. */
+  :lang(ko) {
+    word-break: keep-all;
+    overflow-wrap: anywhere;
+  }
+
+  :lang(ja),
+  :lang(zh) {
+    line-break: strict;
   }
 
   /* Cursor */
@@ -943,56 +1011,58 @@
     background: color-mix(in oklch, var(--accent) 30%, transparent);
   }
 
-  /* Prose typography overrides for compact display */
+  /* Prose typography overrides for compact display. Spacing is rem on the
+     2px grid × the app font scale (F1b, G-SP3), not em of each element's
+     own size (5.63px, 2.44px …). */
   .prose {
     font-size: var(--text-body) !important;
     line-height: var(--leading-body) !important;
   }
 
   .prose p {
-    margin-top: 0.375em !important;
-    margin-bottom: 0.375em !important;
+    margin-top: calc(0.375rem * var(--app-font-scale)) !important;
+    margin-bottom: calc(0.375rem * var(--app-font-scale)) !important;
   }
 
   .prose h1 {
     font-size: var(--text-title) !important;
     line-height: var(--text-title--line-height) !important;
     margin-top: 0 !important;
-    margin-bottom: 0.375em !important;
+    margin-bottom: calc(0.375rem * var(--app-font-scale)) !important;
   }
 
   .prose h2 {
     font-size: var(--text-title) !important;
     line-height: var(--text-title--line-height) !important;
-    margin-top: 0.75em !important;
-    margin-bottom: 0.375em !important;
+    margin-top: calc(0.75rem * var(--app-font-scale)) !important;
+    margin-bottom: calc(0.375rem * var(--app-font-scale)) !important;
   }
 
   .prose h3 {
     font-size: var(--text-body) !important;
-    margin-top: 0.75em !important;
-    margin-bottom: 0.375em !important;
+    margin-top: calc(0.75rem * var(--app-font-scale)) !important;
+    margin-bottom: calc(0.375rem * var(--app-font-scale)) !important;
   }
 
   .prose h4,
   .prose h5,
   .prose h6 {
     font-size: var(--text-body) !important;
-    margin-top: 0.75em !important;
-    margin-bottom: 0.375em !important;
+    margin-top: calc(0.75rem * var(--app-font-scale)) !important;
+    margin-bottom: calc(0.375rem * var(--app-font-scale)) !important;
   }
 
   .prose ul {
-    margin-top: 0.375em !important;
-    margin-bottom: 0.375em !important;
-    padding-left: 1.25em !important;
+    margin-top: calc(0.375rem * var(--app-font-scale)) !important;
+    margin-bottom: calc(0.375rem * var(--app-font-scale)) !important;
+    padding-left: calc(1.25rem * var(--app-font-scale)) !important;
     list-style-type: disc !important;
   }
 
   .prose ol {
-    margin-top: 0.375em !important;
-    margin-bottom: 0.375em !important;
-    padding-left: 1.25em !important;
+    margin-top: calc(0.375rem * var(--app-font-scale)) !important;
+    margin-bottom: calc(0.375rem * var(--app-font-scale)) !important;
+    padding-left: calc(1.25rem * var(--app-font-scale)) !important;
     list-style-type: decimal !important;
   }
 
@@ -1005,9 +1075,9 @@
   }
 
   .prose li {
-    margin-top: 0.125em !important;
-    margin-bottom: 0.125em !important;
-    padding-left: 0.25em !important;
+    margin-top: calc(0.125rem * var(--app-font-scale)) !important;
+    margin-bottom: calc(0.125rem * var(--app-font-scale)) !important;
+    padding-left: calc(0.25rem * var(--app-font-scale)) !important;
   }
 
   .prose li::marker {
@@ -1017,27 +1087,27 @@
   .prose pre {
     font-size: var(--text-code) !important;
     line-height: var(--text-code--line-height) !important;
-    margin-top: 0.5em !important;
-    margin-bottom: 0.5em !important;
-    padding: 0.375em 0.5em !important;
+    margin-top: calc(0.5rem * var(--app-font-scale)) !important;
+    margin-bottom: calc(0.5rem * var(--app-font-scale)) !important;
+    padding: calc(0.375rem * var(--app-font-scale)) calc(0.5rem * var(--app-font-scale)) !important;
   }
 
   .prose code {
     font-size: var(--text-code) !important;
-    padding: 0.0625em 0.1875em !important;
+    padding: calc(0.125rem * var(--app-font-scale)) calc(0.25rem * var(--app-font-scale)) !important;
   }
 
   .prose blockquote {
-    margin-top: 0.5em !important;
-    margin-bottom: 0.5em !important;
-    padding-left: 0.5em !important;
+    margin-top: calc(0.5rem * var(--app-font-scale)) !important;
+    margin-bottom: calc(0.5rem * var(--app-font-scale)) !important;
+    padding-left: calc(0.5rem * var(--app-font-scale)) !important;
   }
 
   .prose table {
     font-size: var(--text-list) !important;
     line-height: var(--text-list--line-height) !important;
-    margin-top: 0.75em !important;
-    margin-bottom: 0.75em !important;
+    margin-top: calc(0.75rem * var(--app-font-scale)) !important;
+    margin-bottom: calc(0.75rem * var(--app-font-scale)) !important;
     width: 100% !important;
     border-collapse: collapse !important;
     border: 1px solid var(--border) !important;
@@ -1054,7 +1124,7 @@
   }
 
   .prose th {
-    padding: 0.5em 0.75em !important;
+    padding: calc(0.5rem * var(--app-font-scale)) calc(0.75rem * var(--app-font-scale)) !important;
     font-weight: 600 !important;
     text-align: left !important;
     color: var(--foreground) !important;
@@ -1062,7 +1132,7 @@
   }
 
   .prose td {
-    padding: 0.4em 0.75em !important;
+    padding: calc(0.375rem * var(--app-font-scale)) calc(0.75rem * var(--app-font-scale)) !important;
     border-bottom: 1px solid var(--border) !important;
     color: var(--foreground) !important;
   }
@@ -1085,8 +1155,8 @@
   }
 
   .prose img {
-    margin-top: 0.5em !important;
-    margin-bottom: 0.5em !important;
+    margin-top: calc(0.5rem * var(--app-font-scale)) !important;
+    margin-bottom: calc(0.5rem * var(--app-font-scale)) !important;
     border-radius: 0.25rem !important;
   }
 
@@ -1126,7 +1196,7 @@
   .prose mark {
     background-color: var(--highlight) !important;
     color: var(--highlight-foreground) !important;
-    padding: 0.0625em 0.25em !important;
+    padding: calc(0.125rem * var(--app-font-scale)) calc(0.25rem * var(--app-font-scale)) !important;
     border-radius: 0.125rem !important;
   }
 
@@ -1136,7 +1206,7 @@
     background-color: var(--muted) !important;
     border: 1px solid var(--border) !important;
     border-radius: 0.25rem !important;
-    padding: 0.125em 0.375em !important;
+    padding: calc(0.125rem * var(--app-font-scale)) calc(0.375rem * var(--app-font-scale)) !important;
     box-shadow: 0 1px 0 var(--border) !important;
   }
 
@@ -1411,12 +1481,6 @@
         transparent 40%);
   }
 
-  /* === Data label style === */
-  .data-label {
-    @apply text-list font-medium uppercase tracking-wider text-muted-foreground;
-    letter-spacing: 0.05em;
-  }
-
   /* === Data value style (monospace) === */
   .data-value {
     font-family: 'JetBrains Mono', monospace;
@@ -1442,15 +1506,6 @@
   /* === Metric display === */
   .metric {
     @apply flex flex-col gap-1;
-  }
-
-  .metric-label {
-    @apply text-caption font-semibold uppercase tracking-[0.1em] text-muted-foreground;
-  }
-
-  .metric-value {
-    @apply text-2xl font-semibold tracking-tight;
-    font-family: 'JetBrains Mono', monospace;
   }
 
   /* === Action button === */
@@ -2043,9 +2098,11 @@
 @layer utilities {
 
   /* === Focus Ring System === */
+  /* The inset variant of the one focus ring (F1b): for controls whose
+     outside ring would be clipped. An outline, so it survives forced colours. */
   .focus-ring-inset:focus-visible {
-    box-shadow: inset 0 0 0 2px var(--ring);
-    outline: none;
+    outline: var(--focus-ring-width) solid var(--focus-ring);
+    outline-offset: var(--focus-ring-inset);
   }
 
   /* === Hover Effects === */
