@@ -19,9 +19,17 @@ import ts from "typescript";
  * Fifteen categories (`CATEGORIES`). Class names are folded with the
  * TypeScript checker the same way as typography.guard.test.ts (strings,
  * templates, conditionals, constants); a colour/radius/shadow class the
- * checker cannot resolve (`bg-${tone}`) is its own category. Stylesheets are
- * read with postcss; custom property definitions (`--x: …`) are the token
- * layer and are not counted.
+ * checker cannot resolve (`bg-${tone}`, `shadow-[0_0_${r}px]`) is its own
+ * category; a static palette prefix with an unresolved shade (`bg-red-${n}`)
+ * is a palette finding. Stylesheets are read with postcss; custom property
+ * definitions (`--x: …`) are the token layer and are not counted.
+ *
+ * Approved shadow / radius / easing names are read from src/index.css
+ * (`appTheme()`), not listed here: a `--shadow-<role>` / `--radius-<role>`
+ * token there (popover, overlay, row, control, pill, dot …) makes
+ * `shadow-<role>`, `rounded-<role>`, `var(--…-<role>)` in classes, CSS and
+ * inline styles allowed. Scale-step names (xs, sm, md, lg, xl, 2xl, inner …)
+ * are steps, not roles: of those only radius md/lg (6/8px) are allowed.
  */
 
 export const CATEGORIES = [
@@ -94,24 +102,98 @@ export function utilityOf(token: string): string {
 
 const variantsOf = (token: string) => token.slice(0, token.length - utilityOf(token).length);
 
-/** Allowed motion: D9 durations and the --ease-* tokens of index.css. */
+/** Allowed motion: D9 durations (and the --ease-* tokens of the theme). */
 export const ALLOWED_DURATIONS = new Set(["150", "250", "400"]);
-let easeTokens: Set<string> | null = null;
-function allowedEase(): Set<string> {
-  if (!easeTokens) {
-    const css = readFileSync(join(SRC, "index.css"), "utf8");
-    easeTokens = new Set([...css.matchAll(/--ease-([\w-]+)\s*:/g)].map((m) => m[1] ?? ""));
-  }
-  return easeTokens;
+
+/** Tailwind size-step names: a token named like this is a scale step, not a role. */
+const SCALE_STEP = /^(?:\d*x[sl]|sm|md|lg|base|inner|none|full|DEFAULT)$/;
+
+/** The approved token names of a theme stylesheet. */
+export interface ThemeTokens {
+  /** `--shadow-<role>` (popover, overlay …): `shadow-<role>` is allowed. */
+  shadows: Set<string>;
+  /** `--radius-<role>` (row, control, overlay, pill, dot …): `rounded-<role>` is allowed. */
+  radii: Set<string>;
+  /** `--ease-<name>`: `ease-<name>` is allowed. */
+  eases: Set<string>;
+  /** `--color-<name>`: the semantic colour names (`bg-<name>`, `text-<name>/…`). */
+  colors: Set<string>;
 }
 
-/** Radius suffixes on the token scale: 6 (md), 8 (lg); full (pills, dots) and none. */
+export function themeFromCss(css: string): ThemeTokens {
+  const defined = (prefix: string) => [...css.matchAll(new RegExp(`--${prefix}-([\\w-]+)\\s*:`, "g"))].map((m) => m[1] ?? "");
+  const roles = (prefix: string) => new Set(defined(prefix).filter((name) => !SCALE_STEP.test(name)));
+  return { shadows: roles("shadow"), radii: roles("radius"), eases: new Set(defined("ease")), colors: new Set(defined("color")) };
+}
+
+let cachedTheme: ThemeTokens | undefined;
+/** The app's theme: src/index.css. */
+export const appTheme = (): ThemeTokens => (cachedTheme ??= themeFromCss(readFileSync(join(SRC, "index.css"), "utf8")));
+
+export interface ScanOptions {
+  /** Approved token names (default: appTheme()). */
+  theme?: ThemeTokens;
+}
+
+/** Radius steps on the token scale: 6 (md), 8 (lg); full (pills, dots) and none. */
 const ALLOWED_RADIUS = new Set(["md", "lg", "full", "none"]);
+const allowedRadius = (name: string, theme: ThemeTokens) => ALLOWED_RADIUS.has(name) || theme.radii.has(name);
+
+/** `x-<name>`, `x-[var(--<token>-<name>)]` or `x-(--<token>-<name>)`: the token name, else null. */
+function tokenReference(value: string, token: string): string | null {
+  const m = new RegExp(`^(?:\\[var\\(--${token}-([\\w-]+)\\)\\]|\\(--${token}-([\\w-]+)\\))$`).exec(value);
+  return m ? (m[1] ?? m[2] ?? null) : null;
+}
+
+/** A CSS value that is exactly `var(--<token>-<name>)` with an approved name. */
+const isTokenVar = (value: string, token: string, allowed: (name: string) => boolean) => {
+  const m = new RegExp(`^var\\(--${token}-([\\w-]+)\\)$`).exec(value.trim());
+  return !!m && allowed(m[1] ?? "");
+};
+
+/**
+ * Layout spacing scale (plan §4.1 "배치 간격"): 4·8·12·16·24·32 px, and 0.
+ * Numeric spacing utilities are n × 4px (Tailwind's --spacing 0.25rem).
+ */
+export const LAYOUT_SPACING_PX = new Set([0, 4, 8, 12, 16, 24, 32]);
+const SPACING_UTILITY = /^-?(gap-x|gap-y|gap|space-x|space-y|px|py|pt|pr|pb|pl|ps|pe|p|mx|my|mt|mr|mb|ml|ms|me|m)-(.+)$/;
+
+/** Is a spacing utility value off the layout scale? (`5`, `2.5`, `px`, `[7px]`; not `4`, `auto`, `[var(--x)]`) */
+function offScaleSpacing(value: string): boolean {
+  if (value.startsWith("[")) return !/^\[var\(--/.test(value);
+  if (value.startsWith("(")) return false; // (--token)
+  if (value === "px") return true;
+  if (/^\d+(?:\.\d+)?$/.test(value)) return !LAYOUT_SPACING_PX.has(Number(value) * 4);
+  return false; // auto, reverse, named
+}
+
+/** Literal lengths in a CSS padding/margin/gap value that are off the layout scale. */
+export function offScaleLengths(value: string): string[] {
+  let rest = value;
+  for (let prev = ""; prev !== rest; ) {
+    prev = rest;
+    rest = rest.replace(/var\([^()]*\)/g, " ");
+  }
+  const bad: string[] = [];
+  for (const m of rest.matchAll(/(?<![\w.#-])-?(\d*\.?\d+)(px|rem|em)\b/g)) {
+    const n = Number(m[1]);
+    const px = m[2] === "px" ? n : m[2] === "rem" ? n * 16 : NaN; // em depends on the element: never on the scale
+    if (!LAYOUT_SPACING_PX.has(px)) bad.push(m[0]);
+  }
+  return bad;
+}
+const SPACING_CSS_PROP = /^(?:(?:padding|margin)(?:-(?:top|right|bottom|left|inline|block|inline-start|inline-end|block-start|block-end))?|gap|row-gap|column-gap|grid-gap)$/;
+const SPACING_STYLE_PROP = /^(?:(?:padding|margin)(?:Top|Right|Bottom|Left|Inline|Block|InlineStart|InlineEnd|BlockStart|BlockEnd)?|gap|rowGap|columnGap)$/;
 
 /** Categories of one class token (most tokens: none). */
-export function classTokenCategories(token: string): Category[] {
+export function classTokenCategories(token: string, theme: ThemeTokens = appTheme()): Category[] {
   const u = utilityOf(token);
   const out: Category[] = [];
+  const shadowValue = /^shadow-(.+)$/.exec(u)?.[1];
+  if (shadowValue !== undefined) {
+    const name = tokenReference(shadowValue, "shadow") ?? (/^[a-z][\w-]*$/.test(shadowValue) ? shadowValue : null);
+    if (name !== null && theme.shadows.has(name)) return out; // an approved elevation token
+  }
   if (PALETTE_RE.test(u)) out.push("palette");
   else if (ARBITRARY_COLOR_RE.test(u)) out.push("arbitraryColor");
   else {
@@ -124,16 +206,19 @@ export function classTokenCategories(token: string): Category[] {
   const duration = /^duration-(.+)$/.exec(u);
   if (duration && !ALLOWED_DURATIONS.has(duration[1] ?? "")) out.push("motion");
   const ease = /^ease-(.+)$/.exec(u);
-  if (ease && !allowedEase().has(ease[1] ?? "")) out.push("motion");
+  if (ease && !theme.eases.has(ease[1] ?? "")) out.push("motion");
   if (/^z-\[.+\]$/.test(u)) out.push("zIndex");
   if (/^scale-/.test(u) && /(^|:)(hover|active|group-hover|focus):/.test(variantsOf(token))) out.push("scale");
   if (/^backdrop-blur/.test(u) || /^bg-(gradient|linear|radial|conic)-/.test(u)) out.push("decoration");
   const radius = /^rounded(?:-(?:[trblse]|tl|tr|br|bl|ss|se|es|ee))?(?:-(.+))?$/.exec(u);
   if (radius) {
     const size = radius[1] ?? "";
-    if (size === "" || (!ALLOWED_RADIUS.has(size) && !/^\[var\(--radius-(?:md|lg)\)\]$/.test(size))) out.push("radius");
+    const referenced = tokenReference(size, "radius");
+    const allowed = referenced !== null ? allowedRadius(referenced, theme) : size !== "" && allowedRadius(size, theme);
+    if (!allowed) out.push("radius");
   }
-  if (/^-?(?:p|px|py|pt|pr|pb|pl|ps|pe|m|mx|my|mt|mr|mb|ml|ms|me|gap|gap-x|gap-y|space-x|space-y)-\[(?!var\(--)[^\]]+\]$/.test(u)) out.push("spacing");
+  const spacing = SPACING_UTILITY.exec(u);
+  if (spacing && offScaleSpacing(spacing[2] ?? "")) out.push("spacing");
   return out;
 }
 
@@ -152,13 +237,36 @@ export function classStringCategories(tokens: string[]): Array<{ category: Categ
   return out;
 }
 
-/** `bg-` / `text-` / `border-` / `shadow-` / `rounded-` followed by a value the checker cannot resolve. */
+/** A part of a class string the checker cannot resolve. */
 const UNKNOWN = "\u0000";
-export function isDynamicStyleClass(token: string): boolean {
-  if (!token.includes(UNKNOWN)) return false;
-  const u = utilityOf(token.slice(0, token.indexOf(UNKNOWN)) + UNKNOWN);
-  const prefix = /^(bg|text|border(?:-[trblxy])?|shadow|rounded(?:-[trbl])?)-\[?/.exec(u);
-  return !!prefix && u.slice(prefix[0].length).startsWith(UNKNOWN);
+const PALETTE_PREFIX_RE = new RegExp(`^(?:${COLOR_UTILITIES})-(?:${PALETTE_HUES})-`);
+const STYLE_PREFIX_RE = /^(?:bg|text|border|shadow|rounded)-?/;
+const SIDE_RE = /^(?:[trblxyse]|tl|tr|br|bl|ss|se|es|ee)-$/;
+
+/**
+ * The category of a utility with an unresolved part: a static palette prefix
+ * (`bg-red-${n}`) is a palette bypass; a `bg-` / `text-` / `border-` /
+ * `shadow-` / `rounded-` utility whose unresolved part is its value - right
+ * after the prefix, a side, an arbitrary-value bracket or a theme colour
+ * (`bg-${tone}`, `shadow-[0_0_${r}px]`, `border-x-${v}`, `text-accent/${o}`) -
+ * is a dynamic class. Other strings that merely start like one
+ * (`text-editor-${id}`, a state key) and unresolved non-style classes
+ * (`${className}`) are not counted.
+ */
+export function dynamicCategory(utility: string, theme: ThemeTokens = appTheme()): Category | null {
+  const at = utility.indexOf(UNKNOWN);
+  if (at < 0) return null;
+  if (PALETTE_PREFIX_RE.test(utility)) return "palette";
+  const prefix = STYLE_PREFIX_RE.exec(utility);
+  if (!prefix || (prefix[0].length < utility.length && !prefix[0].endsWith("-") && utility[prefix[0].length] !== UNKNOWN)) return null;
+  const middle = utility.slice(prefix[0].length, at);
+  const isValue =
+    middle === "" ||
+    middle.startsWith("[") ||
+    middle.startsWith("(") ||
+    SIDE_RE.test(middle) ||
+    (/^([a-z][\w-]*?)[-/]$/.test(middle) && theme.colors.has(middle.slice(0, -1)));
+  return isValue ? "dynamicClass" : null;
 }
 
 // ---------------------------------------------------------------------------
@@ -232,8 +340,11 @@ function possibleValues(expr: ts.Expression, checker: ts.TypeChecker, partial = 
   return literals.length ? literals : unknown;
 }
 
-/** Components whose content is code/paths/keys/diffs: `font-mono` inside them is meaningful. */
+/** Components whose content is code/paths/keys/diffs: `font-mono` on or inside them is meaningful. */
 export const MONO_CONTAINERS = new Set(["Code", "PathText", "Kbd", "DiffView", "OutputBlock"]);
+/** HTML elements whose content is code by definition. */
+export const MONO_ELEMENTS = new Set(["code", "pre", "kbd", "samp"]);
+const isMonoOwner = (tag: string) => MONO_CONTAINERS.has(tag) || MONO_ELEMENTS.has(tag);
 export const MONO_MARKERS = new Set(["code", "path", "id", "kbd", "diag"]);
 
 function jsxTagName(node: ts.JsxOpeningLikeElement): string {
@@ -253,15 +364,17 @@ function monoExempt(node: ts.Node): boolean {
   if (!opening || !(ts.isJsxOpeningElement(opening) || ts.isJsxSelfClosingElement(opening))) return false;
   const marker = opening.attributes.properties.find((p) => ts.isJsxAttribute(p) && ts.isIdentifier(p.name) && p.name.text === "data-mono");
   if (marker && ts.isJsxAttribute(marker) && marker.initializer && ts.isStringLiteral(marker.initializer) && MONO_MARKERS.has(marker.initializer.text)) return true;
-  // An ancestor element that is a mono container.
+  // The element itself (`<Code className="font-mono" />`, `<pre className="font-mono">`) …
+  if (isMonoOwner(jsxTagName(opening))) return true;
+  // … or an ancestor element that is a mono container / code element.
   for (let n: ts.Node | undefined = opening.parent; n && !ts.isSourceFile(n); n = n.parent) {
-    if (ts.isJsxElement(n) && MONO_CONTAINERS.has(jsxTagName(n.openingElement))) return true;
+    if (ts.isJsxElement(n) && isMonoOwner(jsxTagName(n.openingElement))) return true;
   }
   return false;
 }
 
 /** Findings of one TS(X) file of a program. */
-export function scanProgramFile(file: ts.SourceFile, checker: ts.TypeChecker, fileName: string): Finding[] {
+export function scanProgramFile(file: ts.SourceFile, checker: ts.TypeChecker, fileName: string, theme: ThemeTokens = appTheme()): Finding[] {
   const findings: Finding[] = [];
   const report = (node: ts.Node, category: Category, snippet: string) => {
     const line = file.getLineAndCharacterOfPosition(node.getStart(file)).line + 1;
@@ -271,12 +384,16 @@ export function scanProgramFile(file: ts.SourceFile, checker: ts.TypeChecker, fi
   const checkClassText = (text: string, node: ts.Node) => {
     const tokens = text.split(/[\s"'`{}]+/).filter(Boolean);
     const seen = new Set<string>();
-    for (const token of tokens) {
-      if (token.includes(UNKNOWN)) {
-        if (isDynamicStyleClass(token)) report(node, "dynamicClass", token.replaceAll(UNKNOWN, "${…}"));
-        continue;
+    for (const raw of tokens) {
+      let token = raw;
+      if (raw.includes(UNKNOWN)) {
+        const utility = utilityOf(raw);
+        const dynamic = dynamicCategory(utility, theme);
+        if (dynamic) report(node, dynamic, raw.replaceAll(UNKNOWN, "${…}"));
+        if (utility.includes(UNKNOWN)) continue;
+        token = utility; // only a variant is unresolved (`${v}:bg-red-500`): the utility still counts
       }
-      for (const category of classTokenCategories(token)) {
+      for (const category of classTokenCategories(token, theme)) {
         const key = `${category}:${token}`;
         if (seen.has(key)) continue; // a token repeated in one string is one finding
         seen.add(key);
@@ -292,7 +409,7 @@ export function scanProgramFile(file: ts.SourceFile, checker: ts.TypeChecker, fi
     // CSS written inside a string.
     for (const m of text.matchAll(/(?<![\w-])box-shadow\s*:\s*([^;"'`}]+)/g)) {
       const v = (m[1] ?? "").trim();
-      if (v !== "none" && !/^var\(--shadow-/.test(v)) report(node, "shadow", `box-shadow: ${v}`);
+      if (v !== "none" && !isTokenVar(v, "shadow", (n) => theme.shadows.has(n))) report(node, "shadow", `box-shadow: ${v}`);
     }
     for (const m of text.matchAll(/(?<![\w-])(?<!repeating-)(linear|radial|conic)-gradient\(/g)) report(node, "decoration", `${m[1]}-gradient(…)`);
   };
@@ -315,11 +432,15 @@ export function scanProgramFile(file: ts.SourceFile, checker: ts.TypeChecker, fi
     const shown = values ?? [value.getText(file)];
     for (const v of shown) {
       const s = String(v);
-      if (name === "boxShadow" && s !== "none" && !/^var\(--shadow-/.test(s)) report(node, "shadow", `boxShadow: ${s}`);
+      if (name === "boxShadow" && s !== "none" && !isTokenVar(s, "shadow", (n) => theme.shadows.has(n))) report(node, "shadow", `boxShadow: ${s}`);
       if (/^(transition|transitionDuration|animation|animationDuration)$/.test(name)) {
         for (const d of offTokenDurations(s)) report(node, "motion", `${name}: ${d}`);
       }
-      if (name === "borderRadius" && !/^var\(--radius-(md|lg|full)\)$/.test(s) && s !== "0" && s !== "inherit") report(node, "radius", `borderRadius: ${s}`);
+      if (name === "borderRadius" && !isTokenVar(s, "radius", (n) => allowedRadius(n, theme)) && s !== "0" && s !== "inherit") report(node, "radius", `borderRadius: ${s}`);
+      if (SPACING_STYLE_PROP.test(name)) {
+        const off = typeof v === "number" ? (LAYOUT_SPACING_PX.has(Math.abs(v)) ? [] : [`${v}`]) : offScaleLengths(s);
+        if (off.length) report(node, "spacing", `${name}: ${s}`);
+      }
       if (name === "backdropFilter" || ((name === "background" || name === "backgroundImage") && /gradient\(/.test(s) && !/repeating-/.test(s))) {
         report(node, "decoration", `${name}: ${s.replace(/\(.*$/, "(…)")}`);
       }
@@ -359,7 +480,7 @@ export function scanProgramFile(file: ts.SourceFile, checker: ts.TypeChecker, fi
     }
     if (ts.isPropertyAssignment(node)) {
       const name = propName(node.name);
-      if (name && /^(boxShadow|transition|transitionDuration|animation|animationDuration|borderRadius|backdropFilter|background|backgroundImage)$/.test(name)) checkStyleProperty(name, node.initializer, node);
+      if (name && (/^(boxShadow|transition|transitionDuration|animation|animationDuration|borderRadius|backdropFilter|background|backgroundImage)$/.test(name) || SPACING_STYLE_PROP.test(name))) checkStyleProperty(name, node.initializer, node);
     }
     ts.forEachChild(node, visit);
   };
@@ -371,7 +492,7 @@ export function scanProgramFile(file: ts.SourceFile, checker: ts.TypeChecker, fi
 // Stylesheets
 // ---------------------------------------------------------------------------
 
-export function scanStylesheet(css: string, fileName: string): Finding[] {
+export function scanStylesheet(css: string, fileName: string, { theme = appTheme() }: ScanOptions = {}): Finding[] {
   const findings: Finding[] = [];
   const root = postcss.parse(css, { from: fileName });
   const push = (node: postcss.Node, category: Category, snippet: string) =>
@@ -380,19 +501,23 @@ export function scanStylesheet(css: string, fileName: string): Finding[] {
     if (decl.prop.startsWith("--")) return; // the token layer itself
     const value = decl.value;
     for (const literal of colorLiterals(value)) push(decl, "hexRgb", `${decl.prop}: ${literal}`);
-    if (decl.prop === "box-shadow" && value.trim() !== "none" && !/^var\(--shadow-[\w-]+\)$/.test(value.trim())) push(decl, "shadow", `box-shadow: ${value}`);
+    if (decl.prop === "box-shadow" && value.trim() !== "none" && !isTokenVar(value, "shadow", (n) => theme.shadows.has(n))) push(decl, "shadow", `box-shadow: ${value}`);
     if (/^(transition|transition-duration|animation|animation-duration)$/.test(decl.prop)) {
       for (const d of offTokenDurations(value)) push(decl, "motion", `${decl.prop}: ${d}`);
     }
     if (decl.prop === "z-index" && /^-?\d+$/.test(value.trim()) && Number(value) > 1) push(decl, "zIndex", `z-index: ${value}`);
-    if (/^border(-[a-z]+)*-radius$/.test(decl.prop) && !/^(0|var\(--radius(-(md|lg|full))?\)|inherit)(\s*!important)?$/.test(value.trim())) push(decl, "radius", `${decl.prop}: ${value}`);
+    if (/^border(-[a-z]+)*-radius$/.test(decl.prop)) {
+      const v = value.trim().replace(/\s*!important$/, "");
+      if (!(v === "0" || v === "inherit" || v === "var(--radius)" || isTokenVar(v, "radius", (n) => allowedRadius(n, theme)))) push(decl, "radius", `${decl.prop}: ${value}`);
+    }
+    if (SPACING_CSS_PROP.test(decl.prop) && offScaleLengths(value).length) push(decl, "spacing", `${decl.prop}: ${value}`);
     if (/(?<!repeating-)(linear|radial|conic)-gradient\(/.test(value)) push(decl, "decoration", `${decl.prop}: gradient`);
     if (/^(-webkit-)?backdrop-filter$/.test(decl.prop) && value.trim() !== "none") push(decl, "decoration", `${decl.prop}: ${value}`);
   });
   root.walkAtRules("apply", (rule) => {
     const tokens = rule.params.split(/\s+/).filter(Boolean);
     for (const token of tokens) {
-      for (const category of classTokenCategories(token)) push(rule, category, `@apply ${token}`);
+      for (const category of classTokenCategories(token, theme)) push(rule, category, `@apply ${token}`);
     }
     for (const { category, snippet } of classStringCategories(tokens)) push(rule, category, `@apply ${snippet}`);
   });
@@ -406,7 +531,7 @@ export function scanStylesheet(css: string, fileName: string): Finding[] {
 const FIXTURE_OPTIONS: ts.CompilerOptions = { target: ts.ScriptTarget.ES2022, lib: ["lib.es2022.d.ts", "lib.dom.d.ts"], jsx: ts.JsxEmit.Preserve, strict: true, noEmit: true, skipLibCheck: true };
 let fixtureHost: ts.CompilerHost | undefined;
 
-export function scanSource(source: string, fileName: string): Finding[] {
+export function scanSource(source: string, fileName: string, { theme = appTheme() }: ScanOptions = {}): Finding[] {
   fixtureHost ??= ts.createCompilerHost(FIXTURE_OPTIONS);
   const base = fixtureHost;
   const kind = fileName.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS;
@@ -418,7 +543,7 @@ export function scanSource(source: string, fileName: string): Finding[] {
     readFile: (name) => (name === fileName ? source : base.readFile(name)),
   };
   const program = ts.createProgram({ rootNames: [fileName], options: FIXTURE_OPTIONS, host });
-  return scanProgramFile(file, program.getTypeChecker(), fileName);
+  return scanProgramFile(file, program.getTypeChecker(), fileName, theme);
 }
 
 // ---------------------------------------------------------------------------

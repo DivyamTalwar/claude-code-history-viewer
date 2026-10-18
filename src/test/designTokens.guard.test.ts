@@ -10,6 +10,8 @@ import {
   scanApp,
   scanSource,
   scanStylesheet,
+  appTheme,
+  themeFromCss,
   type Baseline,
   type Category,
   type Exceptions,
@@ -116,6 +118,127 @@ describe("design-token guard: detectors (one sample per category)", () => {
     expect(isTestFile("src/components/A.test.tsx")).toBe(true);
     expect(isTestFile("src/components/A.tsx")).toBe(false);
     expect(EXEMPT_FILES).toContain("src/services/export/htmlExporter.ts");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Review counterexamples (R3-R6): approved tokens, partial dynamics, spacing
+// scale, the mono owner
+// ---------------------------------------------------------------------------
+
+/** A theme as index.css will define it (F1a/F1b): semantic shadow and radius roles. */
+const SEMANTIC_THEME = themeFromCss(`:root {
+  --shadow-sm: 0 1px 2px black; --shadow-lg: 0 4px 8px black;
+  --shadow-popover: 0 8px 24px black; --shadow-overlay: 0 16px 48px black;
+  --radius-xl: 12px; --radius-row: 6px; --radius-control: 8px; --radius-overlay: 12px; --radius-pill: 9999px; --radius-dot: 9999px;
+  --ease-standard: ease;
+}`);
+const withTheme = (source: string, file = "x.tsx") => categoriesOf(scanSource(source, file, { theme: SEMANTIC_THEME }));
+
+describe("design-token guard: approved semantic tokens come from index.css (R3)", () => {
+  it("semantic shadow and radius utilities defined in the theme are not bypasses", () => {
+    const source = `<div className="shadow-popover shadow-overlay hover:shadow-popover rounded-row rounded-control rounded-pill rounded-dot rounded-t-overlay rounded-[var(--radius-row)] rounded-(--radius-control) shadow-[var(--shadow-overlay)]" />`;
+    expect(withTheme(source)).toEqual([]);
+  });
+
+  it("the same tokens in CSS and inline styles are not bypasses either", () => {
+    const css = `.a { box-shadow: var(--shadow-popover); border-radius: var(--radius-row); }
+.b { border-top-left-radius: var(--radius-overlay); }`;
+    expect(scanStylesheet(css, "x.css", { theme: SEMANTIC_THEME })).toEqual([]);
+    expect(withTheme(`<div style={{ boxShadow: "var(--shadow-overlay)", borderRadius: "var(--radius-control)" }} />`)).toEqual([]);
+  });
+
+  it("scale-step tokens (sm/lg/xl …) are not roles: they still count, in every form", () => {
+    expect(withTheme(`<div className="shadow-lg" />`)).toEqual(["shadow"]);
+    expect(withTheme(`<div className="rounded-xl" />`)).toEqual(["radius"]);
+    expect(categoriesOf(scanStylesheet(`.a { box-shadow: var(--shadow-lg); border-radius: var(--radius-xl); }`, "x.css", { theme: SEMANTIC_THEME }))).toEqual(["shadow", "radius"]);
+  });
+
+  it("a role the theme does not define yet is still a bypass", () => {
+    const bare = themeFromCss(`:root { --shadow-lg: 0 0 1px black; }`);
+    expect(categoriesOf(scanSource(`<div className="shadow-popover rounded-row" />`, "x.tsx", { theme: bare }))).toEqual(["shadow", "radius"]);
+  });
+
+  it("the app theme is read from src/index.css, not a hard-coded list", () => {
+    const fromFile = themeFromCss(readFileSync(join(ROOT, "src/index.css"), "utf8"));
+    expect(appTheme()).toEqual(fromFile);
+    expect(appTheme().eases.size).toBeGreaterThan(0);
+    for (const name of [...appTheme().shadows, ...appTheme().radii]) expect(name).not.toMatch(/^(?:\d*x[sl]|sm|md|lg|base|inner|none|full|DEFAULT)$/);
+  });
+});
+
+describe("design-token guard: partially dynamic classes (R4)", () => {
+  it("a static palette prefix with an unresolved shade is a palette bypass", () => {
+    expect(only("declare const shade: string; const c = `bg-red-${shade}`;")).toEqual(["palette"]);
+    expect(only("declare const shade: number; const c = `hover:text-emerald-${shade}`;")).toEqual(["palette"]);
+  });
+
+  it("an unresolved part inside a style utility is a dynamic class", () => {
+    expect(only("declare const r: string; const c = `shadow-[0_0_${r}px_black]`;")).toEqual(["dynamicClass"]);
+    expect(only("declare const v: string; const c = `border-x-${v}`;")).toEqual(["dynamicClass"]);
+  });
+
+  it("an unresolved variant does not hide a resolvable utility", () => {
+    expect(only("declare const v: string; const c = `${v}:bg-red-500`;")).toEqual(["palette"]);
+  });
+
+  it("an unresolved opacity on a theme colour is a dynamic class", () => {
+    expect(only("declare const o: number; const c = `text-accent/${o}`;")).toEqual(["dynamicClass"]);
+  });
+
+  it("unresolved non-style classes and keys that only look like one are not counted", () => {
+    expect(only("declare const extra: string; const c = `flex ${extra} items-center`;")).toEqual([]);
+    expect(only("declare const id: string; const key = `text-editor-${id}`;")).toEqual([]);
+  });
+});
+
+describe("design-token guard: spacing outside the layout scale 4/8/12/16/24/32 (R5)", () => {
+  it("numeric spacing utilities off the scale count", () => {
+    for (const cls of ["gap-5", "px-2.5", "py-1.5", "-mt-5", "space-y-5", "p-px", "gap-x-7", "md:p-10"]) {
+      expect(only(`<div className="${cls}" />`), cls).toEqual(["spacing"]);
+    }
+  });
+
+  it("on-scale, zero, auto and token spacing do not count", () => {
+    expect(only(`<div className="p-0 p-1 p-2 p-3 p-4 p-6 p-8 m-auto mx-auto -mt-2 gap-x-4 space-y-6 p-[var(--page-inset)] px-(--page-inset)" />`)).toEqual([]);
+  });
+
+  it("raw CSS padding / margin / gap values off the scale count", () => {
+    const css = `.a { padding: 7px; }
+.b { margin: 0 auto; }
+.c { gap: 12px; }
+.d { padding: 4px 10px; }
+.e { margin-top: 0.5rem; }
+.f { padding: var(--page-inset); }
+.g { row-gap: 1.25rem; }`;
+    expect(scanStylesheet(css, "x.css").map((f) => `${f.line} ${f.category}`)).toEqual(["1 spacing", "4 spacing", "7 spacing"]);
+  });
+
+  it("inline padding / margin / gap values off the scale count", () => {
+    expect(only(`<div style={{ padding: 7 }} />`)).toEqual(["spacing"]);
+    expect(only(`<div style={{ marginTop: "10px" }} />`)).toEqual(["spacing"]);
+    expect(only(`<div style={{ gap: 8, paddingLeft: "var(--page-inset)", margin: 0 }} />`)).toEqual([]);
+  });
+});
+
+describe("design-token guard: the mono owner itself is exempt (R6)", () => {
+  it("font-mono on a mono container or a code/pre element is not counted", () => {
+    for (const source of [
+      `<Code className="font-mono" />`,
+      `<Code className="font-mono">x</Code>`,
+      `<Kbd className="font-mono">K</Kbd>`,
+      `<pre className="font-mono" />`,
+      `<code className="font-mono">x</code>`,
+      `<pre><span className="font-mono" /></pre>`,
+      `declare function cn(...a: string[]): string; <OutputBlock className={cn("font-mono", "p-2")} />`,
+    ]) {
+      expect(only(source), source).toEqual([]);
+    }
+  });
+
+  it("font-mono on an ordinary element is still counted", () => {
+    expect(only(`<div className="font-mono" />`)).toEqual(["monoUnmarked"]);
+    expect(only(`<Codeish className="font-mono" />`)).toEqual(["monoUnmarked"]);
   });
 });
 
