@@ -22,6 +22,7 @@ import { fileURLToPath } from "node:url";
 import { chromium, webkit } from "playwright";
 import { focusChange } from "../lib/statesJudge.mjs";
 import { summarizeStates } from "./judge.mjs";
+import { exitAfterFlush } from "../lib/exit.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, "..", "..", "..");
@@ -271,9 +272,9 @@ async function main() {
 }
 
 main().then(
-  (code) => process.exit(code),
+  exitAfterFlush,
   (error) => {
     console.error(`✗ ${error?.message ?? error}`);
-    process.exit(1);
+    exitAfterFlush(1);
   },
 );

@@ -31,6 +31,7 @@ import { SelectionError, selectScenarios } from "./lib/selection.mjs";
 import { VariantError, effectiveVariant, normalizeVariant, parseViewport, variantTag } from "./lib/variant.mjs";
 import { startServer } from "./lib/server.mjs";
 import { artifactModes, prepareArtifacts as prepareBuildArtifacts } from "./lib/artifacts.mjs";
+import { exitAfterFlush } from "./lib/exit.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, "..", "..");
@@ -661,9 +662,9 @@ async function main() {
 }
 
 main().then(
-  (code) => process.exit(code),
+  exitAfterFlush,
   (error) => {
     console.error(`✗ ${error?.message ?? error}`);
-    process.exit(error instanceof UsageError ? 2 : 1);
+    exitAfterFlush(error instanceof UsageError ? 2 : 1);
   },
 );
