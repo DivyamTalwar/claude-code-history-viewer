@@ -463,7 +463,7 @@ describe("§6 reachability after T7", () => {
   it("the gear menu no longer offers what moved out of it", () => {
     renderToolbar(fakeActions());
     const menu = openGearByKeyboard();
-    for (const moved of ["settingsManager.title", "archive.title", "feedback.title"]) {
+    for (const moved of ["settingsManager.title", "common.place.archive", "feedback.title"]) {
       expect(within(menu).queryByText(moved), moved).toBeNull();
     }
   });

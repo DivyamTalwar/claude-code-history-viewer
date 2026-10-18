@@ -100,7 +100,7 @@ exports[`shell characterization > desktop > analytics 1`] = `
               <h2
                 class="text-body font-semibold text-foreground"
               >
-                Analytics Dashboard
+                Analytics
               </h2>
               <p
                 class="text-list text-muted-foreground"
@@ -399,7 +399,7 @@ exports[`shell characterization > desktop > analytics tokens sub-tab 1`] = `
               <h2
                 class="text-body font-semibold text-foreground"
               >
-                Analytics Dashboard
+                Analytics
               </h2>
               <p
                 class="text-list text-muted-foreground"
@@ -702,7 +702,7 @@ exports[`shell characterization > desktop > analytics without a session 1`] = `
               <h2
                 class="text-body font-semibold text-foreground"
               >
-                Analytics Dashboard
+                Analytics
               </h2>
               <p
                 class="text-list text-muted-foreground"
@@ -1002,7 +1002,7 @@ exports[`shell characterization > desktop > archive 1`] = `
               <h2
                 class="text-body font-semibold text-foreground"
               >
-                Archive Manager
+                Archive
               </h2>
               <p
                 class="text-list text-muted-foreground"
@@ -1171,7 +1171,7 @@ exports[`shell characterization > desktop > board 1`] = `
               <h2
                 class="text-body font-semibold text-foreground"
               >
-                Session Board
+                Board
               </h2>
               <p
                 class="text-list text-muted-foreground"
@@ -2005,7 +2005,7 @@ exports[`shell characterization > desktop > global stats 1`] = `
               <h2
                 class="text-body font-semibold text-foreground"
               >
-                Global Overview
+                Analytics · All projects
               </h2>
               <p
                 class="text-list text-muted-foreground"
@@ -2212,7 +2212,7 @@ exports[`shell characterization > desktop > loading stats 1`] = `
               <h2
                 class="text-body font-semibold text-foreground"
               >
-                Analytics Dashboard
+                Analytics
               </h2>
               <p
                 class="text-list text-muted-foreground"
@@ -2773,7 +2773,7 @@ exports[`shell characterization > desktop > recent edits 1`] = `
               <h2
                 class="text-body font-semibold text-foreground"
               >
-                Recent Edits
+                Recent edits
               </h2>
               <p
                 class="text-list text-muted-foreground"
@@ -3134,7 +3134,7 @@ exports[`shell characterization > mobile > analytics 1`] = `
               <h2
                 class="text-body font-semibold text-foreground"
               >
-                Analytics Dashboard
+                Analytics
               </h2>
               <p
                 class="text-list text-muted-foreground"
@@ -3252,7 +3252,7 @@ exports[`shell characterization > mobile > analytics 1`] = `
                   d="M8 18h1"
                 />
               </svg>
-              Recent Edits
+              Recent edits
             </button>
           </div>
         </nav>
@@ -3451,7 +3451,7 @@ exports[`shell characterization > mobile > analytics tokens sub-tab 1`] = `
               <h2
                 class="text-body font-semibold text-foreground"
               >
-                Analytics Dashboard
+                Analytics
               </h2>
               <p
                 class="text-list text-muted-foreground"
@@ -3569,7 +3569,7 @@ exports[`shell characterization > mobile > analytics tokens sub-tab 1`] = `
                   d="M8 18h1"
                 />
               </svg>
-              Recent Edits
+              Recent edits
             </button>
           </div>
         </nav>
@@ -3772,7 +3772,7 @@ exports[`shell characterization > mobile > analytics without a session 1`] = `
               <h2
                 class="text-body font-semibold text-foreground"
               >
-                Analytics Dashboard
+                Analytics
               </h2>
               <p
                 class="text-list text-muted-foreground"
@@ -3890,7 +3890,7 @@ exports[`shell characterization > mobile > analytics without a session 1`] = `
                   d="M8 18h1"
                 />
               </svg>
-              Recent Edits
+              Recent edits
             </button>
           </div>
         </nav>
@@ -4090,7 +4090,7 @@ exports[`shell characterization > mobile > archive 1`] = `
               <h2
                 class="text-body font-semibold text-foreground"
               >
-                Archive Manager
+                Archive
               </h2>
               <p
                 class="text-list text-muted-foreground"
@@ -4257,7 +4257,7 @@ exports[`shell characterization > mobile > board 1`] = `
               <h2
                 class="text-body font-semibold text-foreground"
               >
-                Session Board
+                Board
               </h2>
               <p
                 class="text-list text-muted-foreground"
@@ -4973,7 +4973,7 @@ exports[`shell characterization > mobile > global stats 1`] = `
               <h2
                 class="text-body font-semibold text-foreground"
               >
-                Global Overview
+                Analytics · All projects
               </h2>
               <p
                 class="text-list text-muted-foreground"
@@ -5178,7 +5178,7 @@ exports[`shell characterization > mobile > loading stats 1`] = `
               <h2
                 class="text-body font-semibold text-foreground"
               >
-                Analytics Dashboard
+                Analytics
               </h2>
               <p
                 class="text-list text-muted-foreground"
@@ -5296,7 +5296,7 @@ exports[`shell characterization > mobile > loading stats 1`] = `
                   d="M8 18h1"
                 />
               </svg>
-              Recent Edits
+              Recent edits
             </button>
           </div>
         </nav>
@@ -5640,7 +5640,7 @@ exports[`shell characterization > mobile > recent edits 1`] = `
               <h2
                 class="text-body font-semibold text-foreground"
               >
-                Recent Edits
+                Recent edits
               </h2>
               <p
                 class="text-list text-muted-foreground"
@@ -5758,7 +5758,7 @@ exports[`shell characterization > mobile > recent edits 1`] = `
                   d="M8 18h1"
                 />
               </svg>
-              Recent Edits
+              Recent edits
             </button>
           </div>
         </nav>

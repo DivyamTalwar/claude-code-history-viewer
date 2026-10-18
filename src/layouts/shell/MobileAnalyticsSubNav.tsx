@@ -19,6 +19,7 @@ import { Icon } from "@/components/icon/Icon";
 import { SCREEN_ICONS } from "@/components/icon/screenIcons";
 import { useAppStore } from "@/store/useAppStore";
 import type { UseAnalyticsReturn } from "@/types/analytics";
+import { placeNameKey } from "@/navigation/placeNames";
 import type { MobileAnalyticsView } from "./viewRegistry";
 
 type Actions = UseAnalyticsReturn["actions"];
@@ -49,7 +50,7 @@ const MOBILE_ANALYTICS_PLACES: readonly PlaceItem[] = [
   },
   {
     id: "edits",
-    labelKey: "recentEdits.title",
+    labelKey: placeNameKey("edits"),
     icon: SCREEN_ICONS.edits,
     open: (actions) => actions.switchToRecentEdits(),
   },

@@ -4,6 +4,7 @@ import { Icon as AppIcon } from "@/components/icon/Icon";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import type { MobileTab } from "@/navigation/place";
+import { placeNameKey } from "@/navigation/placeNames";
 
 interface BottomTabBarProps {
   /** The selected tab, projected from the current place (`activeMobileTab`). */
@@ -15,9 +16,9 @@ interface BottomTabBarProps {
 
 const tabs = [
   { id: "projects", icon: FolderOpen, labelKey: "common.mobile.tab.projects", alwaysEnabled: true },
-  { id: "messages", icon: SCREEN_ICONS.conversation, labelKey: "common.mobile.tab.messages", alwaysEnabled: true },
-  { id: "board", icon: SCREEN_ICONS.board, labelKey: "common.mobile.tab.board", alwaysEnabled: false },
-  { id: "analytics", icon: SCREEN_ICONS.analytics, labelKey: "common.mobile.tab.analytics", alwaysEnabled: false },
+  { id: "messages", icon: SCREEN_ICONS.conversation, labelKey: placeNameKey("conversation"), alwaysEnabled: true },
+  { id: "board", icon: SCREEN_ICONS.board, labelKey: placeNameKey("board"), alwaysEnabled: false },
+  { id: "analytics", icon: SCREEN_ICONS.analytics, labelKey: placeNameKey("analytics"), alwaysEnabled: false },
   { id: "settings", icon: SCREEN_ICONS.settings, labelKey: "common.mobile.tab.settings", alwaysEnabled: true },
 ] as const;
 

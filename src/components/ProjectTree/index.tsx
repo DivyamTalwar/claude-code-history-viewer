@@ -26,6 +26,7 @@ import type { ProjectTreeProps, SessionSelectHandler } from "./types";
 import type { ProviderId, ClaudeProject } from "../../types";
 import { useAppStore } from "../../store/useAppStore";
 import { useProviderDiscovery } from "@/hooks/useProviderDiscovery";
+import { placeNameKey } from "@/navigation/placeNames";
 import {
   buildTreeItemAnnouncement,
   findTypeaheadMatchIndex,
@@ -721,14 +722,14 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
           <div className="w-6 h-px bg-border my-1" />
           <RailButton
             icon={SCREEN_ICONS.globalStats}
-            label={t("project.globalStats")}
+            label={t(placeNameKey("globalStats"))}
             active={libraryItem === "globalStats"}
             onClick={handleGlobalStatsClick}
           />
           {onOpenArchive && (
             <RailButton
               icon={SCREEN_ICONS.archive}
-              label={t("project.library.archive")}
+              label={t(placeNameKey("archive"))}
               active={libraryItem === "archive"}
               disabled={isArchiveDisabled}
               onClick={onOpenArchive}

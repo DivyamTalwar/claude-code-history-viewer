@@ -59,7 +59,6 @@
   "recentEdits.timeMinutesShort": "{{count}}m",
   "recentEdits.timeNowShort": "now",
   "recentEdits.timestamp": "Timestamp",
-  "recentEdits.title": "Recent Edits",
   "recentEdits.unavailableForProvider": "Recent edits aren't available for {{provider}} sessions",
   "recentEdits.viewAdded": "Added",
   "recentEdits.viewContent": "Content",

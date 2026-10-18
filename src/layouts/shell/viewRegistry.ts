@@ -24,6 +24,7 @@ import type { LucideIcon } from "lucide-react";
 import type { ClaudeSession } from "@/types";
 import type { UseAnalyticsReturn } from "@/types/analytics";
 import type { ToolbarView, View } from "@/navigation/place";
+import { PLACE_NAMES } from "@/navigation/placeNames";
 import { SCREEN_ICONS } from "@/components/icon/screenIcons";
 import {
   AnalyticsScreen,
@@ -55,7 +56,8 @@ export interface ViewEntry {
   /** The screen's mark: header tab, content header. */
   icon: LucideIcon;
   /**
-   * The screen's name (content header). An i18n key that
+   * The screen's name (content header): the place's one name from
+   * `PLACE_NAMES` where it has one (plan F4a). An i18n key that
    * must exist in `en`; checked by the registry test rather than by type,
    * as the generated key union does not cover every namespace.
    */
@@ -90,49 +92,49 @@ export const VIEW_REGISTRY: ViewRegistry = {
     component: ConversationScreen,
     frame: BareFrame,
     icon: SCREEN_ICONS.conversation,
-    titleKey: "message.view",
+    titleKey: PLACE_NAMES.conversation,
     header: null,
-    tab: { labelKey: "message.view" },
+    tab: { labelKey: PLACE_NAMES.conversation },
   },
   analytics: {
     component: AnalyticsScreen,
     frame: ScrollFrame,
     icon: SCREEN_ICONS.analytics,
-    titleKey: "analytics.dashboard",
+    titleKey: PLACE_NAMES.analytics,
     header: { subtitle: sessionSummary },
-    tab: { labelKey: "analytics.dashboard" },
+    tab: { labelKey: PLACE_NAMES.analytics },
   },
   edits: {
     component: RecentEditsScreen,
     frame: ScrollFrame,
     icon: SCREEN_ICONS.edits,
-    titleKey: "recentEdits.title",
+    titleKey: PLACE_NAMES.edits,
     header: { subtitle: ({ t }) => t("recentEdits.description") },
-    tab: { labelKey: "recentEdits.title" },
+    tab: { labelKey: PLACE_NAMES.edits },
   },
   board: {
     component: BoardScreen,
     frame: BareFrame,
     icon: SCREEN_ICONS.board,
-    titleKey: "session.board.title",
+    titleKey: PLACE_NAMES.board,
     header: {
       subtitle: ({ t }) =>
         t("session.board.description", "Comparative overview of different sessions"),
     },
-    tab: { labelKey: "session.board.title" },
+    tab: { labelKey: PLACE_NAMES.board },
   },
   globalStats: {
     component: AnalyticsScreen,
     frame: ScrollFrame,
     icon: SCREEN_ICONS.globalStats,
-    titleKey: "analytics.globalOverview",
+    titleKey: PLACE_NAMES.globalStats,
     header: { subtitle: ({ globalOverviewDescription }) => globalOverviewDescription },
   },
   archive: {
     component: ArchiveScreen,
     frame: PaddedFrame,
     icon: SCREEN_ICONS.archive,
-    titleKey: "archive.title",
+    titleKey: PLACE_NAMES.archive,
     header: { subtitle: ({ t }) => t("archive.description") },
   },
   settingsManager: {
