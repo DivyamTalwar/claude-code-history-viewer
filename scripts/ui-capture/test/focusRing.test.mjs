@@ -59,7 +59,7 @@ const FOCUS_INFO = () => {
   };
 };
 
-async function walkStops(page) {
+async function walkStops(page, shotPrefix) {
   await page.evaluate(() => document.activeElement?.blur?.());
   await page.mouse.move(1, 1);
   const stops = [];
@@ -75,7 +75,7 @@ async function walkStops(page) {
       fs.mkdirSync(SHOTS_DIR, { recursive: true });
       const pad = 8;
       await page.screenshot({
-        path: path.join(SHOTS_DIR, `stop-${String(stops.length).padStart(2, "0")}.png`),
+        path: path.join(SHOTS_DIR, `${shotPrefix}--stop-${String(stops.length).padStart(2, "0")}.png`),
         clip: { x: Math.max(0, info.box.x - pad), y: Math.max(0, info.box.y - pad), width: info.box.width + pad * 2, height: info.box.height + pad * 2 },
       });
     }
@@ -89,7 +89,7 @@ describe.skipIf(!ENABLED)("the base focus ring (real WebKit)", () => {
     async (id) => {
       const session = await openScenario(browser, app, id);
       try {
-        const stops = await walkStops(session.page);
+        const stops = await walkStops(session.page, id);
         const covered = stops.filter((s) => !s.optsOut);
         expect(covered.length, JSON.stringify(stops.map((s) => s.label))).toBeGreaterThan(0);
         // The base ring: 2px solid, --focus-ring colour (a component's own 2px ring, e.g. the segmented item's, also passes).
