@@ -1,0 +1,278 @@
+import { readFileSync, writeFileSync } from "node:fs";
+import { join, resolve } from "node:path";
+import { beforeAll, describe, expect, it } from "vitest";
+import {
+  CATEGORIES,
+  EXEMPT_FILES,
+  fingerprints,
+  isTestFile,
+  ratchet,
+  scanApp,
+  scanSource,
+  scanStylesheet,
+  type Baseline,
+  type Category,
+  type Exceptions,
+  type Finding,
+  type Mode,
+} from "./designTokens.scanner";
+
+/**
+ * Design-token guard with an exact-baseline ratchet (inner-UI plan I0b, §4.5,
+ * D13/D14).
+ *
+ * Fifteen bypass categories are fingerprinted per finding (file, category,
+ * snippet hash, ordinal). The rule is: the fingerprints measured in src/ ==
+ * the fingerprints in designTokens.baseline.json. A new one fails (more
+ * bypasses, a same-count swap, a moved file, a new file); a baseline entry
+ * that is no longer found fails too, so a fix cannot leave headroom behind.
+ *
+ *   UPDATE_TOKEN_BASELINE=prune  env -u NODE_ENV pnpm exec vitest run src/test/designTokens.guard.test.ts
+ *       drop fixed fingerprints (refuses when there is a new one)
+ *   UPDATE_TOKEN_BASELINE=accept env -u NODE_ENV pnpm exec vitest run src/test/designTokens.guard.test.ts
+ *       take new fingerprints that each have an exception record (reason +
+ *       task) in designTokens.exceptions.json - the first baseline (I0b) and
+ *       file moves/renames only; also drops fixed ones
+ *
+ * vitest's own `--update` is not used: it would mix with snapshot updates.
+ */
+
+const ROOT = resolve(__dirname, "../..");
+const BASELINE_FILE = join(ROOT, "src/test/designTokens.baseline.json");
+const EXCEPTIONS_FILE = join(ROOT, "src/test/designTokens.exceptions.json");
+
+const categoriesOf = (findings: Finding[]) => findings.map((f) => f.category);
+const only = (source: string, file = "x.tsx") => categoriesOf(scanSource(source, file));
+
+/** One sample per category: each must be found exactly once, as that category. */
+const SAMPLES: Record<Category, string> = {
+  palette: `<div className="bg-blue-500" />`,
+  hexRgb: `<div style={{ color: "#ff6a2a" }} />`,
+  arbitraryColor: `<div className="bg-[#1e1e1e]" />`,
+  textOpacity: `<div className="text-muted-foreground/80" />`,
+  borderOpacity: `<div className="border-border/50" />`,
+  shadow: `<div className="shadow-lg" />`,
+  motion: `<div className="duration-300" />`,
+  zIndex: `<div className="z-[60]" />`,
+  uppercaseTracking: `<span className="uppercase tracking-wider" />`,
+  monoUnmarked: `<span className="font-mono" />`,
+  scale: `<button className="hover:scale-105" />`,
+  decoration: `<div className="backdrop-blur-sm" />`,
+  radius: `<div className="rounded-xl" />`,
+  spacing: `<div className="p-[7px]" />`,
+  dynamicClass: "function F({ tone }: { tone: string }) { return <div className={`bg-${tone}`} />; }",
+};
+
+describe("design-token guard: detectors (one sample per category)", () => {
+  it("covers the fifteen categories of the plan", () => {
+    expect(CATEGORIES).toHaveLength(15);
+    expect(Object.keys(SAMPLES).sort()).toEqual([...CATEGORIES].sort());
+  });
+
+  it.each(CATEGORIES.map((c) => [c, SAMPLES[c]] as const))("%s: its sample counts once", (category, source) => {
+    expect(only(source)).toEqual([category]);
+  });
+
+  it("does not count tokens and allowed values", () => {
+    const source = `<div className="bg-muted text-foreground border-border rounded-md rounded-lg rounded-full duration-150 duration-250 p-2 gap-3 shadow-none text-list text-muted-foreground z-10 hover:bg-accent" />`;
+    expect(only(source)).toEqual([]);
+  });
+
+  it("does not count font-mono with a meaning marker or inside a mono container", () => {
+    expect(only(`<span data-mono="path" className="font-mono" />`)).toEqual([]);
+    expect(only(`<Code><span className="font-mono" /></Code>`)).toEqual([]);
+    expect(only(`<span data-mono="decorative" className="font-mono" />`)).toEqual(["monoUnmarked"]);
+  });
+
+  it("finds bypasses through constants, conditionals and templates", () => {
+    expect(only(`const C = "bg-red-500"; <div className={C} />`)).toEqual(["palette"]);
+    expect(only(`declare const on: boolean; <div className={on ? "bg-red-500" : "bg-muted"} />`)).toEqual(["palette"]);
+    expect(only("declare const on: boolean; const c = `p-2 ${on ? \"rounded-2xl\" : \"rounded-md\"}`;")).toEqual(["radius"]);
+  });
+
+  it("counts inline style values", () => {
+    // the shadow itself, and the colour literal inside it
+    expect(only(`<div style={{ boxShadow: "0 1px 2px rgba(0,0,0,.1)" }} />`).sort()).toEqual(["hexRgb", "shadow"]);
+    expect(only(`<div style={{ transition: "opacity 200ms ease" }} />`)).toEqual(["motion"]);
+    expect(only(`<div style={{ borderRadius: 12 }} />`)).toEqual(["radius"]);
+    expect(only(`<div style={{ transition: "opacity var(--duration-fast)" }} />`)).toEqual([]);
+  });
+
+  it("counts CSS declarations, not token definitions or chart patterns", () => {
+    const css = `:root { --brand: #ff6a2a; --series-1-pattern: repeating-linear-gradient(45deg, red 0 2px, transparent 2px 4px); }
+.a { color: #ff6a2a; }
+.b { box-shadow: 0 1px 2px rgb(0 0 0 / 10%); }
+.c { transition: opacity 300ms; }
+.d { border-radius: 12px; }
+.e { background: linear-gradient(red, blue); }
+.f { @apply bg-red-500 rounded-xl; }
+.g { border-radius: var(--radius-md); transition: opacity var(--duration-fast); }`;
+    const found = scanStylesheet(css, "x.css").map((f) => `${f.line} ${f.category}`);
+    expect(found).toEqual(["2 hexRgb", "3 hexRgb", "3 shadow", "4 motion", "5 radius", "6 decoration", "7 palette", "7 radius"]);
+  });
+
+  it("exempts test files and standalone documents", () => {
+    expect(isTestFile("src/test/x.test.ts")).toBe(true);
+    expect(isTestFile("src/components/A.test.tsx")).toBe(true);
+    expect(isTestFile("src/components/A.tsx")).toBe(false);
+    expect(EXEMPT_FILES).toContain("src/services/export/htmlExporter.ts");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Ratchet: exact baseline (D14 negative tests)
+// ---------------------------------------------------------------------------
+
+const scanFiles = (files: Record<string, string>) =>
+  fingerprints(Object.entries(files).flatMap(([name, source]) => (name.endsWith(".css") ? scanStylesheet(source, name) : scanSource(source, name))));
+
+const baselineOf = (files: Record<string, string>): Baseline => {
+  const { list, snippets } = scanFiles(files);
+  return { version: 1, counts: {}, fingerprints: list, snippets };
+};
+const noExceptions: Exceptions = { version: 1, batches: [] };
+
+const check = (files: Record<string, string>, baseline: Baseline, mode: Mode = "check", exceptions = noExceptions) => {
+  const { list, snippets } = scanFiles(files);
+  return ratchet({ measured: list, snippets, baseline, exceptions, mode });
+};
+
+const START = {
+  "src/A.tsx": `export const A = () => <div className="bg-red-500 rounded-xl" />;`,
+  "src/B.tsx": `export const B = () => <div className="p-2" />;`,
+  "src/s.css": `.a { color: #fff; }`,
+};
+
+describe("design-token guard: exact-baseline ratchet", () => {
+  it("passes when measured == baseline", () => {
+    expect(check(START, baselineOf(START)).ok).toBe(true);
+  });
+
+  it("fails one more bypass", () => {
+    const r = check({ ...START, "src/B.tsx": `export const B = () => <div className="p-2 shadow-md" />;` }, baselineOf(START));
+    expect(r.ok).toBe(false);
+    expect(r.added).toHaveLength(1);
+  });
+
+  it("fails a same-count swap (one fixed, a different one added)", () => {
+    const r = check({ ...START, "src/A.tsx": `export const A = () => <div className="bg-blue-500 rounded-xl" />;` }, baselineOf(START));
+    expect(r.ok).toBe(false);
+    expect(r.added).toHaveLength(1);
+    expect(r.stale).toHaveLength(1);
+  });
+
+  it("fails a fixed bypass left in the baseline, and prune then removes it", () => {
+    const fixed = { ...START, "src/A.tsx": `export const A = () => <div className="bg-muted rounded-xl" />;` };
+    const r = check(fixed, baselineOf(START));
+    expect(r.ok).toBe(false);
+    expect(r.stale).toHaveLength(1);
+    const pruned = check(fixed, baselineOf(START), "prune");
+    expect(pruned.ok).toBe(true);
+    expect(check(fixed, pruned.baseline!).ok).toBe(true);
+  });
+
+  it("fails re-adding a removed bypass after the prune", () => {
+    const fixed = { ...START, "src/A.tsx": `export const A = () => <div className="bg-muted rounded-xl" />;` };
+    const pruned = check(fixed, baselineOf(START), "prune").baseline!;
+    const r = check(START, pruned);
+    expect(r.ok).toBe(false);
+    expect(r.added).toHaveLength(1);
+  });
+
+  it("fails a renamed or moved file (new path = new fingerprints)", () => {
+    const { "src/A.tsx": a, ...rest } = START;
+    const r = check({ ...rest, "src/moved/A.tsx": a }, baselineOf(START));
+    expect(r.ok).toBe(false);
+    expect(r.added).toHaveLength(2);
+    expect(r.stale).toHaveLength(2);
+  });
+
+  it("fails a new file with a bypass", () => {
+    expect(check({ ...START, "src/C.tsx": `export const C = () => <i className="text-amber-500" />;` }, baselineOf(START)).ok).toBe(false);
+  });
+
+  it("fails a new dynamic class, inline style and CSS declaration", () => {
+    for (const [file, source] of [
+      ["src/D.tsx", "export const D = ({ t }: { t: string }) => <div className={`text-${t}`} />;"],
+      ["src/E.tsx", `export const E = () => <div style={{ boxShadow: "0 0 4px black" }} />;`],
+      ["src/s.css", `.a { color: #fff; }\n.b { z-index: 999; }`],
+    ] as const) {
+      expect(check({ ...START, [file]: source }, baselineOf(START)).ok, file).toBe(false);
+    }
+  });
+
+  it("prune refuses new fingerprints", () => {
+    const r = check({ ...START, "src/C.tsx": `export const C = () => <i className="text-amber-500" />;` }, baselineOf(START), "prune");
+    expect(r.ok).toBe(false);
+    expect(r.baseline).toBeUndefined();
+  });
+
+  it("accept refuses a new fingerprint without a reason, takes it with one", () => {
+    const next = { ...START, "src/C.tsx": `export const C = () => <i className="text-amber-500" />;` };
+    expect(check(next, baselineOf(START), "accept").ok).toBe(false);
+    const { list } = scanFiles(next);
+    const added = list.filter((fp) => !baselineOf(START).fingerprints.includes(fp));
+    const exceptions: Exceptions = { version: 1, batches: [{ task: "XX", reason: "approved in review", fingerprints: added }] };
+    const accepted = check(next, baselineOf(START), "accept", exceptions);
+    expect(accepted.ok).toBe(true);
+    expect(check(next, accepted.baseline!).ok).toBe(true);
+  });
+
+  it("numbers repeated snippets in a file (one more copy is new)", () => {
+    const one = { "src/A.tsx": `<div className="bg-red-500" />` };
+    const two = { "src/A.tsx": `<><div className="bg-red-500" /><div className="bg-red-500" /></>` };
+    const r = check(two, baselineOf(one));
+    expect(r.ok).toBe(false);
+    expect(r.added[0]).toMatch(/\|2$/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// src/: the enforced baseline
+// ---------------------------------------------------------------------------
+
+const readJson = <T,>(file: string, fallback: T): T => {
+  try {
+    return JSON.parse(readFileSync(file, "utf8")) as T;
+  } catch {
+    return fallback;
+  }
+};
+
+describe("design-token guard: src/ matches designTokens.baseline.json exactly", () => {
+  let scan: ReturnType<typeof scanApp>;
+  beforeAll(() => {
+    scan = scanApp();
+  }, 120_000);
+
+  it("scans the app sources, without tests and standalone documents", () => {
+    expect(scan.files).toBeGreaterThan(300);
+    expect(scan.findings.filter((f) => isTestFile(f.file) || EXEMPT_FILES.includes(f.file))).toEqual([]);
+  });
+
+  it("every baseline fingerprint has an exception record (reason + task)", () => {
+    const baseline = readJson<Baseline>(BASELINE_FILE, { version: 1, counts: {}, fingerprints: [], snippets: {} });
+    const exceptions = readJson<Exceptions>(EXCEPTIONS_FILE, { version: 1, batches: [] });
+    for (const batch of exceptions.batches) {
+      expect(batch.reason.trim(), `batch ${batch.task}`).not.toBe("");
+      expect(batch.task.trim()).not.toBe("");
+    }
+    const explained = new Set(exceptions.batches.flatMap((b) => b.fingerprints));
+    expect(baseline.fingerprints.filter((fp) => !explained.has(fp))).toEqual([]);
+  });
+
+  it("measured fingerprints == baseline fingerprints", () => {
+    const mode = (process.env.UPDATE_TOKEN_BASELINE ?? "check") as Mode;
+    if (!["check", "prune", "accept"].includes(mode)) throw new Error(`UPDATE_TOKEN_BASELINE must be prune or accept (got ${mode})`);
+    const { list, snippets } = fingerprints(scan.findings);
+    const baseline = readJson<Baseline>(BASELINE_FILE, { version: 1, counts: {}, fingerprints: [], snippets: {} });
+    const exceptions = readJson<Exceptions>(EXCEPTIONS_FILE, { version: 1, batches: [] });
+    const result = ratchet({ measured: list, snippets, baseline, exceptions, mode });
+    if (result.ok && result.baseline) {
+      writeFileSync(BASELINE_FILE, JSON.stringify(result.baseline, null, 2) + "\n");
+      writeFileSync(EXCEPTIONS_FILE, JSON.stringify(result.exceptions, null, 2) + "\n");
+    }
+    expect(result.messages.join("\n\n")).toBe("");
+    expect(result.ok).toBe(true);
+  }, 60_000);
+});
