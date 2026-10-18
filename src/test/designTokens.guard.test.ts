@@ -1,4 +1,5 @@
-import { readFileSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import ts from "typescript";
 import { beforeAll, describe, expect, it } from "vitest";
@@ -8,6 +9,7 @@ import {
   fingerprints,
   isTestFile,
   ratchet,
+  readJsonOr,
   scanApp,
   scanSource,
   scanStylesheet,
@@ -282,6 +284,37 @@ describe("design-token guard: same-file aliases and computed class keys (third r
   });
 });
 
+describe("design-token guard: a template with more than 64 alternatives (CodeRabbit 4308979161)", () => {
+  // 7 boolean conditionals = 128 alternatives. Overflow used to fold the whole
+  // template to one unknown: static tokens and conditional literals vanished.
+  const OVERFLOW = Array.from({ length: 7 }, (_, i) => `\${c${i} ? "a${i}" : "b${i}"}`).join(" ");
+  const DECL7 = Array.from({ length: 7 }, (_, i) => `declare const c${i}: boolean; `).join("");
+
+  it("keeps the static head and literal spans", () => {
+    expect(only(`${DECL7}declare const a: string; declare const b: string; const c = \`bg-red-500 \${a} \${b} ${OVERFLOW} shadow-lg\`;`).sort()).toEqual(["palette", "shadow"]);
+  });
+
+  it("keeps a static token between overflowing parts", () => {
+    expect(only(`${DECL7}const c = \`${OVERFLOW} rounded-2xl ${OVERFLOW}\`;`)).toEqual(["radius"]);
+  });
+
+  it("still scans conditional literal branches of the folded part", () => {
+    expect(only(`${DECL7}declare const on: boolean; const c = \`${OVERFLOW} \${on ? "rounded-2xl" : "rounded-md"}\`;`)).toEqual(["radius"]);
+  });
+
+  it("still reports a dynamic style utility after the overflow", () => {
+    expect(only(`${DECL7}declare const tone: string; <div className={\`${OVERFLOW} bg-\${tone}\`} />;`)).toEqual(["dynamicClass"]);
+  });
+
+  it("a conditional with one unresolved branch still scans the literal branch", () => {
+    expect(only("declare const on: boolean; declare const cls: string; const c = `p-2 ${on ? \"rounded-2xl\" : cls}`;")).toEqual(["radius"]);
+  });
+
+  it("an in-limit template still folds its alternatives (no double count)", () => {
+    expect(only("declare const on: boolean; const c = `p-2 ${on ? \"rounded-2xl\" : \"rounded-md\"}`;")).toEqual(["radius"]);
+  });
+});
+
 describe("design-token guard: known limits (NOT counted; an improvement must flip these deliberately)", () => {
   // The guard is a ratchet, not a proof (scanner header, "Known limits").
   // Each source below does put an unresolved style utility into a class
@@ -477,13 +510,31 @@ describe("design-token guard: exact-baseline ratchet", () => {
 // src/: the enforced baseline
 // ---------------------------------------------------------------------------
 
-const readJson = <T,>(file: string, fallback: T): T => {
-  try {
-    return JSON.parse(readFileSync(file, "utf8")) as T;
-  } catch {
-    return fallback;
-  }
-};
+describe("readJsonOr: only a missing file falls back", () => {
+  // A merge left conflict markers in the exceptions file; swallowing the parse
+  // error turned it into "no batches" and a prune run rewrote it empty.
+  let dir: string;
+  beforeAll(() => {
+    dir = mkdtempSync(join(tmpdir(), "tokens-json-"));
+    return () => rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("returns the fallback when the file does not exist", () => {
+    expect(readJsonOr(join(dir, "missing.json"), { batches: [] })).toEqual({ batches: [] });
+  });
+
+  it("parses an existing file", () => {
+    const file = join(dir, "ok.json");
+    writeFileSync(file, JSON.stringify({ batches: [{ task: "T" }] }));
+    expect(readJsonOr(file, { batches: [] })).toEqual({ batches: [{ task: "T" }] });
+  });
+
+  it("rethrows a parse error, naming the file (conflict markers)", () => {
+    const file = join(dir, "conflict.json");
+    writeFileSync(file, '{\n<<<<<<< HEAD\n  "batches": []\n=======\n  "batches": [1]\n>>>>>>> other\n}\n');
+    expect(() => readJsonOr(file, { batches: [] })).toThrow(file);
+  });
+});
 
 describe("design-token guard: src/ matches designTokens.baseline.json exactly", () => {
   let scan: ReturnType<typeof scanApp>;
@@ -497,8 +548,8 @@ describe("design-token guard: src/ matches designTokens.baseline.json exactly", 
   });
 
   it("every baseline fingerprint has an exception record (reason + task)", () => {
-    const baseline = readJson<Baseline>(BASELINE_FILE, { version: 1, counts: {}, fingerprints: [], snippets: {} });
-    const exceptions = readJson<Exceptions>(EXCEPTIONS_FILE, { version: 1, batches: [] });
+    const baseline = readJsonOr<Baseline>(BASELINE_FILE, { version: 1, counts: {}, fingerprints: [], snippets: {} });
+    const exceptions = readJsonOr<Exceptions>(EXCEPTIONS_FILE, { version: 1, batches: [] });
     for (const batch of exceptions.batches) {
       expect(batch.reason.trim(), `batch ${batch.task}`).not.toBe("");
       expect(batch.task.trim()).not.toBe("");
@@ -511,8 +562,8 @@ describe("design-token guard: src/ matches designTokens.baseline.json exactly", 
     const mode = (process.env.UPDATE_TOKEN_BASELINE ?? "check") as Mode;
     if (!["check", "prune", "accept"].includes(mode)) throw new Error(`UPDATE_TOKEN_BASELINE must be prune or accept (got ${mode})`);
     const { list, snippets } = fingerprints(scan.findings);
-    const baseline = readJson<Baseline>(BASELINE_FILE, { version: 1, counts: {}, fingerprints: [], snippets: {} });
-    const exceptions = readJson<Exceptions>(EXCEPTIONS_FILE, { version: 1, batches: [] });
+    const baseline = readJsonOr<Baseline>(BASELINE_FILE, { version: 1, counts: {}, fingerprints: [], snippets: {} });
+    const exceptions = readJsonOr<Exceptions>(EXCEPTIONS_FILE, { version: 1, batches: [] });
     const result = ratchet({ measured: list, snippets, baseline, exceptions, mode });
     if (result.ok && result.baseline) {
       writeFileSync(BASELINE_FILE, JSON.stringify(result.baseline, null, 2) + "\n");

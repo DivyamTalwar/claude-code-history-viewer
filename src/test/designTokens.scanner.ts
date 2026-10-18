@@ -356,32 +356,53 @@ const normalize = (snippet: string) => snippet.replace(/\s+/g, " ").trim();
 type Value = string | number;
 const MAX_ALTERNATIVES = 64;
 
-/** Every value `expr` can take (unresolved parts become UNKNOWN with `partial`). */
-function possibleValues(expr: ts.Expression, checker: ts.TypeChecker, partial = false): Value[] | null {
+/**
+ * Every value `expr` can take (unresolved parts become UNKNOWN with `partial`).
+ *
+ * Past MAX_ALTERNATIVES only the part that overflows folds to one UNKNOWN;
+ * the static text around it (template head, literal spans) and the parts
+ * before it stay resolved. Each folded part is added to `folded`, so its own
+ * literals (`${on ? "rounded-2xl" : "rounded-md"}`) are scanned on their own
+ * instead of through this expression.
+ */
+function possibleValues(expr: ts.Expression, checker: ts.TypeChecker, partial = false, folded?: Set<ts.Node>): Value[] | null {
   const unknown = partial ? [UNKNOWN] : null;
-  const product = (parts: Array<Value[] | null>): Value[] | null => {
+  const valuesOf = (e: ts.Expression) => possibleValues(e, checker, partial, folded);
+  /** `parts` pairs each part's values with its expression (none for static text). */
+  const product = (parts: Array<[Value[] | null, ts.Expression?]>): Value[] | null => {
     let acc: Value[] = [""];
-    for (const part of parts) {
+    for (const [values, node] of parts) {
+      let part = values;
+      if (part && acc.length * part.length > MAX_ALTERNATIVES) {
+        part = unknown;
+        if (part && node) folded?.add(node);
+      }
       if (!part) return null;
-      acc = acc.flatMap((a) => part.map((b) => `${a}${b}`));
-      if (acc.length > MAX_ALTERNATIVES) return unknown;
+      const next = part;
+      acc = acc.flatMap((a) => next.map((b) => `${a}${b}`));
     }
     return acc;
   };
   if (ts.isParenthesizedExpression(expr) || ts.isAsExpression(expr) || ts.isSatisfiesExpression(expr) || ts.isNonNullExpression(expr) || ts.isTypeAssertionExpression(expr)) {
-    return possibleValues(expr.expression, checker, partial);
+    return valuesOf(expr.expression);
   }
   if (ts.isStringLiteral(expr) || ts.isNoSubstitutionTemplateLiteral(expr)) return [expr.text];
   if (ts.isNumericLiteral(expr)) return [Number(expr.text)];
   if (ts.isTemplateExpression(expr)) {
-    return product([[expr.head.text], ...expr.templateSpans.flatMap((span) => [possibleValues(span.expression, checker, partial) ?? unknown, [span.literal.text]])]);
+    return product([
+      [[expr.head.text]],
+      ...expr.templateSpans.flatMap((span): Array<[Value[] | null, ts.Expression?]> => [[valuesOf(span.expression) ?? unknown, span.expression], [[span.literal.text]]]),
+    ]);
   }
   if (ts.isBinaryExpression(expr) && expr.operatorToken.kind === ts.SyntaxKind.PlusToken) {
-    return product([possibleValues(expr.left, checker, partial) ?? unknown, possibleValues(expr.right, checker, partial) ?? unknown]);
+    return product([
+      [valuesOf(expr.left) ?? unknown, expr.left],
+      [valuesOf(expr.right) ?? unknown, expr.right],
+    ]);
   }
   if (ts.isConditionalExpression(expr)) {
-    const a = possibleValues(expr.whenTrue, checker, partial);
-    const b = possibleValues(expr.whenFalse, checker, partial);
+    const a = valuesOf(expr.whenTrue);
+    const b = valuesOf(expr.whenFalse);
     return a && b ? [...a, ...b] : unknown;
   }
   const type = checker.getTypeAtLocation(expr);
@@ -561,6 +582,12 @@ export function classContext(node: ts.Node, checker?: ts.TypeChecker, seen: Set<
 /** Findings of one TS(X) file of a program. */
 export function scanProgramFile(file: ts.SourceFile, checker: ts.TypeChecker, fileName: string, theme: ThemeTokens = appTheme()): Finding[] {
   const findings: Finding[] = [];
+  /** Parts of templates / `+` chains folded to UNKNOWN past MAX_ALTERNATIVES: scanned on their own. */
+  const folded = new Set<ts.Node>();
+  const insideFolded = (node: ts.Node): boolean => {
+    for (let n: ts.Node | undefined = node; n && !ts.isSourceFile(n); n = n.parent) if (folded.has(n)) return true;
+    return false;
+  };
   const report = (node: ts.Node, category: Category, snippet: string) => {
     const line = file.getLineAndCharacterOfPosition(node.getStart(file)).line + 1;
     findings.push({ file: fileName, line, category, snippet: normalize(snippet) });
@@ -602,6 +629,7 @@ export function scanProgramFile(file: ts.SourceFile, checker: ts.TypeChecker, fi
   };
 
   const isPartOfLargerString = (node: ts.Node): boolean => {
+    if (folded.has(node)) return false; // its enclosing string folded it to UNKNOWN
     const parent = node.parent;
     return (
       (ts.isBinaryExpression(parent) && parent.operatorToken.kind === ts.SyntaxKind.PlusToken) ||
@@ -648,7 +676,8 @@ export function scanProgramFile(file: ts.SourceFile, checker: ts.TypeChecker, fi
       child = parent;
       parent = parent.parent;
     }
-    return !!parent && (ts.isTemplateSpan(parent) || (ts.isBinaryExpression(parent) && parent.operatorToken.kind === ts.SyntaxKind.PlusToken));
+    if (!parent || !(ts.isTemplateSpan(parent) || (ts.isBinaryExpression(parent) && parent.operatorToken.kind === ts.SyntaxKind.PlusToken))) return false;
+    return !insideFolded(node); // folded to UNKNOWN there: nothing scanned it yet
   };
 
   const visit = (node: ts.Node) => {
@@ -656,7 +685,7 @@ export function scanProgramFile(file: ts.SourceFile, checker: ts.TypeChecker, fi
       // Import specifiers and type-only positions are never style text.
       if (!ts.isImportDeclaration(node.parent) && !ts.isExportDeclaration(node.parent) && !ts.isLiteralTypeNode(node.parent) && !isInsideFoldedString(node)) checkClassText(node.text, node);
     } else if ((ts.isTemplateExpression(node) || (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.PlusToken)) && !isPartOfLargerString(node)) {
-      const values = possibleValues(node, checker, true) ?? [UNKNOWN];
+      const values = possibleValues(node, checker, true, folded) ?? [UNKNOWN];
       const strings = values.filter((v): v is string => typeof v === "string");
       // Fold alternatives: report each distinct finding once per expression.
       const before = findings.length;
@@ -821,6 +850,27 @@ export const countsOf = (list: string[]) => {
   }
   return counts;
 };
+
+/**
+ * Reads a baseline/exceptions JSON file; `fallback` only when the file does
+ * not exist yet. Any other failure (conflict markers, a truncated write) is
+ * rethrown with the path: treating it as empty would let a prune run rewrite
+ * the exception records away.
+ */
+export function readJsonOr<T>(file: string, fallback: T): T {
+  let text: string;
+  try {
+    text = readFileSync(file, "utf8");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return fallback;
+    throw error;
+  }
+  try {
+    return JSON.parse(text) as T;
+  } catch (error) {
+    throw new Error(`${file}: invalid JSON (${(error as Error).message})`, { cause: error });
+  }
+}
 
 /**
  * The rule: measured fingerprints == baseline fingerprints.
