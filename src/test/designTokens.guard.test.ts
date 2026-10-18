@@ -1,5 +1,6 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
+import ts from "typescript";
 import { beforeAll, describe, expect, it } from "vitest";
 import {
   CATEGORIES,
@@ -236,6 +237,69 @@ describe("design-token guard: a style utility split mid-token in a class context
     for (const cls of ["${v}", "${v} p-2", "flex-${v}", "top-${v}", "font-${v}", "grid-cols-${v}", "w-${v}", "items-${v}", "toast-${v}", "min-w-${v}"]) {
       expect(only(`declare const v: string; <div className={\`${cls}\`} />;`), cls).toEqual([]);
     }
+  });
+});
+
+/** Shared declarations for the third-review fixtures. */
+const DECL =
+  "declare const v: string; declare const id: string; declare const on: boolean; declare function cn(...a: unknown[]): string; declare function clsx(...a: unknown[]): string; declare function cva(...a: unknown[]): unknown; declare function track(k: unknown): void; ";
+
+describe("design-token guard: same-file aliases and computed class keys (third review N2)", () => {
+  // The reviewer's alias counterexamples: a generically named const/let whose value reaches a className.
+  it.each([["bg-bl${v}-500"], ["shadow-s${v}"], ["rounded-2${v}"]])("const c = `%s` consumed by className is a dynamic class", (cls) => {
+    expect(only(`${DECL}const c = \`${cls}\`; <div className={c} />;`)).toEqual(["dynamicClass"]);
+  });
+
+  it("an alias reaches a class context through let, a helper, a template, a conditional and an alias chain", () => {
+    expect(only(`${DECL}let c = \`bg-bl\${v}-500\`; <div className={c} />;`)).toEqual(["dynamicClass"]);
+    expect(only(`${DECL}const c = \`shadow-s\${v}\`; <div className={cn("flex", c)} />;`)).toEqual(["dynamicClass"]);
+    expect(only(`${DECL}const c = \`rounded-2\${v}\`; <div className={\`flex \${c}\`} />;`)).toEqual(["dynamicClass"]);
+    expect(only(`${DECL}const c = on ? \`bg-bl\${v}-500\` : "bg-muted"; <div className={c} />;`)).toEqual(["dynamicClass"]);
+    expect(only(`${DECL}const c = \`bg-bl\${v}-500\`; const d = c; <div className={d} />;`)).toEqual(["dynamicClass"]);
+  });
+
+  it("an alias used as a class twice is still one finding (it is reported at the template)", () => {
+    expect(only(`${DECL}const c = \`shadow-s\${v}\`; <><div className={c} /><span className={cn(c)} /></>;`)).toEqual(["dynamicClass"]);
+  });
+
+  it("an alias that never reaches a class context stays uncounted", () => {
+    expect(only(`${DECL}const key = \`text-editor-\${id}\`; track(key); const m = { [key]: true };`)).toEqual([]);
+    expect(only(`${DECL}const c = \`shadow-s\${v}\`; <div data-id={c} />;`)).toEqual([]);
+    // Resolved by symbol, not by name: the className uses a different `c`.
+    expect(only(`${DECL}const c = \`bg-bl\${v}-500\`; track(c); function F() { const c = "flex"; return <div className={c} />; }`)).toEqual([]);
+  });
+
+  it("a computed key of an object argument of clsx / cn / classnames / cx is a class", () => {
+    expect(only(`${DECL}<div className={clsx({ [\`bg-bl\${v}-500\`]: true })} />;`)).toEqual(["dynamicClass"]);
+    expect(only(`${DECL}const s = cn("flex", { [\`shadow-s\${v}\`]: on });`)).toEqual(["dynamicClass"]);
+    expect(only(`${DECL}const k = \`rounded-2\${v}\`; <div className={clsx({ [k]: on })} />;`)).toEqual(["dynamicClass"]);
+  });
+
+  it("a computed key elsewhere (a state map, a non-helper call, a cva variant name) is not a class", () => {
+    expect(only(`${DECL}const m = { [\`text-editor-\${id}\`]: true };`)).toEqual([]);
+    expect(only(`${DECL}track({ [\`shadow-s\${v}\`]: on });`)).toEqual([]);
+    expect(only(`${DECL}const b = cva("flex", { variants: { [\`bg-bl\${v}-500\`]: { on: "p-2" } } });`)).toEqual([]);
+  });
+});
+
+describe("design-token guard: known limits (NOT counted; an improvement must flip these deliberately)", () => {
+  // The guard is a ratchet, not a proof (scanner header, "Known limits").
+  // Each source below does put an unresolved style utility into a class
+  // list, but through an indirection the scanner does not follow. When the
+  // scanner learns one, move its case to the counted tests above.
+  it.each([
+    ["a return inside a nested block of a class-named function", "function toneClassName(t: string, on: boolean) { if (on) { return `rounded-2${t}`; } return \"rounded-md\"; }"],
+    ["reassignment of a generically named variable", "let c = \"flex\"; c = `bg-bl${v}-500`; <div className={c} />;"],
+    ["the result of a generically named function", "const tone = (t: string) => `bg-bl${t}-500`; <div className={tone(v)} />;"],
+    ["a property of a generically named object", "const o = { c: `bg-bl${v}-500` }; <div className={o.c} />;"],
+    ["a destructured binding", "const [c] = [`bg-bl${v}-500`]; <div className={c} />;"],
+    ["a component prop whose name is not a class name", "const Box = (p: { tone: string }) => <div className={p.tone} />; <Box tone={`bg-bl${v}-500`} />;"],
+    ["an export consumed in another file", "export const c = `bg-bl${v}-500`;"],
+  ])("%s", (_, source) => {
+    // A fixture with a syntax error would pass vacuously.
+    const parsed = ts.transpileModule(`${DECL}${source}`, { fileName: "x.tsx", reportDiagnostics: true, compilerOptions: { jsx: ts.JsxEmit.Preserve } });
+    expect(parsed.diagnostics ?? []).toEqual([]);
+    expect(only(`${DECL}${source}`)).toEqual([]);
   });
 });
 

@@ -24,8 +24,28 @@ import ts from "typescript";
  * is a palette finding. In a class context (`className`, `cn(…)`, a
  * `*Class` name) any token whose static start could still complete to a
  * style utility (`bg-bl${v}-500`, `shadow-s${v}`, `p-${n}`) is a dynamic
- * class (`classContext`, `DYNAMIC_ROOTS`). Stylesheets are read with postcss; custom property
+ * class (`classContext`, `DYNAMIC_ROOTS`). A generically named same-file
+ * `const` / `let` is followed to its references (const c = `bg-${x}`;
+ * <div className={c} />), and a computed key of an object passed to
+ * `clsx` / `cn` / `classnames` / `cx` is a class (clsx({ [`bg-${x}`]: on })).
+ * Stylesheets are read with postcss; custom property
  * definitions (`--x: …`) are the token layer and are not counted.
+ *
+ * Known limits. The guard is a ratchet, not a proof: it stops new bypasses
+ * written in the forms above, not every way a class string can travel. A
+ * dynamic style utility is NOT seen as a class when it reaches the class
+ * list through
+ *   - a return inside a nested block (if (on) { return `rounded-2${v}`; })
+ *     of a class-named function (only the function body's own statements count);
+ *   - reassignment (c = `bg-${v}`) of a generically named variable;
+ *   - the result of a generically named function (`className={tone(v)}`);
+ *   - a property of a generically named object (`className={o.c}`);
+ *   - a destructured binding (const [c] = [`bg-${v}`]);
+ *   - a component prop whose name is not a class name (`<Box tone={…} />`
+ *     rendered as `className={p.tone}`);
+ *   - an export consumed in another file (no cross-file data flow).
+ * Each is pinned as NOT counted by the guard test "known limits", so a
+ * scanner that learns one flips that test deliberately.
  *
  * Approved shadow / radius / easing names are read from src/index.css
  * (`appTheme()`), not listed here: a `--shadow-<role>` / `--radius-<role>`
@@ -409,6 +429,57 @@ function monoExempt(node: ts.Node): boolean {
 
 /** Functions whose string arguments are class lists. */
 export const CLASS_HELPERS = new Set(["cn", "clsx", "classnames", "classNames", "cx", "twMerge", "twJoin", "cva", "tv"]);
+/** Class helpers whose object arguments map class lists (the keys) to conditions: `clsx({ [cls]: on })`. Not cva / tv (their objects are config). */
+const OBJECT_KEY_HELPERS = new Set(["cn", "clsx", "classnames", "classNames", "cx"]);
+
+const calleeName = (call: ts.CallExpression) =>
+  ts.isIdentifier(call.expression) ? call.expression.text : ts.isPropertyAccessExpression(call.expression) ? call.expression.name.text : "";
+
+/** Is a computed property name a key of an object passed straight to clsx / cn / classnames / cx? */
+function isClassKey(name: ts.ComputedPropertyName): boolean {
+  const prop = name.parent;
+  if (!ts.isPropertyAssignment(prop) || prop.name !== name) return false;
+  const object = prop.parent;
+  const call = object.parent;
+  return ts.isCallExpression(call) && call.arguments.some((arg) => arg === object) && OBJECT_KEY_HELPERS.has(calleeName(call));
+}
+
+/** Identifiers of a file by text (built once per file; used to find a variable's same-file references). */
+const identifierIndex = new WeakMap<ts.SourceFile, Map<string, ts.Identifier[]>>();
+function identifiersNamed(file: ts.SourceFile, text: string): ts.Identifier[] {
+  let index = identifierIndex.get(file);
+  if (!index) {
+    const built = new Map<string, ts.Identifier[]>();
+    const visit = (node: ts.Node) => {
+      if (ts.isIdentifier(node)) {
+        const list = built.get(node.text);
+        if (list) list.push(node);
+        else built.set(node.text, [node]);
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(file);
+    identifierIndex.set(file, built);
+    index = built;
+  }
+  return index.get(text) ?? [];
+}
+
+/**
+ * Does a generically named `const` / `let` reach a class context through one
+ * of its same-file references (const c = `bg-${x}`; <div className={c} />)?
+ * References are matched by symbol, so a shadowing `c` elsewhere is not one.
+ * `seen` stops alias cycles.
+ */
+function aliasReachesClass(decl: ts.VariableDeclaration, checker: ts.TypeChecker, seen: Set<ts.Symbol>): boolean {
+  if (!ts.isIdentifier(decl.name) || !(ts.getCombinedNodeFlags(decl) & ts.NodeFlags.BlockScoped)) return false;
+  const symbol = checker.getSymbolAtLocation(decl.name);
+  if (!symbol || seen.has(symbol)) return false;
+  seen.add(symbol);
+  return identifiersNamed(decl.getSourceFile(), decl.name.text).some(
+    (ref) => ref !== decl.name && checker.getSymbolAtLocation(ref) === symbol && classContext(ref, checker, seen),
+  );
+}
 /** Attribute, variable, property and function names that hold class lists (`className`, `buttonClass`, `classes`). */
 const CLASS_NAME_RE = /class(?:name|names|es)?$/i;
 
@@ -420,20 +491,27 @@ const nameText = (name: ts.Node | undefined): string | null =>
  * expressions that pass a string on unchanged (parentheses, conditional
  * branches, `&&` / `||` / `??`, `+`, templates, arrays, object values,
  * returns) to the consumer: a `className` / `class` (or `*ClassName`)
- * attribute, an argument of a class helper (`cn`, `clsx`, `cva` …), or a
- * variable / property / function whose name ends in class(Name|es). A
- * string anywhere else (a key, a log message, a test id) is not.
+ * attribute, an argument of a class helper (`cn`, `clsx`, `cva` …), a
+ * computed key of an object argument of `clsx` / `cn` / `classnames` / `cx`,
+ * or a variable / property / function whose name ends in class(Name|es).
+ * With a checker, a generically named `const` / `let` is followed to its
+ * same-file references (`aliasReachesClass`). A string anywhere else (a
+ * key, a log message, a test id) is not. Known limits: scanner header.
  */
-export function classContext(node: ts.Node): boolean {
+export function classContext(node: ts.Node, checker?: ts.TypeChecker, seen: Set<ts.Symbol> = new Set()): boolean {
   let child: ts.Node = node;
   for (let parent = node.parent; parent && !ts.isSourceFile(parent); child = parent, parent = parent.parent) {
     if (ts.isJsxAttribute(parent)) return CLASS_NAME_RE.test(nameText(parent.name) ?? "");
     if (ts.isCallExpression(parent)) {
       if (child === parent.expression) return false;
-      const callee = ts.isIdentifier(parent.expression) ? parent.expression.text : ts.isPropertyAccessExpression(parent.expression) ? parent.expression.name.text : "";
-      return CLASS_HELPERS.has(callee);
+      return CLASS_HELPERS.has(calleeName(parent));
     }
-    if (ts.isVariableDeclaration(parent)) return child === parent.initializer && CLASS_NAME_RE.test(nameText(parent.name) ?? "");
+    if (ts.isVariableDeclaration(parent)) {
+      if (child !== parent.initializer) return false;
+      if (CLASS_NAME_RE.test(nameText(parent.name) ?? "")) return true;
+      return !!checker && aliasReachesClass(parent, checker, seen);
+    }
+    if (ts.isComputedPropertyName(parent)) return isClassKey(parent);
     if (ts.isPropertyAssignment(parent)) {
       if (child !== parent.initializer) return false;
       if (CLASS_NAME_RE.test(nameText(parent.name) ?? "")) return true;
@@ -496,7 +574,7 @@ export function scanProgramFile(file: ts.SourceFile, checker: ts.TypeChecker, fi
       let token = raw;
       if (raw.includes(UNKNOWN)) {
         const utility = utilityOf(raw);
-        inClass ??= classContext(node);
+        inClass ??= classContext(node, checker);
         const dynamic = dynamicCategory(utility, theme, inClass);
         if (dynamic) report(node, dynamic, raw.replaceAll(UNKNOWN, "${…}"));
         if (utility.includes(UNKNOWN)) continue;
