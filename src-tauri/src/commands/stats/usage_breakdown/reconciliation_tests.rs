@@ -1,14 +1,13 @@
 //! Reconciliation reference tests (ADR 0002 §8).
 //!
-//! Green now: the reference scan reproduces the **old** commands on the same
-//! rows (inclusive filter, dedup, per-model cost), pins the old inclusive end
-//! and the old $1 merge of a mixed source-cost group, and shows that the
+//! The reference scan reproduces the **old** commands on the same rows
+//! (inclusive filter, dedup, per-model cost), pins the old inclusive end and
+//! the old $1 merge of a mixed source-cost group, and shows that the
 //! half-open split keeps range totals.
 //!
-//! Ignored with the reason `AN0b`: the same fixtures against the new command. They are
-//! written against [`usage_breakdown`], which `AN0b` replaces with the real
-//! command; until then they would fail, so they stay ignored rather than
-//! pretending to pass.
+//! The `an0b_*` tests run the same fixtures through the real command
+//! ([`get_usage_breakdown`]) and compare it with the reference scan and the
+//! old commands (ADR §8).
 
 use super::fixture::*;
 use super::*;
@@ -18,14 +17,7 @@ use serial_test::serial;
 use std::collections::BTreeMap;
 use std::ffi::OsString;
 
-/// `AN0b`: replace with `crate::commands::stats::usage_breakdown::get_usage_breakdown`.
-fn usage_breakdown(
-    _request: UsageBreakdownRequest,
-) -> impl std::future::Future<Output = Result<UsageBreakdownResponse, String>> {
-    std::future::ready(Err(format!(
-        "AN0b: {USAGE_BREAKDOWN_COMMAND} is not implemented"
-    )))
-}
+use super::get_usage_breakdown as usage_breakdown;
 
 /// Keeps provider detection away from the developer's home (#540).
 struct HomeGuard(Option<OsString>);
@@ -606,11 +598,10 @@ async fn legacy_summary_stamps_undated_rows_but_reference_only_counts_them() {
     assert_eq!(summary.total_tokens - dated, 7);
 }
 
-// ---- AN0b: the new command against the same fixtures ----------------------
+// ---- the new command against the same fixtures ----------------------------
 
 #[tokio::test]
 #[serial]
-#[ignore = "AN0b"]
 async fn an0b_interval_sum_equals_range_and_session_sums() {
     let fixture = UsageFixture::write("an0b-sums", same_policy_rows());
     let _home = HomeGuard::set(fixture.root());
@@ -636,7 +627,6 @@ async fn an0b_interval_sum_equals_range_and_session_sums() {
 
 #[tokio::test]
 #[serial]
-#[ignore = "AN0b"]
 async fn an0b_matches_legacy_on_same_policy_fixture() {
     let fixture = UsageFixture::write("an0b-legacy", same_policy_rows());
     let _home = HomeGuard::set(fixture.root());
@@ -659,7 +649,6 @@ async fn an0b_matches_legacy_on_same_policy_fixture() {
 
 #[tokio::test]
 #[serial]
-#[ignore = "AN0b"]
 async fn an0b_mixed_source_cost_by_day_splits_source_and_estimate_buckets() {
     let fixture = UsageFixture::write("an0b-mixed-day", mixed_by_day_rows());
     let _home = HomeGuard::set(fixture.root());
@@ -683,7 +672,6 @@ async fn an0b_mixed_source_cost_by_day_splits_source_and_estimate_buckets() {
 
 #[tokio::test]
 #[serial]
-#[ignore = "AN0b"]
 async fn an0b_mixed_source_cost_by_turn_in_one_day_splits_buckets() {
     let fixture = UsageFixture::write("an0b-mixed-turn", mixed_by_turn_rows());
     let _home = HomeGuard::set(fixture.root());
@@ -698,7 +686,6 @@ async fn an0b_mixed_source_cost_by_turn_in_one_day_splits_buckets() {
 
 #[tokio::test]
 #[serial]
-#[ignore = "AN0b"]
 async fn an0b_row_exactly_at_end_belongs_to_next_interval_only() {
     let fixture = UsageFixture::write("an0b-edges", edge_rows());
     let _home = HomeGuard::set(fixture.root());
@@ -719,7 +706,6 @@ async fn an0b_row_exactly_at_end_belongs_to_next_interval_only() {
 
 #[tokio::test]
 #[serial]
-#[ignore = "AN0b"]
 async fn an0b_sub_millisecond_row_before_end_stays_in_its_day() {
     let fixture = UsageFixture::write("an0b-sub-ms", edge_rows());
     let _home = HomeGuard::set(fixture.root());
@@ -737,7 +723,6 @@ async fn an0b_sub_millisecond_row_before_end_stays_in_its_day() {
 
 #[tokio::test]
 #[serial]
-#[ignore = "AN0b"]
 async fn an0b_zero_length_interval_is_returned_empty_and_in_order() {
     let fixture = UsageFixture::write("an0b-zero", edge_rows());
     let _home = HomeGuard::set(fixture.root());
@@ -758,7 +743,6 @@ async fn an0b_zero_length_interval_is_returned_empty_and_in_order() {
 
 #[tokio::test]
 #[serial]
-#[ignore = "AN0b"]
 async fn an0b_undated_rows_are_only_counted_in_coverage() {
     let rows = vec![
         row("s1", "dated", "2026-10-15T12:00:00Z").tokens(100, 0, 0, 0),
@@ -784,7 +768,6 @@ async fn an0b_undated_rows_are_only_counted_in_coverage() {
 
 #[tokio::test]
 #[serial]
-#[ignore = "AN0b"]
 async fn an0b_rows_without_model_count_unknown_model_tokens() {
     let rows = vec![
         row("s1", "named", "2026-10-15T12:00:00Z").tokens(100, 0, 0, 0),
@@ -807,7 +790,6 @@ async fn an0b_rows_without_model_count_unknown_model_tokens() {
 
 #[tokio::test]
 #[serial]
-#[ignore = "AN0b"]
 async fn an0b_streamed_turn_across_midnight_is_split_without_double_count() {
     let fixture = UsageFixture::write("an0b-dedup", dedup_rows());
     let _home = HomeGuard::set(fixture.root());
@@ -836,7 +818,6 @@ async fn an0b_streamed_turn_across_midnight_is_split_without_double_count() {
 
 #[tokio::test]
 #[serial]
-#[ignore = "AN0b"]
 async fn an0b_dedup_identity_follows_production_key_rules() {
     // Empty message id, message-id/uuid collision, one id in two sessions,
     // rows without any id: each row is its own identity.
@@ -862,7 +843,6 @@ async fn an0b_dedup_identity_follows_production_key_rules() {
 
 #[tokio::test]
 #[serial]
-#[ignore = "AN0b"]
 async fn an0b_conversation_only_excludes_sidechain_like_legacy() {
     let rows = vec![
         row("s1", "main", "2026-10-15T12:00:00Z").tokens(100, 0, 0, 0),
@@ -895,7 +875,6 @@ async fn an0b_conversation_only_excludes_sidechain_like_legacy() {
 
 #[tokio::test]
 #[serial]
-#[ignore = "AN0b"]
 async fn an0b_session_with_several_models_and_tiers_keeps_separate_buckets() {
     let rows = vec![
         row("s1", "x1", "2026-10-15T12:00:00Z")
@@ -922,7 +901,6 @@ async fn an0b_session_with_several_models_and_tiers_keeps_separate_buckets() {
 
 #[tokio::test]
 #[serial]
-#[ignore = "AN0b"]
 async fn an0b_source_cost_only_provider_reports_source_cost_all() {
     let rows = vec![
         row("s1", "p1", "2026-10-15T12:00:00Z")
@@ -953,7 +931,6 @@ async fn an0b_source_cost_only_provider_reports_source_cost_all() {
 
 #[tokio::test]
 #[serial]
-#[ignore = "AN0b"]
 async fn an0b_unreadable_session_file_reports_partial_coverage() {
     let fixture = UsageFixture::write("an0b-partial", same_policy_rows());
     let _home = HomeGuard::set(fixture.root());
@@ -974,7 +951,6 @@ async fn an0b_unreadable_session_file_reports_partial_coverage() {
 
 #[tokio::test]
 #[serial]
-#[ignore = "AN0b"]
 async fn an0b_all_scope_uses_default_and_custom_claude_roots_like_legacy() {
     let default_root = UsageFixture::write("default-root", same_policy_rows());
     let custom_root = UsageFixture::write("custom-root", mixed_by_day_rows());
@@ -1015,7 +991,6 @@ async fn an0b_all_scope_uses_default_and_custom_claude_roots_like_legacy() {
 
 #[tokio::test]
 #[serial]
-#[ignore = "AN0b"]
 async fn an0b_invalid_request_is_rejected_before_reading_files() {
     let fixture = UsageFixture::write("an0b-invalid", same_policy_rows());
     let _home = HomeGuard::set(fixture.root());

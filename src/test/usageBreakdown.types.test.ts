@@ -98,11 +98,4 @@ describe("Tauri and WebUI send the same arguments", () => {
   });
 });
 
-describe("reconciliation against the new command (AN0b turns these on)", () => {
-  it.todo("AN0b: interval sum = range counted once = session sum, tokens and cost (bucket policy)");
-  it.todo("AN0b: mixed source cost by day → summarizeBucketCost = $4 (1 exact + 3 estimated); old summary = $1");
-  it.todo("AN0b: mixed source cost by turn in one day → two buckets, $4");
-  it.todo("AN0b: localDayIntervals(Kolkata) request puts 18:20Z and 18:40Z rows on different days");
-  it.todo("AN0b: Apia 2011-12-30 zero-length interval is returned with zero usage");
-  it.todo("AN0b: undated rows only change coverage.undated_rows");
-});
+// Reconciliation against the real command: usageBreakdown.reconciliation.test.ts.

@@ -6,7 +6,8 @@
  * `src-tauri/src/commands/stats/usage_breakdown.rs`; the shared fixture
  * `src/test/fixtures/usageBreakdown.contract.json` pins both sides.
  *
- * The command is not registered until AN0b; nothing calls it yet.
+ * Registered as a Tauri command and an Axum route (read-only allowlist) of
+ * the same name; AN1 is the first caller.
  */
 
 import type { CustomClaudePath } from "./core/project";

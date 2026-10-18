@@ -1,24 +1,39 @@
-//! Usage-breakdown data contract (ADR 0002).
+//! Usage breakdown (ADR 0002): priced per-interval and per-session usage over
+//! **frontend-supplied** `[start, end)` intervals.
 //!
-//! Types for the `get_usage_breakdown` command: priced per-interval and
-//! per-session usage over **frontend-supplied** `[start, end)` intervals.
-//! `AN0a` fixes the wire shape, the request validation and the half-open
-//! membership rule; the computation, the contribution cache and the
-//! Tauri/Axum registration land in `AN0b`. Nothing here is registered as a
-//! command yet.
+//! - this file: the wire contract, request validation, the half-open
+//!   membership rule and the [`get_usage_breakdown`] command (Tauri and the
+//!   Axum route `/api/get_usage_breakdown` call the same function);
+//! - [`contribution`]: one record per accepted row, file-wide dedup and
+//!   pricing source before any interval is applied;
+//! - [`contribution_cache`]: per-file cache, `(size, mtime)`-validated, 64 MiB LRU;
+//! - [`sources`]: scope → session files per provider, and what failed;
+//! - [`aggregate`]: contributions → intervals, sessions and coverage.
 //!
 //! The wire shape is pinned against the TypeScript types by the shared
 //! fixture `src/test/fixtures/usageBreakdown.contract.json`.
 
 use crate::commands::multi_provider::CustomClaudePathParam;
+use crate::commands::stats::StatsMode;
 use crate::models::ModelStats;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::fmt;
 
+mod aggregate;
+mod contribution;
+mod contribution_cache;
+mod sources;
+
 #[cfg(test)]
 mod fixture;
+#[cfg(test)]
+mod golden_tests;
+#[cfg(test)]
+mod perf_tests;
+#[cfg(test)]
+mod provider_tests;
 #[cfg(test)]
 mod reconciliation_tests;
 #[cfg(test)]
@@ -267,4 +282,44 @@ pub struct UsageBreakdownResponse {
     pub intervals: Vec<IntervalUsage>,
     pub sessions: Vec<SessionUsage>,
     pub coverage: UsageCoverage,
+}
+
+impl UsageStatsMode {
+    fn stats_mode(self) -> StatsMode {
+        match self {
+            Self::BillingTotal => StatsMode::BillingTotal,
+            Self::ConversationOnly => StatsMode::ConversationOnly,
+        }
+    }
+}
+
+/// Priced usage per requested interval and per session, with coverage
+/// (ADR 0002). Read-only. The request is validated (intervals and scope)
+/// before any file is read; the scan runs on the blocking pool with per-file
+/// parallelism.
+#[tauri::command]
+pub async fn get_usage_breakdown(
+    request: UsageBreakdownRequest,
+) -> Result<UsageBreakdownResponse, String> {
+    request.validate().map_err(|error| error.to_string())?;
+    let plan = sources::ScopePlan::parse(&request.scope)?;
+    tauri::async_runtime::spawn_blocking(move || compute(&request, &plan))
+        .await
+        .map_err(|error| format!("usage breakdown: task failed: {error}"))
+}
+
+fn compute(request: &UsageBreakdownRequest, plan: &sources::ScopePlan) -> UsageBreakdownResponse {
+    let started = std::time::Instant::now();
+    let collected = sources::collect(plan, request.stats_mode.stats_mode());
+    let response = aggregate::aggregate(&request.intervals, &collected.sessions, &collected.scans);
+    let cache = contribution_cache::contribution_cache().usage();
+    log::debug!(
+        "{USAGE_BREAKDOWN_COMMAND}: {} intervals, {} sessions, {} ms; cache {} files, {} bytes",
+        request.intervals.len(),
+        response.sessions.len(),
+        started.elapsed().as_millis(),
+        cache.entries,
+        cache.bytes
+    );
+    response
 }

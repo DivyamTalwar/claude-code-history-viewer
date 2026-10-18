@@ -107,7 +107,7 @@ impl FixtureRow {
         self
     }
 
-    fn to_json(&self) -> Value {
+    pub fn to_json(&self) -> Value {
         let mut usage = json!({
             "input_tokens": self.input,
             "output_tokens": self.output,
