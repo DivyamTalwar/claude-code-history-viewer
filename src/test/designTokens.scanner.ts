@@ -21,7 +21,10 @@ import ts from "typescript";
  * templates, conditionals, constants); a colour/radius/shadow class the
  * checker cannot resolve (`bg-${tone}`, `shadow-[0_0_${r}px]`) is its own
  * category; a static palette prefix with an unresolved shade (`bg-red-${n}`)
- * is a palette finding. Stylesheets are read with postcss; custom property
+ * is a palette finding. In a class context (`className`, `cn(…)`, a
+ * `*Class` name) any token whose static start could still complete to a
+ * style utility (`bg-bl${v}-500`, `shadow-s${v}`, `p-${n}`) is a dynamic
+ * class (`classContext`, `DYNAMIC_ROOTS`). Stylesheets are read with postcss; custom property
  * definitions (`--x: …`) are the token layer and are not counted.
  *
  * Approved shadow / radius / easing names are read from src/index.css
@@ -239,6 +242,36 @@ export function classStringCategories(tokens: string[]): Array<{ category: Categ
 
 /** A part of a class string the checker cannot resolve. */
 const UNKNOWN = "\u0000";
+
+/**
+ * Utility roots of the guarded families: colour, shadow, radius, spacing,
+ * motion, z-index. `classTokenCategories` judges their values; an
+ * unresolved value cannot be judged, so in a class context it is a dynamic
+ * class (second review N2).
+ */
+export const DYNAMIC_ROOTS = [
+  ...COLOR_UTILITIES.replace("border-[trblxyse]", "border").split("|"),
+  "rounded",
+  ...["p", "px", "py", "pt", "pr", "pb", "pl", "ps", "pe", "m", "mx", "my", "mt", "mr", "mb", "ml", "ms", "me", "gap", "gap-x", "gap-y", "space-x", "space-y"],
+  "duration",
+  "ease",
+  "delay",
+  "z",
+];
+
+/**
+ * Can a utility whose static start is `stem` (the text before the first
+ * unresolved part) be one of DYNAMIC_ROOTS? Either the stem already names
+ * a root and part of its value (`bg-bl`, `shadow-s`, `rounded-2`,
+ * `text-editor-`), or it is the start of a root (`b`, `roun`, `p`). An
+ * empty stem (`${className}`) and other utilities (`flex-`, `top-`, `w-`)
+ * are not.
+ */
+export function couldBeStyleUtility(stem: string): boolean {
+  const s = stem.replace(/^-/, ""); // negative margins: -mt-${n}
+  if (s === "") return false;
+  return DYNAMIC_ROOTS.some((root) => s.startsWith(`${root}-`) || `${root}-`.startsWith(s));
+}
 const PALETTE_PREFIX_RE = new RegExp(`^(?:${COLOR_UTILITIES})-(?:${PALETTE_HUES})-`);
 const STYLE_PREFIX_RE = /^(?:bg|text|border|shadow|rounded)-?/;
 const SIDE_RE = /^(?:[trblxyse]|tl|tr|br|bl|ss|se|es|ee)-$/;
@@ -253,10 +286,11 @@ const SIDE_RE = /^(?:[trblxyse]|tl|tr|br|bl|ss|se|es|ee)-$/;
  * (`text-editor-${id}`, a state key) and unresolved non-style classes
  * (`${className}`) are not counted.
  */
-export function dynamicCategory(utility: string, theme: ThemeTokens = appTheme()): Category | null {
+export function dynamicCategory(utility: string, theme: ThemeTokens = appTheme(), inClass = false): Category | null {
   const at = utility.indexOf(UNKNOWN);
   if (at < 0) return null;
   if (PALETTE_PREFIX_RE.test(utility)) return "palette";
+  if (inClass && couldBeStyleUtility(utility.slice(0, at))) return "dynamicClass";
   const prefix = STYLE_PREFIX_RE.exec(utility);
   if (!prefix || (prefix[0].length < utility.length && !prefix[0].endsWith("-") && utility[prefix[0].length] !== UNKNOWN)) return null;
   const middle = utility.slice(prefix[0].length, at);
@@ -373,6 +407,79 @@ function monoExempt(node: ts.Node): boolean {
   return false;
 }
 
+/** Functions whose string arguments are class lists. */
+export const CLASS_HELPERS = new Set(["cn", "clsx", "classnames", "classNames", "cx", "twMerge", "twJoin", "cva", "tv"]);
+/** Attribute, variable, property and function names that hold class lists (`className`, `buttonClass`, `classes`). */
+const CLASS_NAME_RE = /class(?:name|names|es)?$/i;
+
+const nameText = (name: ts.Node | undefined): string | null =>
+  name && (ts.isIdentifier(name) || ts.isStringLiteralLike(name) || ts.isPrivateIdentifier(name)) ? name.text : null;
+
+/**
+ * Is a string expression used as a class list? Walks up through the
+ * expressions that pass a string on unchanged (parentheses, conditional
+ * branches, `&&` / `||` / `??`, `+`, templates, arrays, object values,
+ * returns) to the consumer: a `className` / `class` (or `*ClassName`)
+ * attribute, an argument of a class helper (`cn`, `clsx`, `cva` …), or a
+ * variable / property / function whose name ends in class(Name|es). A
+ * string anywhere else (a key, a log message, a test id) is not.
+ */
+export function classContext(node: ts.Node): boolean {
+  let child: ts.Node = node;
+  for (let parent = node.parent; parent && !ts.isSourceFile(parent); child = parent, parent = parent.parent) {
+    if (ts.isJsxAttribute(parent)) return CLASS_NAME_RE.test(nameText(parent.name) ?? "");
+    if (ts.isCallExpression(parent)) {
+      if (child === parent.expression) return false;
+      const callee = ts.isIdentifier(parent.expression) ? parent.expression.text : ts.isPropertyAccessExpression(parent.expression) ? parent.expression.name.text : "";
+      return CLASS_HELPERS.has(callee);
+    }
+    if (ts.isVariableDeclaration(parent)) return child === parent.initializer && CLASS_NAME_RE.test(nameText(parent.name) ?? "");
+    if (ts.isPropertyAssignment(parent)) {
+      if (child !== parent.initializer) return false;
+      if (CLASS_NAME_RE.test(nameText(parent.name) ?? "")) return true;
+      continue; // an object value: its consumer decides (`cva(…, { variants: … })`)
+    }
+    if (ts.isBinaryExpression(parent)) {
+      const op = parent.operatorToken.kind;
+      if (op === ts.SyntaxKind.EqualsToken) return child === parent.right && CLASS_NAME_RE.test(ts.isPropertyAccessExpression(parent.left) ? parent.left.name.text : nameText(parent.left) ?? "");
+      if ([ts.SyntaxKind.PlusToken, ts.SyntaxKind.AmpersandAmpersandToken, ts.SyntaxKind.BarBarToken, ts.SyntaxKind.QuestionQuestionToken].includes(op)) continue;
+      return false;
+    }
+    if (ts.isConditionalExpression(parent)) {
+      if (child === parent.condition) return false;
+      continue;
+    }
+    if (ts.isFunctionDeclaration(parent) || ts.isMethodDeclaration(parent) || ts.isFunctionExpression(parent) || ts.isArrowFunction(parent)) {
+      if (ts.isArrowFunction(parent) && child !== parent.body && !ts.isBlock(child)) return false;
+      if (!ts.isArrowFunction(parent) && !ts.isBlock(child)) return false; // a parameter default
+      const own = ts.isFunctionDeclaration(parent) || ts.isMethodDeclaration(parent) || ts.isFunctionExpression(parent) ? nameText(parent.name) : null;
+      if (own !== null) return CLASS_NAME_RE.test(own);
+      continue; // an anonymous function: named by its variable / property
+    }
+    if (ts.isReturnStatement(parent) || ts.isBlock(parent)) {
+      if (ts.isBlock(parent) && !ts.isFunctionLike(parent.parent)) return false; // a nested block statement
+      continue;
+    }
+    if (
+      ts.isParenthesizedExpression(parent) ||
+      ts.isAsExpression(parent) ||
+      ts.isSatisfiesExpression(parent) ||
+      ts.isNonNullExpression(parent) ||
+      ts.isTypeAssertionExpression(parent) ||
+      ts.isJsxExpression(parent) ||
+      ts.isTemplateSpan(parent) ||
+      ts.isTemplateExpression(parent) ||
+      ts.isArrayLiteralExpression(parent) ||
+      ts.isSpreadElement(parent) ||
+      ts.isObjectLiteralExpression(parent)
+    ) {
+      continue;
+    }
+    return false;
+  }
+  return false;
+}
+
 /** Findings of one TS(X) file of a program. */
 export function scanProgramFile(file: ts.SourceFile, checker: ts.TypeChecker, fileName: string, theme: ThemeTokens = appTheme()): Finding[] {
   const findings: Finding[] = [];
@@ -384,11 +491,13 @@ export function scanProgramFile(file: ts.SourceFile, checker: ts.TypeChecker, fi
   const checkClassText = (text: string, node: ts.Node) => {
     const tokens = text.split(/[\s"'`{}]+/).filter(Boolean);
     const seen = new Set<string>();
+    let inClass: boolean | undefined;
     for (const raw of tokens) {
       let token = raw;
       if (raw.includes(UNKNOWN)) {
         const utility = utilityOf(raw);
-        const dynamic = dynamicCategory(utility, theme);
+        inClass ??= classContext(node);
+        const dynamic = dynamicCategory(utility, theme, inClass);
         if (dynamic) report(node, dynamic, raw.replaceAll(UNKNOWN, "${…}"));
         if (utility.includes(UNKNOWN)) continue;
         token = utility; // only a variant is unresolved (`${v}:bg-red-500`): the utility still counts
@@ -530,10 +639,35 @@ export function scanStylesheet(css: string, fileName: string, { theme = appTheme
 
 const FIXTURE_OPTIONS: ts.CompilerOptions = { target: ts.ScriptTarget.ES2022, lib: ["lib.es2022.d.ts", "lib.dom.d.ts"], jsx: ts.JsxEmit.Preserve, strict: true, noEmit: true, skipLibCheck: true };
 let fixtureHost: ts.CompilerHost | undefined;
+/** Parsed lib / declaration files shared by every fixture program (they never change). */
+const fixtureLibFiles = new Map<string, ts.SourceFile | undefined>();
+let libParses = 0;
+/** How many lib files the fixture host has parsed (each once; the guard test checks it). */
+export const fixtureLibParses = () => libParses;
 
+function sharedFixtureHost(): ts.CompilerHost {
+  if (fixtureHost) return fixtureHost;
+  const base = ts.createCompilerHost(FIXTURE_OPTIONS);
+  fixtureHost = {
+    ...base,
+    getSourceFile: (name, version, ...rest) => {
+      if (!fixtureLibFiles.has(name)) {
+        libParses++;
+        fixtureLibFiles.set(name, base.getSourceFile(name, version, ...rest));
+      }
+      return fixtureLibFiles.get(name);
+    },
+  };
+  return fixtureHost;
+}
+
+/**
+ * Scan an in-memory source as its own program. The lib files are parsed
+ * once and reused (a TypeScript SourceFile is immutable and binds once),
+ * so a fixture scan costs the fixture, not lib.dom.d.ts.
+ */
 export function scanSource(source: string, fileName: string, { theme = appTheme() }: ScanOptions = {}): Finding[] {
-  fixtureHost ??= ts.createCompilerHost(FIXTURE_OPTIONS);
-  const base = fixtureHost;
+  const base = sharedFixtureHost();
   const kind = fileName.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS;
   const file = ts.createSourceFile(fileName, source, ts.ScriptTarget.Latest, true, kind);
   const host: ts.CompilerHost = {

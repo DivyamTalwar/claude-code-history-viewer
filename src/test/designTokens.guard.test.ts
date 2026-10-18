@@ -11,6 +11,7 @@ import {
   scanSource,
   scanStylesheet,
   appTheme,
+  fixtureLibParses,
   themeFromCss,
   type Baseline,
   type Category,
@@ -192,6 +193,52 @@ describe("design-token guard: partially dynamic classes (R4)", () => {
   });
 });
 
+describe("design-token guard: a style utility split mid-token in a class context (second review N2)", () => {
+  // The reviewer's counterexamples: each can complete to a bypass (bg-blue-500, shadow-sm, rounded-2xl).
+  it.each([
+    ["declare const v: string; <div className={`bg-bl${v}-500`} />;"],
+    ["declare const v: string; <div className={`shadow-s${v}`} />;"],
+    ["declare const v: string; <div className={`rounded-2${v}`} />;"],
+  ])("%s is a dynamic class", (source) => {
+    expect(only(source)).toEqual(["dynamicClass"]);
+  });
+
+  it("a stem that is only the start of a utility root counts too (b… → bg / border, p… → p / px)", () => {
+    expect(only("declare const v: string; <div className={`b${v}-red-500`} />;")).toEqual(["dynamicClass"]);
+    expect(only("declare const v: string; <div className={`p${v}-3`} />;")).toEqual(["dynamicClass"]);
+    expect(only("declare const v: string; <div className={`roun${v}`} />;")).toEqual(["dynamicClass"]);
+  });
+
+  it("spacing, motion and z-index roots with an unresolved value count", () => {
+    for (const cls of ["p-${v}", "mt-${v}", "-mx-${v}", "gap-x-${v}", "space-y-${v}", "duration-${v}", "z-${v}", "md:px-${v}"]) {
+      expect(only(`declare const v: string; <div className={\`${cls}\`} />;`), cls).toEqual(["dynamicClass"]);
+    }
+  });
+
+  it("class contexts: className / class attributes, class helpers, *class* names", () => {
+    expect(only("declare const v: string; declare function cn(...a: unknown[]): string; <div className={cn(\"flex\", `rounded-2${v}`)} />;")).toEqual(["dynamicClass"]);
+    expect(only("declare const v: string; declare function cn(...a: unknown[]): string; const c = cn(`shadow-s${v}`);")).toEqual(["dynamicClass"]);
+    expect(only("declare const v: string; declare const on: boolean; <div className={on ? `bg-bl${v}-500` : \"bg-muted\"} />;")).toEqual(["dynamicClass"]);
+    expect(only("declare const v: string; const buttonClass = `shadow-s${v}`;")).toEqual(["dynamicClass"]);
+    expect(only("declare const v: string; const o = { className: `rounded-2${v}` };")).toEqual(["dynamicClass"]);
+    expect(only("declare const v: string; const toneClass = (t: string) => `bg-bl${t}-500`;")).toEqual(["dynamicClass"]);
+    expect(only("declare const v: string; function toneClassName(t: string) { return `bg-bl${t}-500`; }")).toEqual(["dynamicClass"]);
+    expect(only("declare const v: string; <Icon iconClassName={`shadow-s${v}`} />;")).toEqual(["dynamicClass"]);
+  });
+
+  it("a key that only looks like a class stays uncounted; the same text as a class counts", () => {
+    expect(only("declare const id: string; const key = `text-editor-${id}`;")).toEqual([]);
+    expect(only("declare const id: string; declare function track(k: string): void; track(`shadow-s${id}`);")).toEqual([]);
+    expect(only("declare const id: string; <div className={`text-editor-${id}`} />;")).toEqual(["dynamicClass"]);
+  });
+
+  it("non-style utilities and pass-through classes in a class context are not counted", () => {
+    for (const cls of ["${v}", "${v} p-2", "flex-${v}", "top-${v}", "font-${v}", "grid-cols-${v}", "w-${v}", "items-${v}", "toast-${v}", "min-w-${v}"]) {
+      expect(only(`declare const v: string; <div className={\`${cls}\`} />;`), cls).toEqual([]);
+    }
+  });
+});
+
 describe("design-token guard: spacing outside the layout scale 4/8/12/16/24/32 (R5)", () => {
   it("numeric spacing utilities off the scale count", () => {
     for (const cls of ["gap-5", "px-2.5", "py-1.5", "-mt-5", "space-y-5", "p-px", "gap-x-7", "md:p-10"]) {
@@ -245,6 +292,18 @@ describe("design-token guard: the mono owner itself is exempt (R6)", () => {
 // ---------------------------------------------------------------------------
 // Ratchet: exact baseline (D14 negative tests)
 // ---------------------------------------------------------------------------
+
+describe("design-token guard: fixture scans stay cheap (second review N3)", () => {
+  // Each scanSource builds a TypeScript program; re-parsing lib.es2022 +
+  // lib.dom for every one made the ratchet tests exceed vitest's default 5s
+  // under a full browser-enabled run. The parsed lib files are shared.
+  it("parses the lib files once across fixture scans", () => {
+    scanSource(`<div className="p-2" />`, "warm.tsx");
+    const before = fixtureLibParses();
+    for (let i = 0; i < 5; i++) scanSource(`<div className="p-${i}" />`, `n${i}.tsx`);
+    expect(fixtureLibParses()).toBe(before);
+  });
+});
 
 const scanFiles = (files: Record<string, string>) =>
   fingerprints(Object.entries(files).flatMap(([name, source]) => (name.endsWith(".css") ? scanStylesheet(source, name) : scanSource(source, name))));
