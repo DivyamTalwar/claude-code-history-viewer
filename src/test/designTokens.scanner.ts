@@ -53,6 +53,8 @@ import ts from "typescript";
  * `shadow-<role>`, `rounded-<role>`, `var(--…-<role>)` in classes, CSS and
  * inline styles allowed. Scale-step names (xs, sm, md, lg, xl, 2xl, inner …)
  * are steps, not roles: of those only radius md/lg (6/8px) are allowed.
+ * Motion roles work the same way: a `--transition-duration-<role>` token
+ * (fast, normal, slow) makes `duration-<role>` allowed.
  */
 
 export const CATEGORIES = [
@@ -139,6 +141,8 @@ export interface ThemeTokens {
   radii: Set<string>;
   /** `--ease-<name>`: `ease-<name>` is allowed. */
   eases: Set<string>;
+  /** `--transition-duration-<role>` (fast, normal, slow): `duration-<role>` is allowed. */
+  durations: Set<string>;
   /** `--color-<name>`: the semantic colour names (`bg-<name>`, `text-<name>/…`). */
   colors: Set<string>;
 }
@@ -146,7 +150,7 @@ export interface ThemeTokens {
 export function themeFromCss(css: string): ThemeTokens {
   const defined = (prefix: string) => [...css.matchAll(new RegExp(`--${prefix}-([\\w-]+)\\s*:`, "g"))].map((m) => m[1] ?? "");
   const roles = (prefix: string) => new Set(defined(prefix).filter((name) => !SCALE_STEP.test(name)));
-  return { shadows: roles("shadow"), radii: roles("radius"), eases: new Set(defined("ease")), colors: new Set(defined("color")) };
+  return { shadows: roles("shadow"), radii: roles("radius"), eases: new Set(defined("ease")), durations: roles("transition-duration"), colors: new Set(defined("color")) };
 }
 
 let cachedTheme: ThemeTokens | undefined;
@@ -227,7 +231,7 @@ export function classTokenCategories(token: string, theme: ThemeTokens = appThem
   }
   if (/^shadow(?:-|$)/.test(u) && u !== "shadow-none" && !/^shadow-\[?(?:color:)?(?:#|var|rgb)/.test(u) && !PALETTE_RE.test(u)) out.push("shadow");
   const duration = /^duration-(.+)$/.exec(u);
-  if (duration && !ALLOWED_DURATIONS.has(duration[1] ?? "")) out.push("motion");
+  if (duration && !ALLOWED_DURATIONS.has(duration[1] ?? "") && !theme.durations.has(duration[1] ?? "")) out.push("motion");
   const ease = /^ease-(.+)$/.exec(u);
   if (ease && !theme.eases.has(ease[1] ?? "")) out.push("motion");
   if (/^z-\[.+\]$/.test(u)) out.push("zIndex");
