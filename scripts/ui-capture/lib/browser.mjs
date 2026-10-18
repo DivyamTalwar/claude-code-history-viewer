@@ -2,9 +2,9 @@
 // source of nondeterminism pinned (clock, locale, timezone, DPR, motion,
 // theme, storage, network), request tracking, injection and the settle loop.
 
-/* global document, window -- functions passed to page.evaluate run in the page */
+/* global document, navigator, window -- functions passed to page.evaluate run in the page */
 
-import { BROWSER_LOCALE } from "./i18n.mjs";
+import { fontScaleCss, normalizeVariant, resolveContextOptions } from "./variant.mjs";
 
 /** Virtual time advanced per settle step while the app is network-idle. */
 const STEP_MS = 100;
@@ -14,16 +14,23 @@ const REAL_POLL_MS = 40;
 const QUIET_STEPS = 4;
 const SETTLE_TIMEOUT_MS = 45_000;
 
-/** Injected at document start: freeze motion, hide carets, count DOM mutations. */
-const INIT_SCRIPT = `(() => {
-  const css = [
+/**
+ * Injected at document start: hide carets, count DOM mutations and, in the
+ * deterministic capture mode, freeze motion (animation/transition none, no
+ * smooth scroll). `--live` (plan I0, R8) leaves motion alone so a test can
+ * observe it; `extraCss` carries variant CSS (the --font-scale root size).
+ */
+export const initScript = ({ live = false, extraCss = "" } = {}) => {
+  const rules = [
     "*, *::before, *::after {",
-    "  animation: none !important;",
-    "  transition: none !important;",
+    ...(live ? [] : ["  animation: none !important;", "  transition: none !important;"]),
     "  caret-color: transparent !important;",
-    "  scroll-behavior: auto !important;",
+    ...(live ? [] : ["  scroll-behavior: auto !important;"]),
     "}",
-  ].join("\\n");
+    ...(extraCss ? [extraCss] : []),
+  ];
+  return `(() => {
+  const css = ${JSON.stringify(rules.join("\n"))};
   const state = { mutations: 0 };
   Object.defineProperty(window, "__uiCapture", { value: state });
   const install = () => {
@@ -39,6 +46,7 @@ const INIT_SCRIPT = `(() => {
     state.mutations += records.length;
   }).observe(document, { subtree: true, childList: true, attributes: true, characterData: true });
 })();`;
+};
 
 /**
  * Seeds localStorage before any app script runs (the context starts empty).
@@ -52,24 +60,17 @@ const storageSeedScript = (seed) => `(() => {
 /**
  * `contextOptions` adds Playwright context options to the scenario's (tests
  * only: `hasTouch` makes the page a touch screen, `(pointer: coarse)`).
+ * `variant` (lib/variant.mjs) picks motion, forced colours, contrast, time
+ * zone, font scale and live mode; it wins over `contextOptions` and the
+ * defaults (see resolveContextOptions).
  */
 export async function newScenarioPage(
   browser,
-  { scenario, origin, locale, fixedNow, injections, storageSeed = {}, contextOptions = {} },
+  { scenario, origin, locale, fixedNow, injections, storageSeed = {}, contextOptions = {}, variant = {} },
 ) {
-  const context = await browser.newContext({
-    ...contextOptions,
-    viewport: { width: scenario.viewport.width, height: scenario.viewport.height },
-    deviceScaleFactor: 2,
-    colorScheme: scenario.theme,
-    reducedMotion: "reduce",
-    forcedColors: "none",
-    locale: BROWSER_LOCALE[locale],
-    timezoneId: "Asia/Seoul",
-    serviceWorkers: "block",
-    acceptDownloads: false,
-  });
-  await context.addInitScript(INIT_SCRIPT);
+  const v = normalizeVariant(variant);
+  const context = await browser.newContext(resolveContextOptions({ scenario, locale, contextOptions, variant: v }));
+  await context.addInitScript(initScript({ live: v.live, extraCss: fontScaleCss(v.fontScale) }));
   await context.addInitScript(storageSeedScript(storageSeed));
   // Steps act on a settled page, so a locator that does not resolve quickly
   // never will; fail the scenario fast instead of after Playwright's 30 s.
@@ -127,9 +128,12 @@ export async function newScenarioPage(
   page.on("pageerror", (error) => log.pageErrors.push(String(error).slice(0, 300)));
 
   // Frozen wall clock: Date/performance/timers are faked and paused at
-  // fixedNow; timers only run when settle() advances virtual time.
-  await page.clock.install({ time: new Date(fixedNow) });
-  await page.clock.pauseAt(new Date(fixedNow));
+  // fixedNow; timers only run when settle() advances virtual time. Live mode
+  // runs on the real clock (motion needs real frames).
+  if (!v.live) {
+    await page.clock.install({ time: new Date(fixedNow) });
+    await page.clock.pauseAt(new Date(fixedNow));
+  }
 
   const pendingCount = () => [...inflight].filter((request) => !held.has(request)).length;
 
@@ -137,6 +141,7 @@ export async function newScenarioPage(
     context,
     page,
     log,
+    live: v.live,
     pendingCount,
     heldCount: () => held.size,
     expectedHolds: (injections ?? []).filter((rule) => rule.hold).length,
@@ -147,6 +152,20 @@ export async function newScenarioPage(
 }
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * The ⌘/Ctrl key the app under test reads, for a user agent: Meta when it says
+ * Mac, Control otherwise (the rule of src/utils/platform.ts isActionModifier).
+ * Playwright's "ControlOrMeta" follows the host OS instead, and its WebKit
+ * reports a Macintosh user agent on every host, so on Linux it sends Control
+ * to an app that waits for Meta.
+ */
+export const actionModifierFor = (userAgent) => (/mac/i.test(userAgent) ? "Meta" : "Control");
+
+/** actionModifierFor the page's own navigator.userAgent. */
+export async function actionModifier(page) {
+  return actionModifierFor(await page.evaluate(() => navigator.userAgent));
+}
 
 /** Park the pointer where nothing reacts to hover (header padding). */
 export async function parkPointer(page) {
@@ -177,7 +196,8 @@ export async function settle(session, { mode = "ready", label = "" } = {}) {
       quiet = 0;
       continue;
     }
-    await page.clock.runFor(STEP_MS);
+    if (session.live) await sleep(STEP_MS);
+    else await page.clock.runFor(STEP_MS);
     steps += 1;
     const state = await page.evaluate(() => {
       const marker = document.querySelector("[data-ready]");
