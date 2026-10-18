@@ -1,10 +1,12 @@
 import { FolderOpen } from "lucide-react";
 import { SCREEN_ICONS } from "@/components/icon/screenIcons";
 import { Icon as AppIcon } from "@/components/icon/Icon";
+import { Fragment } from "react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import type { MobileTab } from "@/navigation/place";
 import { placeNameKey } from "@/navigation/placeNames";
+import { wordBreakRuns } from "./tabLabelBreaks";
 
 interface BottomTabBarProps {
   /** The selected tab, projected from the current place (`activeMobileTab`). */
@@ -23,7 +25,7 @@ const tabs = [
 ] as const;
 
 export function BottomTabBar({ activeTab, onOpenSidebar, onSwitchView, hasProject }: BottomTabBarProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
 
   return (
     <nav
@@ -72,13 +74,19 @@ export function BottomTabBar({ activeTab, onOpenSidebar, onSwitchView, hasProjec
                 Code Settings"): the label wraps to two tight lines at the
                 caption size (12 px) instead of being cut or renamed, and
                 breaks only between words (`break-keep`: "プロジェクト" stays
-                whole; "Claude Code 設定" breaks at its spaces).
+                whole; "Claude Code 設定" breaks at its spaces, "セッションボード"
+                at the <wbr> between its words).
               */}
               <span
                 data-tab-label=""
                 className="max-w-full text-center text-caption font-medium leading-tight line-clamp-2 break-keep"
               >
-                {t(labelKey)}
+                {wordBreakRuns(t(labelKey), i18n.language).map((run, i) => (
+                  <Fragment key={i}>
+                    {i > 0 && <wbr />}
+                    {run}
+                  </Fragment>
+                ))}
               </span>
               {isDisabled && (
                 <span className="text-caption text-muted-foreground/60 truncate max-w-full">

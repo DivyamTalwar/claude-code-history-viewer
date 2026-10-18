@@ -29,6 +29,10 @@ export const PLACE_NAMES = {
   analytics: "common.place.analytics",
   globalStats: "common.place.analyticsAllProjects",
   edits: "common.place.edits",
+  /**
+   * Parent decision (F4a): the full name everywhere, the phone tab included:
+   * "Session board" / "세션 보드" / "セッションボード" / "会话面板" / "會話面板".
+   */
   board: "common.place.board",
   archive: "common.place.archive",
   /**

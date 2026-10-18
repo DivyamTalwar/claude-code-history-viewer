@@ -1,5 +1,6 @@
 // The phone tab bar names every place by its one name, the Settings Manager
-// included ("Claude Code Settings", owner decision 2026-10-17), and fits it
+// included ("Claude Code Settings", owner decision 2026-10-17) and the board
+// by its full name ("Session board", "セッションボード"), and fits them
 // in every locale at 390 and 360 px. Phone fit is solved by layout (the label
 // may take two lines, at the caption size, never under 12 px), never by a
 // shorter name.
@@ -12,7 +13,7 @@
 // lines, the label box and its glyph lines sit wholly inside the bar, the tap
 // height is at least 44 px, the current-tab marker clears icon and label, the button sits inside the bar and the viewport,
 // and the page is no wider than the viewport (WebKit would otherwise draw a
-// horizontal scrollbar over the bar).
+// horizontal scrollbar over the bar), and neighbouring labels keep a gap.
 // Skipped without WebKit or without a built server.
 
 import fs from "node:fs";
@@ -54,6 +55,21 @@ const TAB_KEYS = [
   "common.place.analytics",
   "common.place.claudeCodeSettings",
 ];
+
+/** CSS px between the glyphs of neighbouring tab labels. */
+const MIN_LABEL_GAP = 4;
+
+/**
+ * The board's one name, per locale: the full name, not a phone short form
+ * ("Board" / "ボード" were short names for the old one-line bar).
+ */
+const SESSION_BOARD = {
+  en: "Session board",
+  ko: "세션 보드",
+  ja: "セッションボード",
+  "zh-CN": "会话面板",
+  "zh-TW": "會話面板",
+};
 
 /** The owner's name for the Settings Manager, per locale. */
 const CLAUDE_CODE_SETTINGS = {
@@ -144,7 +160,9 @@ const measureTabBar = (page) =>
       // The glyph lines of the label, as laid out.
       const range = document.createRange();
       if (label) range.selectNodeContents(label);
-      const textRects = label ? Array.from(range.getClientRects()).map((r) => ({ top: r.top, bottom: r.bottom })) : [];
+      const textRects = label
+        ? Array.from(range.getClientRects()).map((r) => ({ top: r.top, bottom: r.bottom, left: r.left, right: r.right }))
+        : [];
       const rectOf = (el) => {
         if (!el) return null;
         const r = el.getBoundingClientRect();
@@ -192,7 +210,7 @@ const measureTabBar = (page) =>
 describe.skipIf(!ENABLED)("phone tab bar in WebKit", () => {
   for (const locale of SUPPORTED_LOCALES) {
     for (const width of WIDTHS) {
-      it(`${locale} @${width}: every tab shows its place name in full, Claude Code Settings included`, async () => {
+      it(`${locale} @${width}: every tab shows its place name in full, Session board and Claude Code Settings included`, async () => {
         const t = loadTranslator(REPO, locale);
         for (const screenId of SCREENS) {
           const session = await openScenario(`${screenId}--390x844--light`, { locale, width });
@@ -204,9 +222,19 @@ describe.skipIf(!ENABLED)("phone tab bar in WebKit", () => {
             const names = TAB_KEYS.map((key) => t(key));
             expect(bar.tabs.map((tab) => tab.name), where).toEqual(names);
             expect(bar.tabs.map((tab) => tab.label), where).toEqual(names);
+            expect(bar.tabs[2].label, where).toBe(SESSION_BOARD[locale]);
             expect(bar.tabs[4].label, where).toBe(CLAUDE_CODE_SETTINGS[locale]);
             expect(bar.pageWidth, `${where}: page wider than the viewport (scrollbar over the bar)`).toBeLessThanOrEqual(width);
             expect(bar.nav.bottom, `${where}: bar below the viewport`).toBeLessThanOrEqual(bar.viewportHeight + 0.5);
+            // Neighbouring labels never run together: their glyphs keep a gap.
+            for (let i = 1; i < bar.tabs.length; i++) {
+              const left = Math.max(...bar.tabs[i - 1].textRects.map((r) => r.right));
+              const right = Math.min(...bar.tabs[i].textRects.map((r) => r.left));
+              expect(
+                right - left,
+                `${where}: "${bar.tabs[i - 1].label}" and "${bar.tabs[i].label}" run together`,
+              ).toBeGreaterThanOrEqual(MIN_LABEL_GAP);
+            }
             for (const tab of bar.tabs) {
               const what = `${where} "${tab.label}"`;
               // The label box and every glyph line sit wholly inside the bar.

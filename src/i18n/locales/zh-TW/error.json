@@ -23,7 +23,7 @@
   "error.emailTemplate.thanks": "謝謝。",
   "error.emailTemplate.whatWereDoing": "- 發生錯誤時您在進行什麼操作？",
   "error.errorInfo": "錯誤資訊",
-  "error.loadBoard": "載入面板失敗",
+  "error.loadBoard": "載入會話面板失敗",
   "error.refreshFailed": "無法重新整理：{{detail}}",
   "error.reportDescription": "如果此錯誤重複發生，請發送電子郵件至以下地址回報：",
   "error.reportError": "回報錯誤",

@@ -23,7 +23,7 @@
   "error.emailTemplate.thanks": "Thank you.",
   "error.emailTemplate.whatWereDoing": "- What were you doing when the error occurred?",
   "error.errorInfo": "Error Information",
-  "error.loadBoard": "Failed to load board",
+  "error.loadBoard": "Failed to load the session board",
   "error.refreshFailed": "Couldn't refresh: {{detail}}",
   "error.reportDescription": "If this error occurs repeatedly, please report it to the email below:",
   "error.reportError": "Report Error",

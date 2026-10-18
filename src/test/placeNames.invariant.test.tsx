@@ -76,6 +76,22 @@ const CLAUDE_CODE_SETTINGS = {
   "zh-TW": "Claude Code 設定",
 } as const satisfies Record<(typeof LOCALES)[number], string>;
 
+/**
+ * The board's one name (parent decision, F4a): the full name in every locale.
+ * "Board" / "ボード" were phone short forms for the one-line tab bar; the bar
+ * now takes two-line labels. Messages that name the board use it too.
+ */
+const SESSION_BOARD = {
+  en: "Session board",
+  ko: "세션 보드",
+  ja: "セッションボード",
+  "zh-CN": "会话面板",
+  "zh-TW": "會話面板",
+} as const satisfies Record<(typeof LOCALES)[number], string>;
+
+/** Messages that name the board. */
+const BOARD_MESSAGE_KEYS = ["session.boardNotSupported", "error.loadBoard", "session.board.error.loadBoard"];
+
 describe("place names", () => {
   it("names every view or says why it has no name yet", () => {
     for (const view of VIEWS) {
@@ -93,6 +109,17 @@ describe("place names", () => {
     const strings = localeStrings(locale);
     expect(strings[placeNameKey("settingsManager")]).toBe(CLAUDE_CODE_SETTINGS[locale]);
     expect(strings["common.command.openSettingsManager"]).toContain(CLAUDE_CODE_SETTINGS[locale]);
+  });
+
+  it.each(LOCALES)("%s: the board is called by its full name, in messages too", (locale) => {
+    const strings = localeStrings(locale);
+    expect(strings[placeNameKey("board")]).toBe(SESSION_BOARD[locale]);
+    for (const key of BOARD_MESSAGE_KEYS) {
+      // Sentence case: mid-sentence the en name is lower case ("the session board").
+      const text = strings[key] ?? "";
+      expect(text.toLowerCase(), `${locale} ${key}`).toContain(SESSION_BOARD[locale].toLowerCase());
+      expect(text, `${locale} ${key}`).not.toContain("Session Board");
+    }
   });
 
   it.each(LOCALES)("%s: the app preferences gear keeps its own name", (locale) => {

@@ -1171,7 +1171,7 @@ exports[`shell characterization > desktop > board 1`] = `
               <h2
                 class="text-body font-semibold text-foreground"
               >
-                Board
+                Session board
               </h2>
               <p
                 class="text-list text-muted-foreground"
@@ -4257,7 +4257,7 @@ exports[`shell characterization > mobile > board 1`] = `
               <h2
                 class="text-body font-semibold text-foreground"
               >
-                Board
+                Session board
               </h2>
               <p
                 class="text-list text-muted-foreground"

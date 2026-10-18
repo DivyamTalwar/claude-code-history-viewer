@@ -59,7 +59,7 @@
   "common.place.analytics": "分析",
   "common.place.analyticsAllProjects": "分析 · すべてのプロジェクト",
   "common.place.edits": "最近の編集",
-  "common.place.board": "ボード",
+  "common.place.board": "セッションボード",
   "common.place.archive": "アーカイブ",
   "common.place.claudeCodeSettings": "Claude Code 設定",
   "common.modelLifecycle.retired": "{{date}} 提供終了",

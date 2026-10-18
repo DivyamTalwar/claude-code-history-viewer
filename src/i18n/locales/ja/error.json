@@ -23,7 +23,7 @@
   "error.emailTemplate.thanks": "ありがとうございます。",
   "error.emailTemplate.whatWereDoing": "- エラーが発生したときに何をしていましたか？",
   "error.errorInfo": "エラー情報",
-  "error.loadBoard": "ボードの読み込みに失敗しました",
+  "error.loadBoard": "セッションボードの読み込みに失敗しました",
   "error.refreshFailed": "更新できませんでした: {{detail}}",
   "error.reportDescription": "このエラーが繰り返し発生する場合は、以下のメールアドレスまでご報告ください：",
   "error.reportError": "エラーを報告",

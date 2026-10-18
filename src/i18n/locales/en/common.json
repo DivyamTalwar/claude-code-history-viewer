@@ -59,7 +59,7 @@
   "common.place.analytics": "Analytics",
   "common.place.analyticsAllProjects": "Analytics · All projects",
   "common.place.edits": "Recent edits",
-  "common.place.board": "Board",
+  "common.place.board": "Session board",
   "common.place.archive": "Archive",
   "common.place.claudeCodeSettings": "Claude Code Settings",
   "common.modelLifecycle.retired": "retired {{date}}",
