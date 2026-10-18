@@ -275,7 +275,6 @@
   "project.library.title": "ライブラリ",
   "project.library.recent": "最近のセッション",
   "project.library.favorites": "お気に入り",
-  "project.library.claudeSettings": "Claude Code の設定",
   "project.library.recentEmpty": "開いたセッションがここに表示されます",
   "project.library.favoritesEmpty": "セッションをお気に入りに追加するとここに表示されます",
   "project.library.locationUnknown": "場所の確認が必要",

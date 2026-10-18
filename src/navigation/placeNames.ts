@@ -8,7 +8,9 @@
  * after it ("Analytics" / "Analytics · All projects") instead of a second
  * name ("Global Statistics" vs "Global Overview").
  *
- * The names stay short enough for the phone tab bar (five tabs at 390 px).
+ * A place has its one name on the phone too. A long name ("Claude Code
+ * Settings") is the tab bar's layout problem (the label may wrap to two
+ * lines), never a reason for a shorter second name.
  */
 import type { View } from "./place";
 
@@ -18,8 +20,6 @@ import type { View } from "./place";
  */
 export const UNNAMED_VIEWS = {
   empty: "Not a place: the start screen asks the user to pick a session.",
-  settingsManager:
-    "\"Claude Code settings\" (title, palette) vs \"Settings\" (phone tab): the full name does not fit the phone tab bar, so it waits for the phone tab layout (MB1).",
 } as const satisfies Partial<Record<View, string>>;
 
 type NamedView = Exclude<View, keyof typeof UNNAMED_VIEWS>;
@@ -31,6 +31,11 @@ export const PLACE_NAMES = {
   edits: "common.place.edits",
   board: "common.place.board",
   archive: "common.place.archive",
+  /**
+   * Owner decision (2026-10-17): "Claude Code Settings" / "Claude Code 설정"
+   * on every surface. Not the app preferences gear ("Settings…").
+   */
+  settingsManager: "common.place.claudeCodeSettings",
 } as const satisfies Record<NamedView, string>;
 
 export type PlaceNameKey = (typeof PLACE_NAMES)[NamedView];

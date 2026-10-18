@@ -25,11 +25,11 @@ const MOBILE_TAB_KEYS = {
   messages: ["common.place.messages", "common.mobile.tab.messages"],
   board: ["common.place.board", "common.mobile.tab.board"],
   analytics: ["common.place.analytics", "common.mobile.tab.analytics"],
-  settings: "common.mobile.tab.settings",
+  settings: ["common.place.claudeCodeSettings", "common.mobile.tab.settings"],
 };
 
 const MENU_LABEL_KEYS = {
-  settingsManager: "settingsManager.title",
+  settingsManager: ["common.place.claudeCodeSettings", "settingsManager.title"],
   archive: ["common.place.archive", "archive.title"],
 };
 

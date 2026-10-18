@@ -19,8 +19,8 @@ import { fileURLToPath } from "url";
 import { NAMESPACES, BASE_LANG } from './i18n-config.mjs';
 import {
   checkAllowlist,
+  collectCopyViolations,
   compareLocaleKeys,
-  findCopyViolations,
   pruneAllowlist,
 } from './i18n-rules.mjs';
 
@@ -240,19 +240,12 @@ for (const lang of langDirs) {
 // === Step 4: 문구 형식 (복수형 · (s) · ...) ===
 console.log("\n📋 4. 문구 형식 검사 ({{count}} 복수형 묶음 · (s) · ...)");
 const policy = JSON.parse(readFileSync(COPY_POLICY_PATH, "utf-8"));
-const violations = [];
-for (const lang of langDirs) {
-  const data = loadNamespaceData(join(LOCALES_DIR, lang));
-  // Whether a key is a plural bundle is decided by the shared key set, so the
-  // count rule runs once, on the base locale.
-  const rules =
-    lang === BASE_LANG
-      ? undefined
-      : ["parenthetical-plural", "ascii-ellipsis"];
-  for (const v of findCopyViolations(data, { codeLiteralKeys: policy.codeLiteralKeys, rules })) {
-    violations.push({ ...v, lang });
-  }
-}
+// Every rule runs on every locale's own values (the count rule too: a
+// translation can add `{{count}}` to a key that is plain in English).
+const violations = collectCopyViolations(
+  Object.fromEntries(langDirs.map((lang) => [lang, loadNamespaceData(join(LOCALES_DIR, lang))])),
+  { codeLiteralKeys: policy.codeLiteralKeys },
+);
 if (PRUNE) {
   const pruned = { ...policy, allow: pruneAllowlist(violations, policy.allow) };
   writeFileSync(COPY_POLICY_PATH, `${JSON.stringify(pruned, null, 2)}\n`, "utf-8");

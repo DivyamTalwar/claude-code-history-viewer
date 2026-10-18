@@ -140,6 +140,20 @@ export function findCopyViolations(entries, { codeLiteralKeys = [], rules = COPY
 }
 
 /**
+ * Copy-rule violations (`{ rule, lang, key }`) of every locale, every rule
+ * applied to every locale's own values. A `{{count}}` in a ja / ko / zh value
+ * needs a plural bundle (`_other`) just as an English one does: key sync
+ * proves the keys match, not what the translated values contain.
+ */
+export function collectCopyViolations(dataByLang, { codeLiteralKeys = [] } = {}) {
+  const out = [];
+  for (const [lang, entries] of Object.entries(dataByLang)) {
+    for (const v of findCopyViolations(entries, { codeLiteralKeys })) out.push({ ...v, lang });
+  }
+  return out;
+}
+
+/**
  * Ratchet check of violations (`{ rule, lang, key }`) against the allowlist
  * (`{ [rule]: { [lang]: key[] } }`).
  * - `unlisted`: new violations → error.

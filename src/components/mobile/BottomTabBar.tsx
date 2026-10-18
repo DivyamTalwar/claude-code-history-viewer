@@ -19,7 +19,7 @@ const tabs = [
   { id: "messages", icon: SCREEN_ICONS.conversation, labelKey: placeNameKey("conversation"), alwaysEnabled: true },
   { id: "board", icon: SCREEN_ICONS.board, labelKey: placeNameKey("board"), alwaysEnabled: false },
   { id: "analytics", icon: SCREEN_ICONS.analytics, labelKey: placeNameKey("analytics"), alwaysEnabled: false },
-  { id: "settings", icon: SCREEN_ICONS.settings, labelKey: "common.mobile.tab.settings", alwaysEnabled: true },
+  { id: "settings", icon: SCREEN_ICONS.settings, labelKey: placeNameKey("settingsManager"), alwaysEnabled: true },
 ] as const;
 
 export function BottomTabBar({ activeTab, onOpenSidebar, onSwitchView, hasProject }: BottomTabBarProps) {
@@ -27,10 +27,11 @@ export function BottomTabBar({ activeTab, onOpenSidebar, onSwitchView, hasProjec
 
   return (
     <nav
+      data-mobile-tab-bar=""
       className="fixed bottom-0 inset-x-0 z-40 md:hidden h-[var(--mobile-bottom-inset)] bg-sidebar border-t border-border/50 pb-[env(safe-area-inset-bottom)]"
       aria-label={t("common.a11y.navigation")}
     >
-      <div className="flex items-center justify-around h-full px-2">
+      <div className="flex items-center justify-around h-full px-1">
         {tabs.map(({ id, icon: Icon, labelKey, alwaysEnabled }) => {
           const isActive = id !== "projects" && id === activeTab;
           const isDisabled = !alwaysEnabled && !hasProject;
@@ -50,8 +51,12 @@ export function BottomTabBar({ activeTab, onOpenSidebar, onSwitchView, hasProjec
               onClick={handlePress}
               disabled={isDisabled}
               className={cn(
+                // Equal widths, except that no tab is narrower than its
+                // longest word (`min-w-min`): a label wraps between words,
+                // never inside one. Icon + two label lines (24 + 2 + 2 × 15)
+                // sit inside the 64 px bar with room above and below.
                 "relative flex flex-col items-center justify-center gap-0.5 flex-1 h-full transition-colors",
-                "min-w-0 min-h-[var(--mobile-touch-target)]",
+                "min-w-min min-h-[var(--mobile-touch-target)]",
                 isActive
                   ? "text-accent"
                   : "text-muted-foreground",
@@ -62,14 +67,28 @@ export function BottomTabBar({ activeTab, onOpenSidebar, onSwitchView, hasProjec
             >
               {/* Mobile tab bar: 24 px, the platform convention for bottom tabs. */}
               <AppIcon icon={Icon} size={24} aria-hidden="true" />
-              <span className="text-caption font-medium truncate max-w-full">{t(labelKey)}</span>
+              {/*
+                Every tab shows its place's one name, however long ("Claude
+                Code Settings"): the label wraps to two tight lines at the
+                caption size (12 px) instead of being cut or renamed, and
+                breaks only between words (`break-keep`: "プロジェクト" stays
+                whole; "Claude Code 設定" breaks at its spaces).
+              */}
+              <span
+                data-tab-label=""
+                className="max-w-full text-center text-caption font-medium leading-tight line-clamp-2 break-keep"
+              >
+                {t(labelKey)}
+              </span>
               {isDisabled && (
                 <span className="text-caption text-muted-foreground/60 truncate max-w-full">
                   ({t("common.mobile.selectProject")})
                 </span>
               )}
               {isActive && (
-                <span className="absolute bottom-1 w-1 h-1 rounded-full bg-accent" />
+                // The current-tab marker sits on the bar's top edge: under a
+                // two-line label there is no free space below.
+                <span data-tab-indicator="" className="absolute top-0 h-0.5 w-5 rounded-full bg-accent" />
               )}
             </button>
           );

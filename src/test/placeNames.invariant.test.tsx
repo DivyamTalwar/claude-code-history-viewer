@@ -30,6 +30,9 @@ const RETIRED_NAME_KEYS = [
   "common.mobile.tab.analytics",
   "common.mobile.tab.board",
   "common.mobile.tab.messages",
+  "common.mobile.tab.settings",
+  "project.library.claudeSettings",
+  "settingsManager.title",
   "message.view",
   "project.globalStats",
   "project.library.archive",
@@ -60,12 +63,44 @@ afterEach(() => {
   cleanup();
 });
 
+/**
+ * The Settings Manager's one name (owner decision, 2026-10-17): the same on
+ * every surface, the phone tab included. Phone fit is the tab bar's layout
+ * problem, never a reason for a shorter name.
+ */
+const CLAUDE_CODE_SETTINGS = {
+  en: "Claude Code Settings",
+  ko: "Claude Code 설정",
+  ja: "Claude Code 設定",
+  "zh-CN": "Claude Code 设置",
+  "zh-TW": "Claude Code 設定",
+} as const satisfies Record<(typeof LOCALES)[number], string>;
+
 describe("place names", () => {
   it("names every view or says why it has no name yet", () => {
     for (const view of VIEWS) {
       const named = view in PLACE_NAMES;
       const unnamed = view in UNNAMED_VIEWS;
       expect(named !== unnamed, view).toBe(true);
+    }
+  });
+
+  it("exempts only the start screen, which is not a place", () => {
+    expect(Object.keys(UNNAMED_VIEWS)).toEqual(["empty"]);
+  });
+
+  it.each(LOCALES)("%s: the Settings Manager is called Claude Code Settings", (locale) => {
+    const strings = localeStrings(locale);
+    expect(strings[placeNameKey("settingsManager")]).toBe(CLAUDE_CODE_SETTINGS[locale]);
+    expect(strings["common.command.openSettingsManager"]).toContain(CLAUDE_CODE_SETTINGS[locale]);
+  });
+
+  it.each(LOCALES)("%s: the app preferences gear keeps its own name", (locale) => {
+    // `Settings…` (the gear: app preferences) is a different thing.
+    const strings = localeStrings(locale);
+    for (const key of ["common.command.openPreferences", "common.settings.title"]) {
+      expect(strings[key], `${locale} ${key}`).toBeTruthy();
+      expect(strings[key], `${locale} ${key}`).not.toContain("Claude Code");
     }
   });
 
@@ -95,10 +130,20 @@ describe("place names", () => {
   it.each(LOCALES)("%s: the phone tab bar shows the same names", async (locale) => {
     await i18n.changeLanguage(locale);
     render(<BottomTabBar activeTab="messages" onOpenSidebar={vi.fn()} onSwitchView={vi.fn()} hasProject />);
-    for (const view of ["conversation", "board", "analytics"] as const) {
-      expect(screen.getByRole("button", { name: i18n.t(placeNameKey(view)) }), view).toBeTruthy();
+    for (const view of ["conversation", "board", "analytics", "settingsManager"] as const) {
+      const button = screen.getByRole("button", { name: i18n.t(placeNameKey(view)) });
+      expect(button.textContent, view).toBe(i18n.t(placeNameKey(view)));
     }
+    expect(screen.getByRole("button", { name: CLAUDE_CODE_SETTINGS[locale] })).toBeTruthy();
     await i18n.changeLanguage("en");
+  });
+
+  it("the sidebar's Library row and rail use the same name", () => {
+    // Both Library renderings read the place key, never a sidebar-only one.
+    for (const file of ["components/ProjectTree/components/LibrarySection.tsx", "components/ProjectTree/index.tsx"]) {
+      const text = fs.readFileSync(path.join(SRC, file), "utf8");
+      expect(text, file).toMatch(/placeNameKey\("settingsManager"\)/);
+    }
   });
 
   it.each(LOCALES)("%s: the palette's archive command names the archive", (locale) => {

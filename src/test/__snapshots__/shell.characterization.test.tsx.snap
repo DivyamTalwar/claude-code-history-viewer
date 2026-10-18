@@ -16,7 +16,7 @@ exports[`shell characterization > desktop > analytics 1`] = `
         Skip to project explorer
       </a>
       <a
-        class="absolute left-[24rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
+        class="absolute left-2 md:left-[24rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#main-content"
       >
         Skip to main content
@@ -315,7 +315,7 @@ exports[`shell characterization > desktop > analytics tokens sub-tab 1`] = `
         Skip to project explorer
       </a>
       <a
-        class="absolute left-[24rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
+        class="absolute left-2 md:left-[24rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#main-content"
       >
         Skip to main content
@@ -618,7 +618,7 @@ exports[`shell characterization > desktop > analytics without a session 1`] = `
         Skip to project explorer
       </a>
       <a
-        class="absolute left-[24rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
+        class="absolute left-2 md:left-[24rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#main-content"
       >
         Skip to main content
@@ -917,7 +917,7 @@ exports[`shell characterization > desktop > archive 1`] = `
         Skip to project explorer
       </a>
       <a
-        class="absolute left-[24rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
+        class="absolute left-2 md:left-[24rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#main-content"
       >
         Skip to main content
@@ -1083,7 +1083,7 @@ exports[`shell characterization > desktop > board 1`] = `
         Skip to project explorer
       </a>
       <a
-        class="absolute left-[24rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
+        class="absolute left-2 md:left-[24rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#main-content"
       >
         Skip to main content
@@ -1248,13 +1248,13 @@ exports[`shell characterization > desktop > conversation with a session 1`] = `
         Skip to project explorer
       </a>
       <a
-        class="absolute left-[24rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
+        class="absolute left-2 md:left-[24rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#main-content"
       >
         Skip to main content
       </a>
       <a
-        class="absolute left-[35rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
+        class="absolute left-2 md:left-[35rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#inspector"
       >
         Skip to inspector
@@ -1488,7 +1488,7 @@ exports[`shell characterization > desktop > conversation without a session 1`] =
         Skip to project explorer
       </a>
       <a
-        class="absolute left-[24rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
+        class="absolute left-2 md:left-[24rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#main-content"
       >
         Skip to main content
@@ -1635,7 +1635,7 @@ exports[`shell characterization > desktop > empty 1`] = `
         Skip to project explorer
       </a>
       <a
-        class="absolute left-[24rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
+        class="absolute left-2 md:left-[24rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#main-content"
       >
         Skip to main content
@@ -1780,7 +1780,7 @@ exports[`shell characterization > desktop > empty with a kept session 1`] = `
         Skip to project explorer
       </a>
       <a
-        class="absolute left-[24rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
+        class="absolute left-2 md:left-[24rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#main-content"
       >
         Skip to main content
@@ -1927,7 +1927,7 @@ exports[`shell characterization > desktop > global stats 1`] = `
         Skip to project explorer
       </a>
       <a
-        class="absolute left-[24rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
+        class="absolute left-2 md:left-[24rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#main-content"
       >
         Skip to main content
@@ -2128,7 +2128,7 @@ exports[`shell characterization > desktop > loading stats 1`] = `
         Skip to project explorer
       </a>
       <a
-        class="absolute left-[24rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
+        class="absolute left-2 md:left-[24rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#main-content"
       >
         Skip to main content
@@ -2457,13 +2457,13 @@ exports[`shell characterization > desktop > no screen flag set 1`] = `
         Skip to project explorer
       </a>
       <a
-        class="absolute left-[24rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
+        class="absolute left-2 md:left-[24rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#main-content"
       >
         Skip to main content
       </a>
       <a
-        class="absolute left-[35rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
+        class="absolute left-2 md:left-[35rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#inspector"
       >
         Skip to inspector
@@ -2689,7 +2689,7 @@ exports[`shell characterization > desktop > recent edits 1`] = `
         Skip to project explorer
       </a>
       <a
-        class="absolute left-[24rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
+        class="absolute left-2 md:left-[24rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#main-content"
       >
         Skip to main content
@@ -2894,7 +2894,7 @@ exports[`shell characterization > desktop > settings 1`] = `
         Skip to project explorer
       </a>
       <a
-        class="absolute left-[24rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
+        class="absolute left-2 md:left-[24rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#main-content"
       >
         Skip to main content
@@ -3049,7 +3049,7 @@ exports[`shell characterization > mobile > analytics 1`] = `
       aria-label="Skip navigation"
     >
       <a
-        class="absolute left-[24rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
+        class="absolute left-2 md:left-[24rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#main-content"
       >
         Skip to main content
@@ -3366,7 +3366,7 @@ exports[`shell characterization > mobile > analytics tokens sub-tab 1`] = `
       aria-label="Skip navigation"
     >
       <a
-        class="absolute left-[24rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
+        class="absolute left-2 md:left-[24rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#main-content"
       >
         Skip to main content
@@ -3687,7 +3687,7 @@ exports[`shell characterization > mobile > analytics without a session 1`] = `
       aria-label="Skip navigation"
     >
       <a
-        class="absolute left-[24rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
+        class="absolute left-2 md:left-[24rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#main-content"
       >
         Skip to main content
@@ -4004,7 +4004,7 @@ exports[`shell characterization > mobile > archive 1`] = `
       aria-label="Skip navigation"
     >
       <a
-        class="absolute left-[24rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
+        class="absolute left-2 md:left-[24rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#main-content"
       >
         Skip to main content
@@ -4168,7 +4168,7 @@ exports[`shell characterization > mobile > board 1`] = `
       aria-label="Skip navigation"
     >
       <a
-        class="absolute left-[24rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
+        class="absolute left-2 md:left-[24rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#main-content"
       >
         Skip to main content
@@ -4331,7 +4331,7 @@ exports[`shell characterization > mobile > conversation with a session 1`] = `
       aria-label="Skip navigation"
     >
       <a
-        class="absolute left-[24rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
+        class="absolute left-2 md:left-[24rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#main-content"
       >
         Skip to main content
@@ -4459,7 +4459,7 @@ exports[`shell characterization > mobile > conversation without a session 1`] = 
       aria-label="Skip navigation"
     >
       <a
-        class="absolute left-[24rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
+        class="absolute left-2 md:left-[24rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#main-content"
       >
         Skip to main content
@@ -4604,7 +4604,7 @@ exports[`shell characterization > mobile > empty 1`] = `
       aria-label="Skip navigation"
     >
       <a
-        class="absolute left-[24rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
+        class="absolute left-2 md:left-[24rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#main-content"
       >
         Skip to main content
@@ -4749,7 +4749,7 @@ exports[`shell characterization > mobile > empty with a kept session 1`] = `
       aria-label="Skip navigation"
     >
       <a
-        class="absolute left-[24rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
+        class="absolute left-2 md:left-[24rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#main-content"
       >
         Skip to main content
@@ -4894,7 +4894,7 @@ exports[`shell characterization > mobile > global stats 1`] = `
       aria-label="Skip navigation"
     >
       <a
-        class="absolute left-[24rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
+        class="absolute left-2 md:left-[24rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#main-content"
       >
         Skip to main content
@@ -5093,7 +5093,7 @@ exports[`shell characterization > mobile > loading stats 1`] = `
       aria-label="Skip navigation"
     >
       <a
-        class="absolute left-[24rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
+        class="absolute left-2 md:left-[24rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#main-content"
       >
         Skip to main content
@@ -5440,7 +5440,7 @@ exports[`shell characterization > mobile > no screen flag set 1`] = `
       aria-label="Skip navigation"
     >
       <a
-        class="absolute left-[24rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
+        class="absolute left-2 md:left-[24rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#main-content"
       >
         Skip to main content
@@ -5555,7 +5555,7 @@ exports[`shell characterization > mobile > recent edits 1`] = `
       aria-label="Skip navigation"
     >
       <a
-        class="absolute left-[24rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
+        class="absolute left-2 md:left-[24rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#main-content"
       >
         Skip to main content
@@ -5870,7 +5870,7 @@ exports[`shell characterization > mobile > settings 1`] = `
       aria-label="Skip navigation"
     >
       <a
-        class="absolute left-[24rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
+        class="absolute left-2 md:left-[24rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         href="#main-content"
       >
         Skip to main content

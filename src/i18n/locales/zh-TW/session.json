@@ -275,7 +275,6 @@
   "project.library.title": "資料庫",
   "project.library.recent": "最近的會話",
   "project.library.favorites": "收藏",
-  "project.library.claudeSettings": "Claude Code 設定",
   "project.library.recentEmpty": "開啟過的會話會顯示在這裡",
   "project.library.favoritesEmpty": "收藏會話後會顯示在這裡",
   "project.library.locationUnknown": "需要確認位置",

@@ -34,6 +34,7 @@ import { ArchiveManager } from "@/components/ArchiveManager";
 import type { SessionTokenStats } from "@/types";
 import type { UseAnalyticsReturn } from "@/types/analytics";
 import type { View } from "@/navigation/place";
+import { placeNameKey } from "@/navigation/placeNames";
 
 /** What the shell hands every screen. */
 export interface ViewScreenProps {
@@ -133,7 +134,7 @@ const NoProjectsState = () => {
       </code>
       <p className="text-list text-muted-foreground">
         {t(copy.hint, {
-          settings: t("settingsManager.title"),
+          settings: t(placeNameKey("settingsManager")),
           section: t("settings.customDirectories"),
         })}
       </p>

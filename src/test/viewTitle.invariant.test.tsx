@@ -357,7 +357,7 @@ const VIEWS: ViewCase[] = [
   },
   {
     label: "settings",
-    titleKey: "settingsManager.title",
+    titleKey: "common.place.claudeCodeSettings",
     arrange: () => Object.assign(computedMock, { isSettingsView: true }),
   },
   {

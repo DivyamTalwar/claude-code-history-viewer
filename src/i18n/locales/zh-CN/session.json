@@ -275,7 +275,6 @@
   "project.library.title": "资料库",
   "project.library.recent": "最近的会话",
   "project.library.favorites": "收藏",
-  "project.library.claudeSettings": "Claude Code 设置",
   "project.library.recentEmpty": "打开过的会话会显示在这里",
   "project.library.favoritesEmpty": "收藏会话后会显示在这里",
   "project.library.locationUnknown": "需要确认位置",

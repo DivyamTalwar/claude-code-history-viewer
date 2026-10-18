@@ -141,7 +141,7 @@ export const VIEW_REGISTRY: ViewRegistry = {
     component: SettingsScreen,
     frame: PaddedFrame,
     icon: SCREEN_ICONS.settings,
-    titleKey: "settingsManager.title",
+    titleKey: PLACE_NAMES.settingsManager,
     header: { subtitle: ({ t }) => t("settingsManager.description") },
   },
 };

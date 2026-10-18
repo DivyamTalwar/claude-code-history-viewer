@@ -3,7 +3,12 @@
 // Code and command literals are exempt: backtick spans inside a value, and
 // keys on the code-literal list (a value that is a command example).
 import { describe, expect, it } from "vitest";
-import { checkAllowlist, findCopyViolations, proseOf } from "./i18n-rules.mjs";
+import { execFileSync } from "node:child_process";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { checkAllowlist, collectCopyViolations, findCopyViolations, proseOf } from "./i18n-rules.mjs";
 
 const rulesOf = (entries, options) => findCopyViolations(entries, options).map((v) => `${v.rule}:${v.key}`);
 
@@ -60,8 +65,69 @@ describe("count without plural", () => {
     expect(rulesOf({ "x.total": "{{counted}} of {{total}}" })).toEqual([]);
   });
 
-  it("can be limited to the base locale", () => {
-    expect(rulesOf({ "x.sessions": "{{count}} 세션" }, { rules: ["ascii-ellipsis", "parenthetical-plural"] })).toEqual([]);
+});
+
+describe("count without plural, in every locale", () => {
+  // ja / ko / zh have one plural form, `_other`; a `{{count}}` value still
+  // has to live in a plural bundle there, not only in English.
+  it("fails a ja value with {{count}} in a plain key, even when en is fine", () => {
+    const out = collectCopyViolations({
+      en: { "common.cancel": "Cancel" },
+      ja: { "common.cancel": "{{count}} キャンセル" },
+    });
+    expect(out).toEqual([{ rule: "count-without-plural", key: "common.cancel", lang: "ja" }]);
+  });
+
+  it("passes a ja _other form", () => {
+    const out = collectCopyViolations({
+      en: { "x.files_one": "{{count}} file", "x.files_other": "{{count}} files" },
+      ja: { "x.files_other": "{{count}} 件のファイル" },
+      ko: { "x.files_other": "파일 {{count}}개" },
+      "zh-CN": { "x.files_other": "{{count}} 个文件" },
+    });
+    expect(out).toEqual([]);
+  });
+
+  it("runs every rule for every locale", () => {
+    const out = collectCopyViolations({
+      ko: { a: "{{count}}개 file(s)...", "b_other": "{{count}}개" },
+    });
+    expect(out.map((v) => `${v.lang}:${v.rule}:${v.key}`)).toEqual([
+      "ko:count-without-plural:a",
+      "ko:parenthetical-plural:a",
+      "ko:ascii-ellipsis:a",
+    ]);
+  });
+
+  it("i18n:validate fails a new ja {{count}} value in a plain key (real script, copied locales)", () => {
+    const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "i18n-count-"));
+    try {
+      fs.mkdirSync(path.join(tmp, "scripts"));
+      for (const file of ["validate-i18n.mjs", "i18n-config.mjs", "i18n-rules.mjs", "i18n-copy-allowlist.json"]) {
+        fs.copyFileSync(path.join(root, "scripts", file), path.join(tmp, "scripts", file));
+      }
+      fs.cpSync(path.join(root, "src/i18n/locales"), path.join(tmp, "src/i18n/locales"), { recursive: true });
+      const run = () => {
+        try {
+          execFileSync(process.execPath, [path.join(tmp, "scripts/validate-i18n.mjs")], { stdio: "pipe" });
+          return { code: 0, out: "" };
+        } catch (e) {
+          return { code: e.status, out: `${e.stdout}${e.stderr}` };
+        }
+      };
+      expect(run().code).toBe(0);
+
+      const jaCommon = path.join(tmp, "src/i18n/locales/ja/common.json");
+      const data = JSON.parse(fs.readFileSync(jaCommon, "utf8"));
+      data["common.cancel"] = "{{count}} キャンセル";
+      fs.writeFileSync(jaCommon, JSON.stringify(data, null, 2));
+      const result = run();
+      expect(result.code).toBe(1);
+      expect(result.out).toContain("ja: common.cancel — count-without-plural");
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
   });
 });
 

@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-10-18T20:38:57.344Z
- * 총 키 개수: 2329
+ * 생성 시간: 2026-10-18T21:17:39.571Z
+ * 총 키 개수: 2327
  * Namespace 수: 13
  */
 
@@ -191,7 +191,6 @@ export type CommonKeys =
   | 'common.mobile.openSidebar'
   | 'common.mobile.selectProject'
   | 'common.mobile.tab.projects'
-  | 'common.mobile.tab.settings'
   | 'common.modelLifecycle.replacement'
   | 'common.modelLifecycle.retired'
   | 'common.modelLifecycle.retiredHint'
@@ -206,6 +205,7 @@ export type CommonKeys =
   | 'common.place.analyticsAllProjects'
   | 'common.place.archive'
   | 'common.place.board'
+  | 'common.place.claudeCodeSettings'
   | 'common.place.edits'
   | 'common.place.messages'
   | 'common.provider.aider'
@@ -567,7 +567,7 @@ export type AnalyticsKeys =
   | 'analytics.weeklyActivity';
 
 /**
- * session namespace의 번역 키 (293개)
+ * session namespace의 번역 키 (292개)
  * 파일: locales/{lang}/session.json
  */
 export type SessionKeys =
@@ -598,7 +598,6 @@ export type SessionKeys =
   | 'project.groupingWorktree'
   | 'project.hiddenPatterns'
   | 'project.hide'
-  | 'project.library.claudeSettings'
   | 'project.library.favorites'
   | 'project.library.favoritesEmpty'
   | 'project.library.locationUnknown'
@@ -866,7 +865,7 @@ export type SessionKeys =
   | 'sessionPicker.title';
 
 /**
- * settings namespace의 번역 키 (553개)
+ * settings namespace의 번역 키 (552개)
  * 파일: locales/{lang}/settings.json
  */
 export type SettingsKeys =
@@ -1323,7 +1322,6 @@ export type SettingsKeys =
   | 'settingsManager.tabs.mcp'
   | 'settingsManager.tabs.overview'
   | 'settingsManager.tabs.presets'
-  | 'settingsManager.title'
   | 'settingsManager.unified.banner.effectiveSettings'
   | 'settingsManager.unified.banner.hookTypes'
   | 'settingsManager.unified.banner.noSettings'
@@ -3051,7 +3049,6 @@ export type TranslationKey =
   | 'common.mobile.openSidebar'
   | 'common.mobile.selectProject'
   | 'common.mobile.tab.projects'
-  | 'common.mobile.tab.settings'
   | 'common.modelLifecycle.replacement'
   | 'common.modelLifecycle.retired'
   | 'common.modelLifecycle.retiredHint'
@@ -3066,6 +3063,7 @@ export type TranslationKey =
   | 'common.place.analyticsAllProjects'
   | 'common.place.archive'
   | 'common.place.board'
+  | 'common.place.claudeCodeSettings'
   | 'common.place.edits'
   | 'common.place.messages'
   | 'common.provider.aider'
@@ -3574,7 +3572,6 @@ export type TranslationKey =
   | 'project.groupingWorktree'
   | 'project.hiddenPatterns'
   | 'project.hide'
-  | 'project.library.claudeSettings'
   | 'project.library.favorites'
   | 'project.library.favoritesEmpty'
   | 'project.library.locationUnknown'
@@ -4406,7 +4403,6 @@ export type TranslationKey =
   | 'settingsManager.tabs.mcp'
   | 'settingsManager.tabs.overview'
   | 'settingsManager.tabs.presets'
-  | 'settingsManager.title'
   | 'settingsManager.unified.banner.effectiveSettings'
   | 'settingsManager.unified.banner.hookTypes'
   | 'settingsManager.unified.banner.noSettings'

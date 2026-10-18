@@ -31,7 +31,9 @@
    ============================================ */
 :root {
   /* === Mobile Layout Tokens === */
-  --mobile-bottom-bar-height: 3.5rem;
+  /* Icon (24) + two caption lines (2 × 15) + spacing: a tab label may wrap to
+     two lines (a place keeps its one name, e.g. "Claude Code Settings"). */
+  --mobile-bottom-bar-height: 4rem;
   /* The tab bar's full height with the device's bottom safe area: the bar is
      this tall and the main area reserves the same, so it never covers content. */
   --mobile-bottom-inset: calc(var(--mobile-bottom-bar-height) + env(safe-area-inset-bottom, 0px));

@@ -738,7 +738,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
           {onOpenSettingsManager && (
             <RailButton
               icon={SCREEN_ICONS.settings}
-              label={t("project.library.claudeSettings")}
+              label={t(placeNameKey("settingsManager"))}
               active={libraryItem === "settingsManager"}
               onClick={onOpenSettingsManager}
             />

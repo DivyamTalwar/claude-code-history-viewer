@@ -146,7 +146,7 @@ export const LibrarySection: React.FC<LibrarySectionProps> = ({
           <li>
             <ScreenRow
               icon={SCREEN_ICONS.settings}
-              label={t("project.library.claudeSettings")}
+              label={t(placeNameKey("settingsManager"))}
               active={activeItem === "settingsManager"}
               onClick={() => {
                 onOpenSettingsManager();

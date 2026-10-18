@@ -302,7 +302,7 @@ describe("mobile tab bar follows the place", () => {
     ["conversation", ["common.place.messages"]],
     ["analytics", ["common.place.analytics"]],
     ["board", ["common.place.board"]],
-    ["settingsManager", ["common.mobile.tab.settings"]],
+    ["settingsManager", ["common.place.claudeCodeSettings"]],
     ["globalStats", []],
     ["archive", []],
   ] as const)("%s → %j", (view, expected) => {
