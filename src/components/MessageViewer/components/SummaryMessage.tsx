@@ -9,12 +9,13 @@ import { ChevronRight, FileText } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { useCaptureExpandState } from "@/contexts/CaptureExpandContext";
-import { formatTimeShort } from "../../../utils/time";
 import type { SummaryMessageProps } from "../types";
+import { useFormat } from "@/lib/format/useFormat";
 
 export const SummaryMessage: React.FC<SummaryMessageProps> = ({ content, timestamp }) => {
   const [isExpanded, setIsExpanded] = useCaptureExpandState("summary", false);
   const { t } = useTranslation();
+  const fmt = useFormat();
 
   return (
     <div className="rounded-md border mx-4 my-2 bg-info/10 border-info/30">
@@ -36,7 +37,7 @@ export const SummaryMessage: React.FC<SummaryMessageProps> = ({ content, timesta
           {t("messageViewer.priorContext")}
         </span>
         <span className="text-list ml-auto text-info">
-          {formatTimeShort(timestamp)}
+          {fmt.time(timestamp)}
         </span>
       </button>
 

@@ -7,7 +7,7 @@
 
 import React from "react";
 import { cn } from "@/lib/utils";
-import { formatDateDivider } from "../../../utils/time";
+import { useFormat } from "@/lib/format/useFormat";
 
 type DateDividerProps = {
   timestamp: string;
@@ -15,7 +15,8 @@ type DateDividerProps = {
 
 export const DateDivider: React.FC<DateDividerProps> = React.memo(
   ({ timestamp }) => {
-    const label = formatDateDivider(timestamp);
+    const fmt = useFormat();
+    const label = fmt.dateDivider(timestamp);
 
     return (
       <div

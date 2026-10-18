@@ -21,6 +21,7 @@ import { cn } from "@/lib/utils";
 import { getVariantStyles, layout } from "@/components/renderers";
 import { useCaptureExpandState } from "@/contexts/CaptureExpandContext";
 import type { ProgressData } from "@/types";
+import { useFormat } from "@/lib/format/useFormat";
 
 interface AgentProgressEntry {
   data: ProgressData;
@@ -94,7 +95,8 @@ const ProgressEntry = memo(function ProgressEntry({
 }) {
   const summary = getProgressSummary(entry.data);
   const ActionIcon = getActionIcon(entry.data);
-  const timestamp = new Date(entry.timestamp).toLocaleTimeString();
+  const fmt = useFormat();
+  const timestamp = fmt.time(entry.timestamp);
 
   return (
     <div className={cn(

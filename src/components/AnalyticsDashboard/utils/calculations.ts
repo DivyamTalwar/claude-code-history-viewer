@@ -30,15 +30,6 @@ export const calculateGrowthTrend = (
 };
 
 /**
- * Format large numbers with precision (K, M suffixes)
- */
-export const formatNumber = (num: number): string => {
-  if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
-  if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
-  return num.toString();
-};
-
-/**
  * Model API pricing configuration.
  *
  * The rates live in `src/data/model-pricing.json` (USD per 1M tokens) so they
@@ -276,15 +267,6 @@ export const calculateModelPrice = (
 
   return inputCost + outputCost + cacheWriteCost + cacheReadCost;
 };
-
-/**
- * Format a number as a currency string (USD)
- */
-export const formatCurrency = (value: number): string =>
-  `$${value.toLocaleString(undefined, {
-    minimumFractionDigits: value >= 100 ? 0 : 2,
-    maximumFractionDigits: value >= 100 ? 0 : 2,
-  })}`;
 
 type HeatLevel = "empty" | "low" | "medium" | "high";
 

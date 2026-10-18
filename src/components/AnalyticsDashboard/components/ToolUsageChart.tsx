@@ -11,6 +11,7 @@ import { Icon } from "@/components/icon/Icon";
 import { cn } from "@/lib/utils";
 import type { ToolUsageStats } from "../../../types";
 import { getToolDisplayName } from "../utils";
+import { useFormat } from "@/lib/format/useFormat";
 
 interface ToolUsageChartProps {
   tools: ToolUsageStats[];
@@ -28,6 +29,7 @@ const TOOL_COLORS = [
 
 export const ToolUsageChart: React.FC<ToolUsageChartProps> = ({ tools }) => {
   const { t } = useTranslation();
+  const fmt = useFormat();
   const topTools = tools.slice(0, 6);
   const maxUsage = Math.max(...topTools.map((t) => t.usage_count), 1);
   const totalUsage = topTools.reduce((sum, t) => sum + t.usage_count, 0);
@@ -75,7 +77,7 @@ export const ToolUsageChart: React.FC<ToolUsageChartProps> = ({ tools }) => {
                   className="font-mono text-caption font-semibold tabular-nums shrink-0"
                   style={{ color }}
                 >
-                  {tool.usage_count.toLocaleString()}
+                  {fmt.count(tool.usage_count)}
                 </span>
               </div>
 
@@ -95,7 +97,7 @@ export const ToolUsageChart: React.FC<ToolUsageChartProps> = ({ tools }) => {
             {/* Percentage */}
             <div className="w-12 text-right shrink-0">
               <span className="font-mono text-caption text-muted-foreground tabular-nums">
-                {percentage.toFixed(1)}%
+                {fmt.percent(percentage / 100)}
               </span>
             </div>
           </div>
@@ -108,7 +110,7 @@ export const ToolUsageChart: React.FC<ToolUsageChartProps> = ({ tools }) => {
           Total Usage
         </span>
         <span className="font-mono text-body font-semibold text-foreground tabular-nums">
-          {totalUsage.toLocaleString()}
+          {fmt.count(totalUsage)}
         </span>
       </div>
     </div>

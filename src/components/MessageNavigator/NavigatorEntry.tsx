@@ -7,6 +7,7 @@ import { getKindLabelKey } from "./kindLabels";
 import { KIND_STYLES } from "./kindStyles";
 import { OUTLINE_CHILD_INDENT_CLASS } from "./outline/childRowStyles";
 import type { NavigatorEntryData } from "./types";
+import { useFormat } from "@/lib/format/useFormat";
 
 interface NavigatorEntryProps {
   entry: NavigatorEntryData;
@@ -42,6 +43,7 @@ export const NavigatorEntry = React.memo<NavigatorEntryProps>(({
   dataIndex,
 }) => {
   const { t } = useTranslation();
+  const fmt = useFormat();
   const handleClick = useCallback(() => onClick(entry.uuid), [onClick, entry.uuid]);
 
   const kindStyle = KIND_STYLES[entry.kind] ?? KIND_STYLES.system;
@@ -54,7 +56,7 @@ export const NavigatorEntry = React.memo<NavigatorEntryProps>(({
   const isOutlineChild = itemRole === "treeitem" && ariaLevel === 2;
 
   const formattedTime = entry.timestamp
-    ? new Date(entry.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+    ? fmt.time(entry.timestamp)
     : "";
 
   return (

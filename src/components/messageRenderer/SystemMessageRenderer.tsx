@@ -20,6 +20,7 @@ import { Renderer } from "@/shared/RendererHeader";
 import { layout } from "@/components/renderers";
 import { cn } from "@/lib/utils";
 import type { CompactMetadata } from "@/types";
+import { useFormat } from "@/lib/format/useFormat";
 
 // Hook info structure
 interface HookInfo {
@@ -126,14 +127,6 @@ const SUBTYPE_CONFIG: Record<
   },
 };
 
-const formatDuration = (ms: number): string => {
-  if (ms < 1000) return `${ms}ms`;
-  if (ms < 60000) return `${(ms / 1000).toFixed(2)}s`;
-  const minutes = Math.floor(ms / 60000);
-  const seconds = ((ms % 60000) / 1000).toFixed(1);
-  return `${minutes}m ${seconds}s`;
-};
-
 const countTextMatches = (text: string | undefined, query: string): number => {
   if (!text || !query) return 0;
   const haystack = text.toLowerCase();
@@ -164,6 +157,7 @@ export const SystemMessageRenderer = memo(function SystemMessageRenderer({
   currentMatchIndex = 0,
 }: Props) {
   const { t } = useTranslation();
+  const fmt = useFormat();
   const textContent = typeof content === "string" ? content : undefined;
   const structuredContent = Array.isArray(content) ? content : undefined;
   const hasRenderableContent =
@@ -311,7 +305,7 @@ export const SystemMessageRenderer = memo(function SystemMessageRenderer({
           </div>
           {durationMs !== undefined && (
             <span className={`font-mono font-bold ${config.color}`}>
-              {formatDuration(durationMs)}
+              {fmt.duration(durationMs)}
             </span>
           )}
         </div>
@@ -333,9 +327,9 @@ export const SystemMessageRenderer = memo(function SystemMessageRenderer({
       warning || level === "warning" ? LEVEL_CONFIG.warning : config;
     const tokenLabel =
       compactMetadata?.preTokens !== undefined
-        ? `${compactMetadata.preTokens.toLocaleString()}${
+        ? `${fmt.tokens(compactMetadata.preTokens)}${
             compactMetadata.postTokens !== undefined
-              ? ` → ${compactMetadata.postTokens.toLocaleString()}`
+              ? ` → ${fmt.tokens(compactMetadata.postTokens)}`
               : ""
           } tokens`
         : undefined;
@@ -429,7 +423,7 @@ export const SystemMessageRenderer = memo(function SystemMessageRenderer({
           </div>
           {microcompactMetadata?.preTokens && (
             <span className="text-muted-foreground font-mono">
-              {microcompactMetadata.preTokens.toLocaleString()} tokens
+              {fmt.tokens(microcompactMetadata.preTokens)} tokens
             </span>
           )}
         </div>

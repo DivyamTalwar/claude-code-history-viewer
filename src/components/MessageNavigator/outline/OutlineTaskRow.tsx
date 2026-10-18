@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { isFailedTaskStatus } from "../../MessageViewer/helpers/messageKinds";
 import { OUTLINE_CHILD_INDENT_CLASS } from "./childRowStyles";
 import type { OutlineTaskChild } from "./types";
+import { useFormat } from "@/lib/format/useFormat";
 
 /**
  * i18n keys that already label a task-notification status elsewhere in the
@@ -48,6 +49,7 @@ export const OutlineTaskRow = React.memo<OutlineTaskRowProps>(({
   ariaSetSize,
 }) => {
   const { t } = useTranslation();
+  const fmt = useFormat();
   const handleClick = useCallback(() => onActivate(), [onActivate]);
 
   const isFailed = isFailedTaskStatus(task.status);
@@ -58,7 +60,7 @@ export const OutlineTaskRow = React.memo<OutlineTaskRowProps>(({
   const statusLabel = task.status ? (statusKey ? t(statusKey) : task.status) : undefined;
   const subtitle = statusLabel ? `${updatesText} · ${statusLabel}` : updatesText;
   const formattedTime = task.timestamp
-    ? new Date(task.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+    ? fmt.time(task.timestamp)
     : "";
 
   return (

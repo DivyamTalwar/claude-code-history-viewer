@@ -27,6 +27,8 @@ import {
 } from "@/components/ui/select";
 import type { ClaudeCodeSettings, SettingsScope, AllSettingsResponse } from "@/types";
 import { isSensitiveKey, analyzeSensitiveData } from "@/utils/securityUtils";
+import { appFormat } from "@/lib/format/useFormat";
+import { localDayKey } from "@/lib/format/localDay";
 
 // Backup file format for Export All / Import All
 interface SettingsBackup {
@@ -245,7 +247,7 @@ export const ExportImport: React.FC<ExportImportProps> = ({
 
       await saveFileDialog(JSON.stringify(backup, null, 2), {
         filters: [{ name: "JSON", extensions: ["json"] }],
-        defaultPath: `claude-settings-backup-${new Date().toISOString().split("T")[0]}.json`,
+        defaultPath: `claude-settings-backup-${localDayKey(Date.now())}.json`,
       });
     } catch (error) {
       console.error("Export all failed:", error);
@@ -527,7 +529,7 @@ export const ExportImport: React.FC<ExportImportProps> = ({
             <DialogDescription>
               {importedBackup?.exportedAt && (
                 <span className="text-list">
-                  Exported: {new Date(importedBackup.exportedAt).toLocaleString()}
+                  Exported: {appFormat().dateTime(importedBackup.exportedAt)}
                 </span>
               )}
             </DialogDescription>

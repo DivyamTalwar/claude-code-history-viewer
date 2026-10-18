@@ -21,6 +21,7 @@ import { useTranslation } from "react-i18next";
 import { getCardSemantics } from "@/utils/cardSemantics";
 import { ExpandedCard } from "./ExpandedCard";
 import { formatCommandMessageText } from "@/utils/commandMessage";
+import { useFormat } from "@/lib/format/useFormat";
 interface InteractionCardProps {
     message: ClaudeMessage;
     zoomLevel: ZoomLevel;
@@ -88,6 +89,7 @@ export const InteractionCard = memo(({
     onToggleSticky
 }: InteractionCardProps) => {
     const { t } = useTranslation();
+    const fmt = useFormat();
     const cardRef = useRef<HTMLDivElement | HTMLButtonElement>(null);
     const [triggerRect, setTriggerRect] = useState<DOMRect | null>(null);
     const isMarkdownPretty = useAppStore(state => state.isMarkdownPretty);
@@ -332,7 +334,7 @@ export const InteractionCard = memo(({
                                 {agentName} {totalMessagesCount > 1 && `(x${totalMessagesCount})`}
                             </span>
                             <span className="text-caption text-muted-foreground font-mono">
-                                {new Date(message.timestamp).toLocaleTimeString()}
+                                {fmt.time(message.timestamp)}
                             </span>
                         </div>
 
@@ -344,7 +346,7 @@ export const InteractionCard = memo(({
                                 </span>
                                 {totalMessagesCount > 1 && (
                                     <span className="text-caption text-muted-foreground">
-                                        {t("session.interaction.messagesAndTokens", { messages: totalMessagesCount, tokens: totalTokens.toLocaleString() })}
+                                        {t("session.interaction.messagesAndTokens", { messages: totalMessagesCount, tokens: fmt.tokens(totalTokens) })}
                                     </span>
                                 )}
                             </div>
@@ -548,7 +550,7 @@ export const InteractionCard = memo(({
                         )}
                     </div>
                     <span className="text-caption text-muted-foreground font-mono">
-                        {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                        {fmt.time(message.timestamp)}
                     </span>
                 </div>
 
@@ -561,25 +563,25 @@ export const InteractionCard = memo(({
 
                 {(message.type === 'assistant' && message.usage) && (
                     <div className="mt-auto pt-1 flex gap-2 text-caption text-muted-foreground opacity-60 font-mono items-center">
-                        <span>{t("session.interaction.inputTokens")} {message.usage.input_tokens}</span>
-                        <span>{t("session.interaction.outputTokens")} {message.usage.output_tokens}</span>
+                        <span>{t("session.interaction.inputTokens")} {message.usage.input_tokens != null ? fmt.tokens(message.usage.input_tokens) : null}</span>
+                        <span>{t("session.interaction.outputTokens")} {message.usage.output_tokens != null ? fmt.tokens(message.usage.output_tokens) : null}</span>
                         {message.usage.reasoning_tokens ? (
-                            <span>{t("analytics.reasoning", "Reasoning")} {message.usage.reasoning_tokens}</span>
+                            <span>{t("analytics.reasoning", "Reasoning")} {fmt.tokens(message.usage.reasoning_tokens)}</span>
                         ) : null}
 
                         {/* Cache Hit Indicator */}
                         {message.usage.cache_read_input_tokens && message.usage.cache_read_input_tokens > 0 && (
                             <div className="flex items-center gap-0.5 text-success" title={t("session.interaction.cacheHit", { tokens: message.usage.cache_read_input_tokens })}>
                                 <Zap className="w-3.5 h-3.5 fill-success/20" />
-                                <span>{(message.usage.cache_read_input_tokens / 1000).toFixed(1)}k</span>
+                                <span>{fmt.tokens(message.usage.cache_read_input_tokens)}</span>
                             </div>
                         )}
 
                         {/* Duration Indicator */}
                         {message.durationMs && (
-                            <div className="flex items-center gap-0.5 ml-auto" title={t("session.interaction.duration", { seconds: (message.durationMs / 1000).toFixed(1) })}>
+                            <div className="flex items-center gap-0.5 ml-auto" title={t("session.interaction.duration", { seconds: fmt.decimal(message.durationMs / 1000, 1) })}>
                                 <Timer className="w-3.5 h-3.5" />
-                                <span>{(message.durationMs / 1000).toFixed(1)}s</span>
+                                <span>{fmt.duration(message.durationMs)}</span>
                             </div>
                         )}
                     </div>

@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { HighlightedText } from "../common/HighlightedText";
 import { safeStringify } from "@/utils/jsonUtils";
 import { TruncatedPre } from "@/components/common/TruncatedPre";
+import { useFormat } from "@/lib/format/useFormat";
 
 type Props = {
   searchData: Record<string, unknown>;
@@ -25,6 +26,7 @@ export const WebSearchRenderer = ({
   currentMatchIndex = 0,
 }: Props) => {
   const { t } = useTranslation();
+  const fmt = useFormat();
   const query = typeof searchData.query === "string" ? searchData.query : "";
   const results = Array.isArray(searchData.results) ? searchData.results : [];
   const durationSeconds =
@@ -41,7 +43,7 @@ export const WebSearchRenderer = ({
         rightContent={
           durationSeconds && (
             <span className={`${layout.smallText} text-tool-web`}>
-              {durationSeconds.toFixed(2)}{t('webSearchRenderer.seconds')}
+              {fmt.duration(durationSeconds * 1000)}
             </span>
           )
         }

@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils";
 import { getVariantStyles, layout } from "../renderers";
 import { ToolResultCard } from "./ToolResultCard";
 import { getCommonToolErrorMessages } from "./toolResultErrorMessages";
+import { useFormat } from "@/lib/format/useFormat";
 
 /** Web fetch result content structure */
 interface WebFetchResult {
@@ -64,6 +65,7 @@ export const WebFetchToolResultRenderer = memo(function WebFetchToolResultRender
   content,
 }: Props) {
   const { t } = useTranslation();
+  const fmt = useFormat();
   const errorMessages: Record<string, string> = {
     ...getCommonToolErrorMessages(t),
     invalid_input: t("toolError.invalidUrlFormat"),
@@ -171,7 +173,7 @@ export const WebFetchToolResultRenderer = memo(function WebFetchToolResultRender
           <Clock className={layout.iconSizeSmall} />
           <span>
             {t("webFetchToolResultRenderer.retrievedAt")}:{" "}
-            {new Date(retrieved_at).toLocaleString()}
+            {fmt.dateTime(retrieved_at)}
           </span>
         </div>
       )}
