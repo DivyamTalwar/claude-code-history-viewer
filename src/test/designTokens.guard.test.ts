@@ -169,6 +169,14 @@ describe("design-token guard: approved semantic tokens come from index.css (R3)"
     expect(appTheme().eases.size).toBeGreaterThan(0);
     for (const name of [...appTheme().shadows, ...appTheme().radii]) expect(name).not.toMatch(/^(?:\d*x[sl]|sm|md|lg|base|inner|none|full|DEFAULT)$/);
   });
+
+  it("the F1a role utilities of src/index.css are not bypasses; other steps still count", () => {
+    const roles = `<div className="rounded-row rounded-control rounded-overlay rounded-pill rounded-dot shadow-popover shadow-overlay duration-fast duration-normal duration-slow ease-standard ease-emphasized" />`;
+    expect(categoriesOf(scanSource(roles, "x.tsx"))).toEqual([]);
+    expect(categoriesOf(scanSource(`<div className="shadow-lg rounded-xl duration-slower duration-300" />`, "x.tsx")).sort()).toEqual(["motion", "motion", "radius", "shadow"]);
+    const bare = themeFromCss(`:root { --duration-fast: 150ms; }`);
+    expect(categoriesOf(scanSource(`<div className="duration-fast" />`, "x.tsx", { theme: bare }))).toEqual(["motion"]);
+  });
 });
 
 describe("design-token guard: partially dynamic classes (R4)", () => {
