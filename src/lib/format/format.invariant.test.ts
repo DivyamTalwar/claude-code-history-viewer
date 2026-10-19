@@ -2,7 +2,8 @@
  * Guard: numbers, dates and durations are formatted only in `src/lib/format`.
  *
  * Outside this module no code calls `Intl.*` or `toLocale*()` (those read the
- * OS locale unless a locale is passed), and no file defines its own
+ * OS locale unless a locale is passed; `Intl.Segmenter`, which formats
+ * nothing, is the exception), and no file defines its own
  * `formatNumber` / `formatDuration` / `formatCurrency` / `formatCost` /
  * `formatTokens` / `formatPercent`. One implementation each (plan D15).
  * Shares are not rounded to a percent by hand either (percent guard below).
@@ -39,6 +40,14 @@ const repoPath = (file: string) => relative(ROOT, file).split(sep).join("/");
 
 const stripComments = (code: string) =>
   code.replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, " ")).replace(/(^|[^:"'`])\/\/.*$/gm, "$1");
+
+/**
+ * Any use of `Intl` (`Intl.X`, `Intl["X"]`, `const { X } = Intl`) and
+ * `toLocale*()`: they format, and read the OS locale unless one is passed.
+ * The one exception is `Intl.Segmenter`, which finds word boundaries for
+ * line-break hints and formats nothing.
+ */
+const INTL_FORMATTING = /\bIntl\b(?!\.Segmenter\b)|\.toLocale(String|DateString|TimeString)\(/;
 
 function findings(pattern: RegExp): string[] {
   const out: string[] = [];
@@ -269,7 +278,7 @@ describe("format module invariant", () => {
   });
 
   it("has no Intl.* or toLocale*() call outside src/lib/format", () => {
-    expect(findings(/\bIntl\.|\.toLocale(String|DateString|TimeString)\(/)).toEqual([]);
+    expect(findings(INTL_FORMATTING)).toEqual([]);
   });
 
   it("has one implementation of each number / duration formatter", () => {
@@ -298,6 +307,31 @@ describe("format module invariant", () => {
 
   it("has no hand-built day key from a UTC ISO string", () => {
     expect(findings(/toISOString\(\)\.(slice|split|substring)\(/)).toEqual([]);
+  });
+});
+
+describe("Intl guard", () => {
+  const flags = (code: string) => INTL_FORMATTING.test(stripComments(code));
+
+  it("flags Intl formatting and toLocale*() however Intl is reached", () => {
+    for (const code of [
+      'new Intl.NumberFormat("en").format(n)',
+      "Intl.DateTimeFormat().format(d)",
+      "new Intl.RelativeTimeFormat(locale)",
+      'Intl["NumberFormat"]',
+      "const { NumberFormat } = Intl;",
+      "n.toLocaleString()",
+      'd.toLocaleDateString("ko")',
+      "d.toLocaleTimeString()",
+      'const s = new Intl.Segmenter(l); const f = new Intl.NumberFormat("en");',
+    ]) {
+      expect(flags(code), code).toBe(true);
+    }
+  });
+
+  it("allows Intl.Segmenter: word boundaries for line breaks, it formats nothing (F4a tab labels)", () => {
+    expect(flags('new Intl.Segmenter(locale, { granularity: "word" })')).toBe(false);
+    expect(flags('if (typeof Intl.Segmenter !== "function") return [text];')).toBe(false);
   });
 });
 
