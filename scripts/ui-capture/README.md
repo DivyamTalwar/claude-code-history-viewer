@@ -11,6 +11,7 @@ nvm use                      # Node 22.18.0 (.nvmrc)
 pnpm ui:capture              # build, then capture every scenario
 pnpm ui:capture --repro      # capture twice on this commit, gate reproducibility (0%)
 pnpm ui:capture --base develop --gate unchanged
+pnpm ui:capture --base develop --gate unchanged --expect-changed 'home--390x844--dark,settings--*'   # intended changes
 pnpm ui:capture --locale ja --only transcript--1440x900--light   # one locale (en | ko | ja | zh-CN | zh-TW)
 ```
 
@@ -345,11 +346,64 @@ Browser suites read `test/requirements.mjs`: locally a missing WebKit,
 Chromium or harness server skips them with a warning; with
 `CI_REQUIRE_BROWSER=1` a missing one is an error. The `ui-harness` job of
 `.github/workflows/frontend-tests.yml` runs, on a clean Ubuntu runner:
-install (Node from `.nvmrc`) → Rust + the Linux packages of
+install (Node from `.nvmrc`) → read the PR body's `ui-expected-changes:`
+line (below) → Rust + the Linux packages of
 `rust-tests.yml` → `playwright install --with-deps webkit chromium` →
 `build.sh` → `vitest run scripts/ui-capture` with `CI_REQUIRE_BROWSER=1` →
 `ui:states` → `ui:capture --no-build --base <base> --gate unchanged
---scenarios scripts/ui-capture/ci-scenarios.mjs`.
+--scenarios scripts/ui-capture/ci-scenarios.mjs [--expect-changed <ids>]`.
+
+### Intended changes in a pull request (`ui-expected-changes:`)
+
+The CI gate is the unchanged gate, and approved baselines (`--gate changed`)
+are local, so CI learns about an intended change from the pull request
+itself. Put this line in the **PR body**:
+
+```text
+ui-expected-changes: home--390x844--dark, transcript-mixed-turn--*
+```
+
+- Ids exactly as in `ci-scenarios.mjs` (`--list` prints them), separated by
+  commas; an entry may end in `*` to match an id prefix (`home--*`). A bare
+  `*` is refused.
+- The line counts when it starts with `ui-expected-changes:` (leading
+  spaces, the key's case and a surrounding code fence do not matter);
+  several lines are merged. A line inside an HTML comment (`<!-- -->`)
+  does not count: reviewers cannot see it. A line with no ids declares
+  nothing.
+- Each listed scenario may exceed 0.1 % and is reported as
+  `expected-change` with its % (report table, an "Expected changes" list,
+  `report.json` → `expectedChanges`, the job log). Every other scenario
+  keeps the 0.1 % rule. Diff images stay in the uploaded artifact as the
+  evidence to review.
+- A declared entry under which nothing changed by more than 0.1 % gives a
+  warning line (`report.json` → `warnings`), not a failure: the
+  declaration is stale or wrong.
+- Malformed text, or an entry that matches no scenario of the CI subset,
+  fails the step "Expected visual changes (PR body)" right after install
+  (exit 2), a minute in instead of after the builds.
+- Editing the PR body re-runs the workflow (`pull_request` type `edited`),
+  so fixing the line re-runs the gate. The trigger is per workflow, so an
+  edit (CodeRabbit's summary included) also re-runs the `frontend` job.
+- Nothing is committed: the declaration lives and dies with its pull
+  request. A push to `develop` has no PR body and gates strictly.
+- When the gate fails, the report ends with the declaration for the
+  changed scenarios (`PR body (CI):  ui-expected-changes: …`); review the
+  diff images before you copy it. The key never starts a report line, so a
+  report pasted into the PR body declares nothing.
+
+Security: the body is untrusted input. The workflow passes it to
+`expected-changes.mjs` only as the environment variable `PR_BODY`, never as
+`${{ }}` inside a `run` script, and the script prints only ids, `*` and
+commas (`test/ciScenarios.test.mjs` checks the workflow;
+`test/expectedChanges.test.mjs` the parser).
+
+Locally the same list is `--expect-changed`:
+
+```bash
+pnpm ui:capture --no-build --base develop --gate unchanged \
+  --scenarios scripts/ui-capture/ci-scenarios.mjs --expect-changed 'home--390x844--dark,transcript-mixed-turn--*'
+```
 
 ### CI scenario subset (`ci-scenarios.mjs`)
 
@@ -403,8 +457,8 @@ node scripts/ui-capture/freeze-baseline.mjs --update-probe leftEdges \
 | `--gate` | Passes when | Use for |
 |---|---|---|
 | `reproducibility` (default) | every scenario has **0 exactly differing pixels** (raw RGBA, same size; pixelmatch's threshold does not apply) | `--repro`; PRs that must not change pixels |
-| `unchanged` | every scenario ≤ **0.1 %** changed pixels | refactors with no intended visual change |
-| `changed` | a scenario **with** an approved baseline must match it (≤ 0.1 %); a scenario **without** one must stay within the unchanged tolerance (≤ 0.1 %) of the base, so tolerated noise never needs approval | intended visual changes |
+| `unchanged` | every scenario ≤ **0.1 %** changed pixels, except the scenarios named by `--expect-changed` (exact ids or `<prefix>*`), which may exceed it and are reported as `expected-change` | refactors with no intended visual change; the CI gate, where a PR declares its intended changes with a `ui-expected-changes:` body line ([below](#intended-changes-in-a-pull-request-ui-expected-changes)) |
+| `changed` | a scenario **with** an approved baseline must match it (≤ 0.1 %); a scenario **without** one must stay within the unchanged tolerance (≤ 0.1 %) of the base, so tolerated noise never needs approval | intended visual changes, locally |
 
 The 0.1 % tolerance counts pixelmatch-changed pixels (threshold 0.1,
 anti-aliasing ignored, as pixelmatch does by default); the report lists both
@@ -412,11 +466,19 @@ that count and the exact (byte-level) differing pixel count, and only the
 latter decides `reproducibility`. Gate semantics are unit-tested in
 `test/compare.test.mjs` (`pnpm exec vitest run scripts/ui-capture`).
 In every mode a scenario missing on either side - removed from
-`scenarios.mjs`, failed to capture, or absent from the base - fails the gate.
+`scenarios.mjs`, failed to capture, or absent from the base - fails the gate
+(a declared expected change does not excuse a missing capture).
 
-**Exit codes**: `0` all captured and the gate passed; `1` any scenario
-failed, any declared scenario is missing, the build failed, or the gate
-failed; `2` usage error.
+`--expect-changed` (unchanged gate only): an entry that matches none of the
+selected scenarios is a usage error, checked before anything is built or
+captured, so a typo fails at once. A declared entry under which no
+scenario changed by more than 0.1 % is a warning, not a failure.
+
+**Exit codes**: `0` all captured and the gate passed (expected changes and
+warnings included); `1` any scenario failed, any declared scenario is
+missing, the build failed, or the gate failed; `2` usage error (including a
+malformed `--expect-changed` list or an entry that matches no selected
+scenario).
 
 ### Comparing with a base
 
@@ -445,7 +507,10 @@ failed; `2` usage error.
    image (e.g. the intended change was lost) fails as `differs-from-approved`.
 
 Approved baselines are local (`.ui-capture/` is gitignored); attach the
-shots and diffs to the PR as evidence.
+shots and diffs to the PR as evidence. CI never sees them: in a pull
+request, declare the intended changes with the body line
+`ui-expected-changes:` instead
+([Intended changes in a pull request](#intended-changes-in-a-pull-request-ui-expected-changes)).
 
 ## Fixture
 

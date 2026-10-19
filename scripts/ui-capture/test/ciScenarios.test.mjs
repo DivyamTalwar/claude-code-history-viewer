@@ -82,9 +82,50 @@ describe("run.mjs --list", () => {
 describe("frontend-tests.yml ui-harness", () => {
   const workflow = fs.readFileSync(path.join(REPO, ".github", "workflows", "frontend-tests.yml"), "utf8");
 
+  /** The shell script of every `run:` key (inline or block scalar), cut by indentation. */
+  const runScripts = (yaml) => {
+    const lines = yaml.split("\n");
+    const scripts = [];
+    for (let i = 0; i < lines.length; i += 1) {
+      const match = lines[i].match(/^(\s*)(- )?run:\s*(.*)$/);
+      if (!match) continue;
+      if (!/^[|>]/.test(match[3])) {
+        scripts.push(match[3]);
+        continue;
+      }
+      const keyIndent = match[1].length + (match[2] ? 2 : 0);
+      const body = [];
+      while (i + 1 < lines.length && (lines[i + 1].trim() === "" || lines[i + 1].search(/\S/) > keyIndent)) body.push(lines[(i += 1)]);
+      scripts.push(body.join("\n"));
+    }
+    return scripts;
+  };
+
   it("gates PRs on the CI subset and keeps the full matrix behind workflow_dispatch", () => {
     expect(workflow).toContain(`--scenarios ${CI_MODULE}`);
     expect(workflow).toMatch(/workflow_dispatch:\s*\n\s*inputs:\s*\n\s*full_matrix:/);
     expect(workflow).toMatch(/inputs\.full_matrix/);
+  });
+
+  it("hands the PR body to scripts only as an environment variable (no ${{ }} inside run)", () => {
+    const scripts = runScripts(workflow);
+    expect(scripts.length).toBeGreaterThan(5);
+    for (const script of scripts) expect(script).not.toContain("${{");
+    const bodyLines = workflow.split("\n").filter((line) => line.includes("github.event.pull_request.body"));
+    expect(bodyLines.length).toBeGreaterThan(0);
+    for (const line of bodyLines) expect(line).toMatch(/^\s+PR_BODY: \$\{\{ github\.event\.pull_request\.body \}\}$/);
+  });
+
+  it("passes the PR body's ui-expected-changes to the unchanged gate as --expect-changed", () => {
+    const scripts = runScripts(workflow);
+    expect(scripts.some((script) => script.includes("node scripts/ui-capture/expected-changes.mjs"))).toBe(true);
+    const gate = scripts.find((script) => script.includes("--gate unchanged") && script.includes(`--scenarios ${CI_MODULE}`) && !script.includes("--list"));
+    expect(gate).toMatch(/--expect-changed "\$/);
+  });
+
+  it("re-runs on a PR body edit, keeping the default pull_request activity types", () => {
+    const types = workflow.match(/^ {2}pull_request:\n(?: {4}.*\n)*? {4}types: \[([^\]]*)\]/m);
+    expect(types).not.toBeNull();
+    expect(types[1].split(",").map((type) => type.trim())).toEqual(["opened", "synchronize", "reopened", "edited"]);
   });
 });
