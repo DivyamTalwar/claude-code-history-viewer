@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-10-18T21:17:39.571Z
- * 총 키 개수: 2327
+ * 생성 시간: 2026-10-19T17:54:25.328Z
+ * 총 키 개수: 2328
  * Namespace 수: 13
  */
 
@@ -865,7 +865,7 @@ export type SessionKeys =
   | 'sessionPicker.title';
 
 /**
- * settings namespace의 번역 키 (552개)
+ * settings namespace의 번역 키 (553개)
  * 파일: locales/{lang}/settings.json
  */
 export type SettingsKeys =
@@ -1057,6 +1057,7 @@ export type SettingsKeys =
   | 'settingsManager.exportImport.exportDescription'
   | 'settingsManager.exportImport.exportFailed'
   | 'settingsManager.exportImport.exportScope'
+  | 'settingsManager.exportImport.exportedAt'
   | 'settingsManager.exportImport.import'
   | 'settingsManager.exportImport.importAll'
   | 'settingsManager.exportImport.importAllButton'
@@ -4138,6 +4139,7 @@ export type TranslationKey =
   | 'settingsManager.exportImport.exportDescription'
   | 'settingsManager.exportImport.exportFailed'
   | 'settingsManager.exportImport.exportScope'
+  | 'settingsManager.exportImport.exportedAt'
   | 'settingsManager.exportImport.import'
   | 'settingsManager.exportImport.importAll'
   | 'settingsManager.exportImport.importAllButton'

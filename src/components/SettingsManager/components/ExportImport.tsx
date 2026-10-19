@@ -529,7 +529,9 @@ export const ExportImport: React.FC<ExportImportProps> = ({
             <DialogDescription>
               {importedBackup?.exportedAt && (
                 <span className="text-list">
-                  Exported: {appFormat().dateTime(importedBackup.exportedAt)}
+                  {t("settingsManager.exportImport.exportedAt", {
+                    date: appFormat().dateTime(importedBackup.exportedAt),
+                  })}
                 </span>
               )}
             </DialogDescription>

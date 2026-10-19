@@ -40,13 +40,14 @@ export function copyNumbersPlain(event: ClipboardEvent<HTMLElement>): void {
   // A selection can also end between a numeral and its joiner, or start
   // between the joiner and the suffix (`1120⁠` of `1120⁠万`); the formatter
   // never puts a joiner at either end of a number, so one there is cut off.
-  const plain = withoutNumberJoiners(text).replace(CUT_AFTER_NUMERAL, "").replace(CUT_BEFORE_SUFFIX, "");
+  const plain = withoutNumberJoiners(text).replace(CUT_AFTER_NUMERAL, "$1").replace(CUT_BEFORE_SUFFIX, "");
   if (plain === text) return;
   event.clipboardData.setData("text/plain", plain);
   event.preventDefault();
 }
 
-const CUT_AFTER_NUMERAL = /(?<=\d)\u2060$/u;
+// No lookbehind: WKWebView before Safari 16.4 cannot parse one (webviewRegex.guard).
+const CUT_AFTER_NUMERAL = /(\d)\u2060$/u;
 const CUT_BEFORE_SUFFIX = /^\u2060(?=[\p{Script=Han}\p{Script=Hangul}])/u;
 
 /**
