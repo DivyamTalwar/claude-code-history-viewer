@@ -30,6 +30,8 @@ pub struct FixtureRow {
     pub input: u64,
     pub output: u64,
     pub cache_creation: u64,
+    /// 1-hour share of `cache_creation` (`usage.cache_creation`); 0 omits it.
+    pub cache_creation_1h: u64,
     pub cache_read: u64,
     pub cost_usd: Option<f64>,
     pub sidechain: bool,
@@ -48,6 +50,7 @@ pub fn row(file: &str, uuid: &str, timestamp: &str) -> FixtureRow {
         input: 0,
         output: 0,
         cache_creation: 0,
+        cache_creation_1h: 0,
         cache_read: 0,
         cost_usd: None,
         sidechain: false,
@@ -56,6 +59,7 @@ pub fn row(file: &str, uuid: &str, timestamp: &str) -> FixtureRow {
 
 pub const SONNET: &str = "claude-sonnet-4-5-20250929";
 pub const HAIKU: &str = "claude-haiku-5-5";
+pub const OPUS: &str = "claude-opus-5-5";
 
 impl FixtureRow {
     pub fn tokens(mut self, input: u64, output: u64, cache_creation: u64, cache_read: u64) -> Self {
@@ -63,6 +67,11 @@ impl FixtureRow {
         self.output = output;
         self.cache_creation = cache_creation;
         self.cache_read = cache_read;
+        self
+    }
+    /// The 1-hour part of the row's cache writes (the rest are 5-minute).
+    pub fn cache_1h(mut self, tokens: u64) -> Self {
+        self.cache_creation_1h = tokens;
         self
     }
     pub fn model(mut self, model: &str) -> Self {
@@ -116,6 +125,12 @@ impl FixtureRow {
         });
         if let Some(tier) = &self.service_tier {
             usage["service_tier"] = json!(tier);
+        }
+        if self.cache_creation_1h > 0 {
+            usage["cache_creation"] = json!({
+                "ephemeral_5m_input_tokens": self.cache_creation - self.cache_creation_1h,
+                "ephemeral_1h_input_tokens": self.cache_creation_1h,
+            });
         }
         let mut message = json!({
             "role": "assistant",

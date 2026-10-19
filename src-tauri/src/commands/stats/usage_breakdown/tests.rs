@@ -107,6 +107,15 @@ fn command_name_is_stable() {
     assert_eq!(USAGE_BREAKDOWN_COMMAND, "get_usage_breakdown");
 }
 
+#[test]
+fn contract_limits_match_the_rust_constants() {
+    // The TypeScript contract test compares the same values with
+    // MAX_USAGE_INTERVALS / MAX_USAGE_SESSIONS.
+    let limits = &contract()["limits"];
+    assert_eq!(limits["max_intervals"], json!(MAX_INTERVALS));
+    assert_eq!(limits["max_sessions"], json!(MAX_SESSIONS));
+}
+
 // ---- request validation ---------------------------------------------------
 
 #[test]

@@ -25,10 +25,30 @@ interface Scenario {
   request: UsageBreakdownRequest;
   response: UsageBreakdownResponse;
   legacy_model_distribution: ModelStats[];
+  /** The backend's ranking cost of each listed session (ADR 0003). */
+  ranking_costs: number[];
 }
 
-const scenario = (name: keyof typeof golden.scenarios): Scenario =>
+/** One fixture over a small cap, and the same request uncut (ADR 0003). */
+interface CapScenario {
+  max_sessions: number;
+  request: UsageBreakdownRequest;
+  response: UsageBreakdownResponse;
+  uncapped_response: UsageBreakdownResponse;
+  ranking_costs: number[];
+}
+
+type ScenarioName = Exclude<keyof typeof golden.scenarios, "session_cap">;
+
+const scenario = (name: ScenarioName): Scenario =>
   golden.scenarios[name] as unknown as Scenario;
+
+const capScenario = (): CapScenario => golden.scenarios.session_cap as unknown as CapScenario;
+
+const scenarioNames = (): ScenarioName[] =>
+  (Object.keys(golden.scenarios) as (keyof typeof golden.scenarios)[]).filter(
+    (name): name is ScenarioName => name !== "session_cap",
+  );
 
 const tokensOf = (buckets: readonly PricedModelStats[]) =>
   buckets.reduce((sum, b) => sum + b.stats.token_count, 0);
@@ -132,5 +152,107 @@ describe("reconciliation against the new command", () => {
       0,
     );
     expect(legacyTokens - tokensOf(intervalBuckets(withUndated))).toBe(7);
+  });
+});
+
+describe("session cap and ranking (ADR 0003)", () => {
+  const sum = (values: readonly number[]) => values.reduce((total, value) => total + value, 0);
+
+  it("an uncut response lists every session with an all-zero remainder row", () => {
+    for (const name of scenarioNames()) {
+      expect(scenario(name).response.session_remainder, name).toEqual({
+        models: [],
+        message_count: 0,
+        session_count: 0,
+      });
+    }
+  });
+
+  it("listed sessions + remainder = intervals: tokens, messages and cost to the cent", () => {
+    const { response, max_sessions } = capScenario();
+    const remainder = response.session_remainder;
+    expect(response.sessions).toHaveLength(max_sessions);
+    expect(remainder.session_count).toBeGreaterThan(0);
+
+    const listedAndRest = [...sessionBuckets(response), ...remainder.models];
+    const intervals = intervalBuckets(response);
+    expect(tokensOf(listedAndRest)).toBe(tokensOf(intervals));
+    expect(sum(response.sessions.map((s) => s.message_count)) + remainder.message_count).toBe(
+      sum(response.intervals.map((i) => i.message_count)),
+    );
+
+    const split = costOf(listedAndRest);
+    const whole = costOf(intervals);
+    expect(whole.exactCost).toBeGreaterThan(0);
+    expect(whole.estimatedCost).toBeGreaterThan(0);
+    expect(whole.unpricedTokens).toBeGreaterThan(0);
+    for (const part of ["totalEstimatedCost", "exactCost", "estimatedCost"] as const) {
+      expect(split[part], part).toBeCloseTo(whole[part], 9);
+    }
+    expect(split.unpricedTokens).toBe(whole.unpricedTokens);
+    // Priced one row at a time, as the overview's session table will.
+    const perRow = sum(response.sessions.map((s) => costOf(s.models).totalEstimatedCost));
+    expect(perRow + costOf(remainder.models).totalEstimatedCost).toBeCloseTo(
+      whole.totalEstimatedCost,
+      9,
+    );
+  });
+
+  it("the remainder merges the cut sessions and keeps source and estimate apart", () => {
+    const { response, uncapped_response, max_sessions } = capScenario();
+    expect(response.sessions).toEqual(uncapped_response.sessions.slice(0, max_sessions));
+    const cut = uncapped_response.sessions.slice(max_sessions);
+    const remainder = response.session_remainder;
+    expect(remainder.session_count).toBe(cut.length);
+    expect(remainder.message_count).toBe(sum(cut.map((s) => s.message_count)));
+    const cutBuckets = cut.flatMap((s) => s.models);
+    expect(tokensOf(remainder.models)).toBe(tokensOf(cutBuckets));
+    expect(costOf(remainder.models).totalEstimatedCost).toBeCloseTo(
+      costOf(cutBuckets).totalEstimatedCost,
+      12,
+    );
+    const sonnet = remainder.models
+      .filter((m) => m.stats.model_name === "claude-sonnet-4-5-20250929")
+      .map((m) => m.pricing_source)
+      .sort();
+    expect(sonnet).toEqual(["estimate", "source"]);
+  });
+
+  it("the backend's ranking cost equals summarizeBucketCost for every listed session", () => {
+    const checked: [string, UsageBreakdownResponse, number[]][] = [
+      ...scenarioNames().map((name): [string, UsageBreakdownResponse, number[]] => [
+        name,
+        scenario(name).response,
+        scenario(name).ranking_costs,
+      ]),
+      ["session_cap", capScenario().uncapped_response, capScenario().ranking_costs],
+    ];
+    for (const [name, response, rankingCosts] of checked) {
+      expect(rankingCosts, name).toHaveLength(response.sessions.length);
+      response.sessions.forEach((session, index) => {
+        expect(rankingCosts[index], `${name} #${index}`).toBeCloseTo(
+          costOf(session.models).totalEstimatedCost,
+          12,
+        );
+      });
+    }
+  });
+
+  it("sessions come in the frontend's cost order, not token order", () => {
+    const sessions = capScenario().uncapped_response.sessions;
+    const ranked = sessions.map((s) => ({
+      cost: costOf(s.models).totalEstimatedCost,
+      tokens: tokensOf(s.models),
+      lastTs: s.last_ts,
+    }));
+    for (let i = 1; i < ranked.length; i += 1) {
+      const [a, b] = [ranked[i - 1]!, ranked[i]!];
+      const inOrder =
+        a.cost > b.cost ||
+        (a.cost === b.cost && (a.tokens > b.tokens || (a.tokens === b.tokens && a.lastTs >= b.lastTs)));
+      expect(inOrder, `#${i - 1} before #${i}`).toBe(true);
+    }
+    const byTokens = [...ranked].sort((a, b) => b.tokens - a.tokens);
+    expect(byTokens).not.toEqual(ranked);
   });
 });

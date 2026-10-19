@@ -11,6 +11,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import fixture from "./fixtures/usageBreakdown.contract.json";
 import {
+  MAX_USAGE_INTERVALS,
+  MAX_USAGE_SESSIONS,
   USAGE_BREAKDOWN_COMMAND,
   USAGE_BREAKDOWN_WIRE_KEYS,
   usageBreakdownArgs,
@@ -55,6 +57,11 @@ describe("wire keys match the shared fixture", () => {
       expect(sortedKeys(session)).toEqual(manifest(K.sessionUsage));
       expect(sortedKeys(session.ref)).toEqual(manifest(K.sessionRef));
     }
+    expect(sortedKeys(response.session_remainder)).toEqual(manifest(K.sessionRemainder));
+    expect(response.session_remainder.models.length).toBeGreaterThan(0);
+    for (const bucket of response.session_remainder.models) {
+      expect(sortedKeys(bucket)).toEqual(manifest(K.pricedModelStats));
+    }
     expect(sortedKeys(response.coverage)).toEqual(manifest(K.coverage));
     for (const provider of response.coverage.providers) {
       expect(sortedKeys(provider)).toEqual(manifest(K.providerCoverage));
@@ -66,6 +73,13 @@ describe("wire keys match the shared fixture", () => {
     expect(sourceBucket).toMatchObject({ pricing_source: "source", stats: { cost_usd: 1 } });
     expect(estimateBucket!.pricing_source).toBe("estimate");
     expect("cost_usd" in estimateBucket!.stats).toBe(false);
+  });
+
+  it("limits match the backend's (the Rust contract test reads the same values)", () => {
+    expect(fixture.limits).toEqual({
+      max_intervals: MAX_USAGE_INTERVALS,
+      max_sessions: MAX_USAGE_SESSIONS,
+    });
   });
 });
 

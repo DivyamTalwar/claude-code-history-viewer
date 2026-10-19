@@ -28,6 +28,9 @@
           "token_count": 30
         }
       ],
+      "ranking_costs": [
+        0.00009
+      ],
       "request": {
         "intervals": [
           {
@@ -144,6 +147,11 @@
             "session_count": 1
           }
         ],
+        "session_remainder": {
+          "message_count": 0,
+          "models": [],
+          "session_count": 0
+        },
         "sessions": [
           {
             "first_ts": 1325160000000,
@@ -215,6 +223,9 @@
           "reasoning_tokens": 0,
           "token_count": 30
         }
+      ],
+      "ranking_costs": [
+        0.00009
       ],
       "request": {
         "intervals": [
@@ -321,6 +332,11 @@
             "session_count": 1
           }
         ],
+        "session_remainder": {
+          "message_count": 0,
+          "models": [],
+          "session_count": 0
+        },
         "sessions": [
           {
             "first_ts": 1792261200000,
@@ -393,6 +409,9 @@
           "reasoning_tokens": 0,
           "token_count": 2000000
         }
+      ],
+      "ranking_costs": [
+        4.0
       ],
       "request": {
         "intervals": [
@@ -511,6 +530,11 @@
             "session_count": 0
           }
         ],
+        "session_remainder": {
+          "message_count": 0,
+          "models": [],
+          "session_count": 0
+        },
         "sessions": [
           {
             "first_ts": 1792065600000,
@@ -611,6 +635,9 @@
           "reasoning_tokens": 0,
           "token_count": 2000000
         }
+      ],
+      "ranking_costs": [
+        4.0
       ],
       "request": {
         "intervals": [
@@ -728,6 +755,11 @@
             "session_count": 0
           }
         ],
+        "session_remainder": {
+          "message_count": 0,
+          "models": [],
+          "session_count": 0
+        },
         "sessions": [
           {
             "first_ts": 1792065600000,
@@ -877,6 +909,11 @@
           "service_tier": "fast",
           "token_count": 650
         }
+      ],
+      "ranking_costs": [
+        0.7506,
+        0.000076,
+        0.000044999999999999996
       ],
       "request": {
         "intervals": [
@@ -1051,6 +1088,11 @@
             "session_count": 1
           }
         ],
+        "session_remainder": {
+          "message_count": 0,
+          "models": [],
+          "session_count": 0
+        },
         "sessions": [
           {
             "first_ts": 1792054800000,
@@ -1284,6 +1326,11 @@
           "token_count": 650
         }
       ],
+      "ranking_costs": [
+        0.7506,
+        0.000076,
+        0.000044999999999999996
+      ],
       "request": {
         "intervals": [
           {
@@ -1406,6 +1453,11 @@
             "session_count": 3
           }
         ],
+        "session_remainder": {
+          "message_count": 0,
+          "models": [],
+          "session_count": 0
+        },
         "sessions": [
           {
             "first_ts": 1792054800000,
@@ -1562,6 +1614,973 @@
         ]
       }
     },
+    "session_cap": {
+      "max_sessions": 3,
+      "ranking_costs": [
+        0.08,
+        0.063,
+        0.05,
+        0.016,
+        0.0075,
+        0.0
+      ],
+      "request": {
+        "intervals": [
+          {
+            "end_utc": 1792108800000,
+            "key": "2026-10-15",
+            "start_utc": 1792022400000
+          },
+          {
+            "end_utc": 1792195200000,
+            "key": "2026-10-16",
+            "start_utc": 1792108800000
+          },
+          {
+            "end_utc": 1792281600000,
+            "key": "2026-10-17",
+            "start_utc": 1792195200000
+          }
+        ],
+        "scope": {
+          "kind": "project",
+          "project_path": "<root>/projects/session-cap",
+          "provider": "claude"
+        },
+        "stats_mode": "billing_total"
+      },
+      "response": {
+        "coverage": {
+          "providers": [
+            {
+              "id": "claude",
+              "sessions_failed": 0,
+              "sessions_scanned": 6,
+              "sidechain_metadata": true,
+              "source_cost": "some",
+              "status": "scanned"
+            }
+          ],
+          "undated_rows": 0,
+          "unknown_model_tokens": 0
+        },
+        "intervals": [
+          {
+            "key": "2026-10-15",
+            "message_count": 2,
+            "models": [
+              {
+                "pricing_source": "estimate",
+                "stats": {
+                  "cache_creation_tokens": 10000,
+                  "cache_read_tokens": 0,
+                  "context_breakdown": [
+                    {
+                      "cache_creation_tokens": 10000,
+                      "cache_creation_tokens_1h": 10000,
+                      "cache_creation_tokens_5m": 0,
+                      "cache_read_tokens": 0,
+                      "input_tokens": 1000,
+                      "min_context_tokens": 0,
+                      "output_tokens": 0,
+                      "reasoning_tokens": 0,
+                      "token_count": 11000
+                    }
+                  ],
+                  "input_tokens": 1000,
+                  "message_count": 1,
+                  "model_name": "claude-sonnet-4-5-20250929",
+                  "output_tokens": 0,
+                  "provider_id": "claude",
+                  "reasoning_tokens": 0,
+                  "token_count": 11000
+                }
+              },
+              {
+                "pricing_source": "estimate",
+                "stats": {
+                  "cache_creation_tokens": 0,
+                  "cache_read_tokens": 0,
+                  "context_breakdown": [
+                    {
+                      "cache_creation_tokens": 0,
+                      "cache_creation_tokens_1h": 0,
+                      "cache_creation_tokens_5m": 0,
+                      "cache_read_tokens": 0,
+                      "input_tokens": 0,
+                      "min_context_tokens": 0,
+                      "output_tokens": 2000,
+                      "reasoning_tokens": 0,
+                      "token_count": 2000
+                    }
+                  ],
+                  "input_tokens": 0,
+                  "message_count": 1,
+                  "model_name": "claude-opus-5-5",
+                  "output_tokens": 2000,
+                  "provider_id": "claude",
+                  "reasoning_tokens": 0,
+                  "service_tier": "fast",
+                  "token_count": 2000
+                }
+              }
+            ],
+            "session_count": 2
+          },
+          {
+            "key": "2026-10-16",
+            "message_count": 3,
+            "models": [
+              {
+                "pricing_source": "source",
+                "stats": {
+                  "cache_creation_tokens": 0,
+                  "cache_read_tokens": 0,
+                  "context_breakdown": [
+                    {
+                      "cache_creation_tokens": 0,
+                      "cache_creation_tokens_1h": 0,
+                      "cache_creation_tokens_5m": 0,
+                      "cache_read_tokens": 0,
+                      "input_tokens": 4000,
+                      "min_context_tokens": 0,
+                      "output_tokens": 0,
+                      "reasoning_tokens": 0,
+                      "token_count": 4000
+                    }
+                  ],
+                  "cost_usd": 0.060000000000000005,
+                  "input_tokens": 4000,
+                  "message_count": 2,
+                  "model_name": "claude-sonnet-4-5-20250929",
+                  "output_tokens": 0,
+                  "provider_id": "claude",
+                  "reasoning_tokens": 0,
+                  "token_count": 4000
+                }
+              },
+              {
+                "pricing_source": "estimate",
+                "stats": {
+                  "cache_creation_tokens": 0,
+                  "cache_read_tokens": 0,
+                  "context_breakdown": [
+                    {
+                      "cache_creation_tokens": 0,
+                      "cache_creation_tokens_1h": 0,
+                      "cache_creation_tokens_5m": 0,
+                      "cache_read_tokens": 0,
+                      "input_tokens": 2000,
+                      "min_context_tokens": 0,
+                      "output_tokens": 0,
+                      "reasoning_tokens": 0,
+                      "token_count": 2000
+                    }
+                  ],
+                  "input_tokens": 2000,
+                  "message_count": 1,
+                  "model_name": "claude-sonnet-4-5-20250929",
+                  "output_tokens": 0,
+                  "provider_id": "claude",
+                  "reasoning_tokens": 0,
+                  "token_count": 2000
+                }
+              }
+            ],
+            "session_count": 2
+          },
+          {
+            "key": "2026-10-17",
+            "message_count": 2,
+            "models": [
+              {
+                "pricing_source": "estimate",
+                "stats": {
+                  "cache_creation_tokens": 0,
+                  "cache_read_tokens": 150000,
+                  "context_breakdown": [
+                    {
+                      "cache_creation_tokens": 0,
+                      "cache_creation_tokens_1h": 0,
+                      "cache_creation_tokens_5m": 0,
+                      "cache_read_tokens": 150000,
+                      "input_tokens": 0,
+                      "min_context_tokens": 100001,
+                      "output_tokens": 0,
+                      "reasoning_tokens": 0,
+                      "token_count": 150000
+                    }
+                  ],
+                  "input_tokens": 0,
+                  "message_count": 1,
+                  "model_name": "claude-haiku-5-5",
+                  "output_tokens": 0,
+                  "provider_id": "claude",
+                  "reasoning_tokens": 0,
+                  "token_count": 150000
+                }
+              },
+              {
+                "pricing_source": "estimate",
+                "stats": {
+                  "cache_creation_tokens": 0,
+                  "cache_read_tokens": 0,
+                  "context_breakdown": [
+                    {
+                      "cache_creation_tokens": 0,
+                      "cache_creation_tokens_1h": 0,
+                      "cache_creation_tokens_5m": 0,
+                      "cache_read_tokens": 0,
+                      "input_tokens": 50000,
+                      "min_context_tokens": 0,
+                      "output_tokens": 0,
+                      "reasoning_tokens": 0,
+                      "token_count": 50000
+                    }
+                  ],
+                  "input_tokens": 50000,
+                  "message_count": 1,
+                  "model_name": "my-local-model",
+                  "output_tokens": 0,
+                  "provider_id": "claude",
+                  "reasoning_tokens": 0,
+                  "token_count": 50000
+                }
+              }
+            ],
+            "session_count": 2
+          }
+        ],
+        "session_remainder": {
+          "message_count": 4,
+          "models": [
+            {
+              "pricing_source": "estimate",
+              "stats": {
+                "cache_creation_tokens": 0,
+                "cache_read_tokens": 150000,
+                "context_breakdown": [
+                  {
+                    "cache_creation_tokens": 0,
+                    "cache_creation_tokens_1h": 0,
+                    "cache_creation_tokens_5m": 0,
+                    "cache_read_tokens": 150000,
+                    "input_tokens": 0,
+                    "min_context_tokens": 100001,
+                    "output_tokens": 0,
+                    "reasoning_tokens": 0,
+                    "token_count": 150000
+                  }
+                ],
+                "input_tokens": 0,
+                "message_count": 1,
+                "model_name": "claude-haiku-5-5",
+                "output_tokens": 0,
+                "provider_id": "claude",
+                "reasoning_tokens": 0,
+                "token_count": 150000
+              }
+            },
+            {
+              "pricing_source": "estimate",
+              "stats": {
+                "cache_creation_tokens": 0,
+                "cache_read_tokens": 0,
+                "context_breakdown": [
+                  {
+                    "cache_creation_tokens": 0,
+                    "cache_creation_tokens_1h": 0,
+                    "cache_creation_tokens_5m": 0,
+                    "cache_read_tokens": 0,
+                    "input_tokens": 50000,
+                    "min_context_tokens": 0,
+                    "output_tokens": 0,
+                    "reasoning_tokens": 0,
+                    "token_count": 50000
+                  }
+                ],
+                "input_tokens": 50000,
+                "message_count": 1,
+                "model_name": "my-local-model",
+                "output_tokens": 0,
+                "provider_id": "claude",
+                "reasoning_tokens": 0,
+                "token_count": 50000
+              }
+            },
+            {
+              "pricing_source": "estimate",
+              "stats": {
+                "cache_creation_tokens": 0,
+                "cache_read_tokens": 0,
+                "context_breakdown": [
+                  {
+                    "cache_creation_tokens": 0,
+                    "cache_creation_tokens_1h": 0,
+                    "cache_creation_tokens_5m": 0,
+                    "cache_read_tokens": 0,
+                    "input_tokens": 2000,
+                    "min_context_tokens": 0,
+                    "output_tokens": 0,
+                    "reasoning_tokens": 0,
+                    "token_count": 2000
+                  }
+                ],
+                "input_tokens": 2000,
+                "message_count": 1,
+                "model_name": "claude-sonnet-4-5-20250929",
+                "output_tokens": 0,
+                "provider_id": "claude",
+                "reasoning_tokens": 0,
+                "token_count": 2000
+              }
+            },
+            {
+              "pricing_source": "source",
+              "stats": {
+                "cache_creation_tokens": 0,
+                "cache_read_tokens": 0,
+                "context_breakdown": [
+                  {
+                    "cache_creation_tokens": 0,
+                    "cache_creation_tokens_1h": 0,
+                    "cache_creation_tokens_5m": 0,
+                    "cache_read_tokens": 0,
+                    "input_tokens": 1000,
+                    "min_context_tokens": 0,
+                    "output_tokens": 0,
+                    "reasoning_tokens": 0,
+                    "token_count": 1000
+                  }
+                ],
+                "cost_usd": 0.01,
+                "input_tokens": 1000,
+                "message_count": 1,
+                "model_name": "claude-sonnet-4-5-20250929",
+                "output_tokens": 0,
+                "provider_id": "claude",
+                "reasoning_tokens": 0,
+                "token_count": 1000
+              }
+            }
+          ],
+          "session_count": 3
+        },
+        "sessions": [
+          {
+            "first_ts": 1792054800000,
+            "last_ts": 1792054800000,
+            "message_count": 1,
+            "models": [
+              {
+                "pricing_source": "estimate",
+                "stats": {
+                  "cache_creation_tokens": 0,
+                  "cache_read_tokens": 0,
+                  "context_breakdown": [
+                    {
+                      "cache_creation_tokens": 0,
+                      "cache_creation_tokens_1h": 0,
+                      "cache_creation_tokens_5m": 0,
+                      "cache_read_tokens": 0,
+                      "input_tokens": 0,
+                      "min_context_tokens": 0,
+                      "output_tokens": 2000,
+                      "reasoning_tokens": 0,
+                      "token_count": 2000
+                    }
+                  ],
+                  "input_tokens": 0,
+                  "message_count": 1,
+                  "model_name": "claude-opus-5-5",
+                  "output_tokens": 2000,
+                  "provider_id": "claude",
+                  "reasoning_tokens": 0,
+                  "service_tier": "fast",
+                  "token_count": 2000
+                }
+              }
+            ],
+            "ref": {
+              "file_path": "<root>/projects/session-cap/s-opus-fast.jsonl",
+              "project_path": "<root>/projects/session-cap",
+              "provider": "claude",
+              "session_id": "s-opus-fast"
+            },
+            "title": null
+          },
+          {
+            "first_ts": 1792058400000,
+            "last_ts": 1792058400000,
+            "message_count": 1,
+            "models": [
+              {
+                "pricing_source": "estimate",
+                "stats": {
+                  "cache_creation_tokens": 10000,
+                  "cache_read_tokens": 0,
+                  "context_breakdown": [
+                    {
+                      "cache_creation_tokens": 10000,
+                      "cache_creation_tokens_1h": 10000,
+                      "cache_creation_tokens_5m": 0,
+                      "cache_read_tokens": 0,
+                      "input_tokens": 1000,
+                      "min_context_tokens": 0,
+                      "output_tokens": 0,
+                      "reasoning_tokens": 0,
+                      "token_count": 11000
+                    }
+                  ],
+                  "input_tokens": 1000,
+                  "message_count": 1,
+                  "model_name": "claude-sonnet-4-5-20250929",
+                  "output_tokens": 0,
+                  "provider_id": "claude",
+                  "reasoning_tokens": 0,
+                  "token_count": 11000
+                }
+              }
+            ],
+            "ref": {
+              "file_path": "<root>/projects/session-cap/s-sonnet-1h.jsonl",
+              "project_path": "<root>/projects/session-cap",
+              "provider": "claude",
+              "session_id": "s-sonnet-1h"
+            },
+            "title": null
+          },
+          {
+            "first_ts": 1792141200000,
+            "last_ts": 1792141200000,
+            "message_count": 1,
+            "models": [
+              {
+                "pricing_source": "source",
+                "stats": {
+                  "cache_creation_tokens": 0,
+                  "cache_read_tokens": 0,
+                  "context_breakdown": [
+                    {
+                      "cache_creation_tokens": 0,
+                      "cache_creation_tokens_1h": 0,
+                      "cache_creation_tokens_5m": 0,
+                      "cache_read_tokens": 0,
+                      "input_tokens": 3000,
+                      "min_context_tokens": 0,
+                      "output_tokens": 0,
+                      "reasoning_tokens": 0,
+                      "token_count": 3000
+                    }
+                  ],
+                  "cost_usd": 0.05,
+                  "input_tokens": 3000,
+                  "message_count": 1,
+                  "model_name": "claude-sonnet-4-5-20250929",
+                  "output_tokens": 0,
+                  "provider_id": "claude",
+                  "reasoning_tokens": 0,
+                  "token_count": 3000
+                }
+              }
+            ],
+            "ref": {
+              "file_path": "<root>/projects/session-cap/s-source.jsonl",
+              "project_path": "<root>/projects/session-cap",
+              "provider": "claude",
+              "session_id": "s-source"
+            },
+            "title": null
+          }
+        ]
+      },
+      "uncapped_response": {
+        "coverage": {
+          "providers": [
+            {
+              "id": "claude",
+              "sessions_failed": 0,
+              "sessions_scanned": 6,
+              "sidechain_metadata": true,
+              "source_cost": "some",
+              "status": "scanned"
+            }
+          ],
+          "undated_rows": 0,
+          "unknown_model_tokens": 0
+        },
+        "intervals": [
+          {
+            "key": "2026-10-15",
+            "message_count": 2,
+            "models": [
+              {
+                "pricing_source": "estimate",
+                "stats": {
+                  "cache_creation_tokens": 10000,
+                  "cache_read_tokens": 0,
+                  "context_breakdown": [
+                    {
+                      "cache_creation_tokens": 10000,
+                      "cache_creation_tokens_1h": 10000,
+                      "cache_creation_tokens_5m": 0,
+                      "cache_read_tokens": 0,
+                      "input_tokens": 1000,
+                      "min_context_tokens": 0,
+                      "output_tokens": 0,
+                      "reasoning_tokens": 0,
+                      "token_count": 11000
+                    }
+                  ],
+                  "input_tokens": 1000,
+                  "message_count": 1,
+                  "model_name": "claude-sonnet-4-5-20250929",
+                  "output_tokens": 0,
+                  "provider_id": "claude",
+                  "reasoning_tokens": 0,
+                  "token_count": 11000
+                }
+              },
+              {
+                "pricing_source": "estimate",
+                "stats": {
+                  "cache_creation_tokens": 0,
+                  "cache_read_tokens": 0,
+                  "context_breakdown": [
+                    {
+                      "cache_creation_tokens": 0,
+                      "cache_creation_tokens_1h": 0,
+                      "cache_creation_tokens_5m": 0,
+                      "cache_read_tokens": 0,
+                      "input_tokens": 0,
+                      "min_context_tokens": 0,
+                      "output_tokens": 2000,
+                      "reasoning_tokens": 0,
+                      "token_count": 2000
+                    }
+                  ],
+                  "input_tokens": 0,
+                  "message_count": 1,
+                  "model_name": "claude-opus-5-5",
+                  "output_tokens": 2000,
+                  "provider_id": "claude",
+                  "reasoning_tokens": 0,
+                  "service_tier": "fast",
+                  "token_count": 2000
+                }
+              }
+            ],
+            "session_count": 2
+          },
+          {
+            "key": "2026-10-16",
+            "message_count": 3,
+            "models": [
+              {
+                "pricing_source": "source",
+                "stats": {
+                  "cache_creation_tokens": 0,
+                  "cache_read_tokens": 0,
+                  "context_breakdown": [
+                    {
+                      "cache_creation_tokens": 0,
+                      "cache_creation_tokens_1h": 0,
+                      "cache_creation_tokens_5m": 0,
+                      "cache_read_tokens": 0,
+                      "input_tokens": 4000,
+                      "min_context_tokens": 0,
+                      "output_tokens": 0,
+                      "reasoning_tokens": 0,
+                      "token_count": 4000
+                    }
+                  ],
+                  "cost_usd": 0.060000000000000005,
+                  "input_tokens": 4000,
+                  "message_count": 2,
+                  "model_name": "claude-sonnet-4-5-20250929",
+                  "output_tokens": 0,
+                  "provider_id": "claude",
+                  "reasoning_tokens": 0,
+                  "token_count": 4000
+                }
+              },
+              {
+                "pricing_source": "estimate",
+                "stats": {
+                  "cache_creation_tokens": 0,
+                  "cache_read_tokens": 0,
+                  "context_breakdown": [
+                    {
+                      "cache_creation_tokens": 0,
+                      "cache_creation_tokens_1h": 0,
+                      "cache_creation_tokens_5m": 0,
+                      "cache_read_tokens": 0,
+                      "input_tokens": 2000,
+                      "min_context_tokens": 0,
+                      "output_tokens": 0,
+                      "reasoning_tokens": 0,
+                      "token_count": 2000
+                    }
+                  ],
+                  "input_tokens": 2000,
+                  "message_count": 1,
+                  "model_name": "claude-sonnet-4-5-20250929",
+                  "output_tokens": 0,
+                  "provider_id": "claude",
+                  "reasoning_tokens": 0,
+                  "token_count": 2000
+                }
+              }
+            ],
+            "session_count": 2
+          },
+          {
+            "key": "2026-10-17",
+            "message_count": 2,
+            "models": [
+              {
+                "pricing_source": "estimate",
+                "stats": {
+                  "cache_creation_tokens": 0,
+                  "cache_read_tokens": 150000,
+                  "context_breakdown": [
+                    {
+                      "cache_creation_tokens": 0,
+                      "cache_creation_tokens_1h": 0,
+                      "cache_creation_tokens_5m": 0,
+                      "cache_read_tokens": 150000,
+                      "input_tokens": 0,
+                      "min_context_tokens": 100001,
+                      "output_tokens": 0,
+                      "reasoning_tokens": 0,
+                      "token_count": 150000
+                    }
+                  ],
+                  "input_tokens": 0,
+                  "message_count": 1,
+                  "model_name": "claude-haiku-5-5",
+                  "output_tokens": 0,
+                  "provider_id": "claude",
+                  "reasoning_tokens": 0,
+                  "token_count": 150000
+                }
+              },
+              {
+                "pricing_source": "estimate",
+                "stats": {
+                  "cache_creation_tokens": 0,
+                  "cache_read_tokens": 0,
+                  "context_breakdown": [
+                    {
+                      "cache_creation_tokens": 0,
+                      "cache_creation_tokens_1h": 0,
+                      "cache_creation_tokens_5m": 0,
+                      "cache_read_tokens": 0,
+                      "input_tokens": 50000,
+                      "min_context_tokens": 0,
+                      "output_tokens": 0,
+                      "reasoning_tokens": 0,
+                      "token_count": 50000
+                    }
+                  ],
+                  "input_tokens": 50000,
+                  "message_count": 1,
+                  "model_name": "my-local-model",
+                  "output_tokens": 0,
+                  "provider_id": "claude",
+                  "reasoning_tokens": 0,
+                  "token_count": 50000
+                }
+              }
+            ],
+            "session_count": 2
+          }
+        ],
+        "session_remainder": {
+          "message_count": 0,
+          "models": [],
+          "session_count": 0
+        },
+        "sessions": [
+          {
+            "first_ts": 1792054800000,
+            "last_ts": 1792054800000,
+            "message_count": 1,
+            "models": [
+              {
+                "pricing_source": "estimate",
+                "stats": {
+                  "cache_creation_tokens": 0,
+                  "cache_read_tokens": 0,
+                  "context_breakdown": [
+                    {
+                      "cache_creation_tokens": 0,
+                      "cache_creation_tokens_1h": 0,
+                      "cache_creation_tokens_5m": 0,
+                      "cache_read_tokens": 0,
+                      "input_tokens": 0,
+                      "min_context_tokens": 0,
+                      "output_tokens": 2000,
+                      "reasoning_tokens": 0,
+                      "token_count": 2000
+                    }
+                  ],
+                  "input_tokens": 0,
+                  "message_count": 1,
+                  "model_name": "claude-opus-5-5",
+                  "output_tokens": 2000,
+                  "provider_id": "claude",
+                  "reasoning_tokens": 0,
+                  "service_tier": "fast",
+                  "token_count": 2000
+                }
+              }
+            ],
+            "ref": {
+              "file_path": "<root>/projects/session-cap/s-opus-fast.jsonl",
+              "project_path": "<root>/projects/session-cap",
+              "provider": "claude",
+              "session_id": "s-opus-fast"
+            },
+            "title": null
+          },
+          {
+            "first_ts": 1792058400000,
+            "last_ts": 1792058400000,
+            "message_count": 1,
+            "models": [
+              {
+                "pricing_source": "estimate",
+                "stats": {
+                  "cache_creation_tokens": 10000,
+                  "cache_read_tokens": 0,
+                  "context_breakdown": [
+                    {
+                      "cache_creation_tokens": 10000,
+                      "cache_creation_tokens_1h": 10000,
+                      "cache_creation_tokens_5m": 0,
+                      "cache_read_tokens": 0,
+                      "input_tokens": 1000,
+                      "min_context_tokens": 0,
+                      "output_tokens": 0,
+                      "reasoning_tokens": 0,
+                      "token_count": 11000
+                    }
+                  ],
+                  "input_tokens": 1000,
+                  "message_count": 1,
+                  "model_name": "claude-sonnet-4-5-20250929",
+                  "output_tokens": 0,
+                  "provider_id": "claude",
+                  "reasoning_tokens": 0,
+                  "token_count": 11000
+                }
+              }
+            ],
+            "ref": {
+              "file_path": "<root>/projects/session-cap/s-sonnet-1h.jsonl",
+              "project_path": "<root>/projects/session-cap",
+              "provider": "claude",
+              "session_id": "s-sonnet-1h"
+            },
+            "title": null
+          },
+          {
+            "first_ts": 1792141200000,
+            "last_ts": 1792141200000,
+            "message_count": 1,
+            "models": [
+              {
+                "pricing_source": "source",
+                "stats": {
+                  "cache_creation_tokens": 0,
+                  "cache_read_tokens": 0,
+                  "context_breakdown": [
+                    {
+                      "cache_creation_tokens": 0,
+                      "cache_creation_tokens_1h": 0,
+                      "cache_creation_tokens_5m": 0,
+                      "cache_read_tokens": 0,
+                      "input_tokens": 3000,
+                      "min_context_tokens": 0,
+                      "output_tokens": 0,
+                      "reasoning_tokens": 0,
+                      "token_count": 3000
+                    }
+                  ],
+                  "cost_usd": 0.05,
+                  "input_tokens": 3000,
+                  "message_count": 1,
+                  "model_name": "claude-sonnet-4-5-20250929",
+                  "output_tokens": 0,
+                  "provider_id": "claude",
+                  "reasoning_tokens": 0,
+                  "token_count": 3000
+                }
+              }
+            ],
+            "ref": {
+              "file_path": "<root>/projects/session-cap/s-source.jsonl",
+              "project_path": "<root>/projects/session-cap",
+              "provider": "claude",
+              "session_id": "s-source"
+            },
+            "title": null
+          },
+          {
+            "first_ts": 1792144800000,
+            "last_ts": 1792145100000,
+            "message_count": 2,
+            "models": [
+              {
+                "pricing_source": "estimate",
+                "stats": {
+                  "cache_creation_tokens": 0,
+                  "cache_read_tokens": 0,
+                  "context_breakdown": [
+                    {
+                      "cache_creation_tokens": 0,
+                      "cache_creation_tokens_1h": 0,
+                      "cache_creation_tokens_5m": 0,
+                      "cache_read_tokens": 0,
+                      "input_tokens": 2000,
+                      "min_context_tokens": 0,
+                      "output_tokens": 0,
+                      "reasoning_tokens": 0,
+                      "token_count": 2000
+                    }
+                  ],
+                  "input_tokens": 2000,
+                  "message_count": 1,
+                  "model_name": "claude-sonnet-4-5-20250929",
+                  "output_tokens": 0,
+                  "provider_id": "claude",
+                  "reasoning_tokens": 0,
+                  "token_count": 2000
+                }
+              },
+              {
+                "pricing_source": "source",
+                "stats": {
+                  "cache_creation_tokens": 0,
+                  "cache_read_tokens": 0,
+                  "context_breakdown": [
+                    {
+                      "cache_creation_tokens": 0,
+                      "cache_creation_tokens_1h": 0,
+                      "cache_creation_tokens_5m": 0,
+                      "cache_read_tokens": 0,
+                      "input_tokens": 1000,
+                      "min_context_tokens": 0,
+                      "output_tokens": 0,
+                      "reasoning_tokens": 0,
+                      "token_count": 1000
+                    }
+                  ],
+                  "cost_usd": 0.01,
+                  "input_tokens": 1000,
+                  "message_count": 1,
+                  "model_name": "claude-sonnet-4-5-20250929",
+                  "output_tokens": 0,
+                  "provider_id": "claude",
+                  "reasoning_tokens": 0,
+                  "token_count": 1000
+                }
+              }
+            ],
+            "ref": {
+              "file_path": "<root>/projects/session-cap/s-mixed.jsonl",
+              "project_path": "<root>/projects/session-cap",
+              "provider": "claude",
+              "session_id": "s-mixed"
+            },
+            "title": null
+          },
+          {
+            "first_ts": 1792227600000,
+            "last_ts": 1792227600000,
+            "message_count": 1,
+            "models": [
+              {
+                "pricing_source": "estimate",
+                "stats": {
+                  "cache_creation_tokens": 0,
+                  "cache_read_tokens": 150000,
+                  "context_breakdown": [
+                    {
+                      "cache_creation_tokens": 0,
+                      "cache_creation_tokens_1h": 0,
+                      "cache_creation_tokens_5m": 0,
+                      "cache_read_tokens": 150000,
+                      "input_tokens": 0,
+                      "min_context_tokens": 100001,
+                      "output_tokens": 0,
+                      "reasoning_tokens": 0,
+                      "token_count": 150000
+                    }
+                  ],
+                  "input_tokens": 0,
+                  "message_count": 1,
+                  "model_name": "claude-haiku-5-5",
+                  "output_tokens": 0,
+                  "provider_id": "claude",
+                  "reasoning_tokens": 0,
+                  "token_count": 150000
+                }
+              }
+            ],
+            "ref": {
+              "file_path": "<root>/projects/session-cap/s-haiku-long.jsonl",
+              "project_path": "<root>/projects/session-cap",
+              "provider": "claude",
+              "session_id": "s-haiku-long"
+            },
+            "title": null
+          },
+          {
+            "first_ts": 1792231200000,
+            "last_ts": 1792231200000,
+            "message_count": 1,
+            "models": [
+              {
+                "pricing_source": "estimate",
+                "stats": {
+                  "cache_creation_tokens": 0,
+                  "cache_read_tokens": 0,
+                  "context_breakdown": [
+                    {
+                      "cache_creation_tokens": 0,
+                      "cache_creation_tokens_1h": 0,
+                      "cache_creation_tokens_5m": 0,
+                      "cache_read_tokens": 0,
+                      "input_tokens": 50000,
+                      "min_context_tokens": 0,
+                      "output_tokens": 0,
+                      "reasoning_tokens": 0,
+                      "token_count": 50000
+                    }
+                  ],
+                  "input_tokens": 50000,
+                  "message_count": 1,
+                  "model_name": "my-local-model",
+                  "output_tokens": 0,
+                  "provider_id": "claude",
+                  "reasoning_tokens": 0,
+                  "token_count": 50000
+                }
+              }
+            ],
+            "ref": {
+              "file_path": "<root>/projects/session-cap/s-unpriced.jsonl",
+              "project_path": "<root>/projects/session-cap",
+              "provider": "claude",
+              "session_id": "s-unpriced"
+            },
+            "title": null
+          }
+        ]
+      }
+    },
     "undated": {
       "legacy_model_distribution": [
         {
@@ -1588,6 +2607,9 @@
           "reasoning_tokens": 0,
           "token_count": 107
         }
+      ],
+      "ranking_costs": [
+        0.00030000000000000003
       ],
       "request": {
         "intervals": [
@@ -1677,6 +2699,11 @@
             "session_count": 0
           }
         ],
+        "session_remainder": {
+          "message_count": 0,
+          "models": [],
+          "session_count": 0
+        },
         "sessions": [
           {
             "first_ts": 1792065600000,
@@ -1748,6 +2775,9 @@
           "reasoning_tokens": 0,
           "token_count": 100
         }
+      ],
+      "ranking_costs": [
+        0.00030000000000000003
       ],
       "request": {
         "intervals": [
@@ -1837,6 +2867,11 @@
             "session_count": 0
           }
         ],
+        "session_remainder": {
+          "message_count": 0,
+          "models": [],
+          "session_count": 0
+        },
         "sessions": [
           {
             "first_ts": 1792065600000,

@@ -8,8 +8,9 @@
 //! cargo test --release perf_budget -- --ignored --nocapture --test-threads=1
 //! ```
 //!
-//! The budgets are asserted only in release builds; a debug run prints the
-//! same table for information.
+//! Time and memory budgets are asserted only in release builds; a debug run
+//! prints the same table for information. The response size does not depend
+//! on the build and is asserted in both (ADR 0003).
 
 use super::contribution_cache::contribution_cache;
 use super::*;
@@ -35,6 +36,17 @@ fn rows_per_session() -> usize {
         .and_then(|v| v.parse().ok())
         .filter(|n: &usize| *n >= 2 && n % 2 == 0)
         .unwrap_or(DEFAULT_ROWS_PER_SESSION)
+}
+
+/// Models per session (default 1, the reference fixture); override with
+/// `CCHV_PERF_MODELS_PER_SESSION` (1–3) to see how the session rows grow
+/// when every session mixes models, as a main model plus a small one does.
+fn models_per_session() -> usize {
+    std::env::var("CCHV_PERF_MODELS_PER_SESSION")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .filter(|n: &usize| (1..=MODELS.len()).contains(n))
+        .unwrap_or(1)
 }
 const DAY_MS: i64 = 86_400_000;
 /// 2026-07-21T00:00:00+09:00 — the first local (KST) day of the fixture.
@@ -72,6 +84,7 @@ fn write_history(root: &Path) -> usize {
     let mut rng = Rng(0x5eed_cafe);
     let filler = "lorem ipsum dolor sit amet ".repeat(24); // ~650 bytes of text
     let rows_per_session = rows_per_session();
+    let models_per_session = models_per_session();
     let sessions = MESSAGES / rows_per_session;
     let mut rows = 0;
     for s in 0..sessions {
@@ -83,11 +96,11 @@ fn write_history(root: &Path) -> usize {
         let day = i64::try_from(s).unwrap() * DAYS / i64::try_from(sessions).unwrap();
         let mut ts =
             FIRST_DAY_START_MS + day * DAY_MS + i64::try_from(rng.below(12 * 3_600_000)).unwrap();
-        let model = MODELS[s % MODELS.len()];
         let mut file = std::io::BufWriter::new(
             fs::File::create(project.join(format!("{session_id}.jsonl"))).unwrap(),
         );
         for turn in 0..rows_per_session / 2 {
+            let model = MODELS[(s + turn % models_per_session) % MODELS.len()];
             ts += i64::try_from(10_000 + rng.below(120_000)).unwrap();
             let user = json!({
                 "type": "user", "sessionId": session_id, "uuid": format!("{s}-u{turn}"),
@@ -181,6 +194,9 @@ async fn perf_budget_on_reference_fixture() {
     let response_bytes = serde_json::to_vec(&cold_response).unwrap().len();
     let intervals_bytes = serde_json::to_vec(&cold_response.intervals).unwrap().len();
     let sessions_bytes = serde_json::to_vec(&cold_response.sessions).unwrap().len();
+    let remainder_bytes = serde_json::to_vec(&cold_response.session_remainder)
+        .unwrap()
+        .len();
     let interval_buckets: usize = cold_response.intervals.iter().map(|i| i.models.len()).sum();
     let session_buckets: usize = cold_response.sessions.iter().map(|s| s.models.len()).sum();
 
@@ -224,8 +240,9 @@ async fn perf_budget_on_reference_fixture() {
     let cache_ok = cache.bytes <= 64 * 1024 * 1024;
     let response_ok = response_bytes <= 1024 * 1024;
     println!(
-        "usage-breakdown perf ({build}): {PROJECTS} projects, {DAYS} KST days, {rows} rows, {} sessions, {:.1} MiB on disk",
-        cold_response.sessions.len(),
+        "usage-breakdown perf ({build}): {PROJECTS} projects, {DAYS} KST days, {rows} rows, {} sessions ({} model(s) each), {:.1} MiB on disk",
+        cold_response.sessions.len() as u64 + cold_response.session_remainder.session_count,
+        models_per_session(),
         mib(usize::try_from(bytes_on_disk).unwrap_or(usize::MAX))
     );
     println!("| Measure | Result | Budget | |");
@@ -256,9 +273,15 @@ async fn perf_budget_on_reference_fixture() {
         kib(intervals_bytes)
     );
     println!(
-        "| · sessions | {:.1} KiB ({} sessions, {session_buckets} buckets) | | |",
+        "| · sessions | {:.1} KiB ({} listed, {session_buckets} buckets) | | |",
         kib(sessions_bytes),
         cold_response.sessions.len()
+    );
+    println!(
+        "| · session_remainder | {:.1} KiB ({} sessions, {} buckets) | | |",
+        kib(remainder_bytes),
+        cold_response.session_remainder.session_count,
+        cold_response.session_remainder.models.len()
     );
     println!(
         "| (reference) old get_global_stats_summary, cold | {:.0} ms | | |",
@@ -277,10 +300,9 @@ async fn perf_budget_on_reference_fixture() {
         tokens, legacy.total_tokens,
         "same population as the old summary"
     );
-    // Time and memory budgets are asserted in release builds. The response
-    // size is reported, not asserted: it grows with the session count and is
-    // over budget on this fixture, which ADR 0002 §10 hands to the owner
-    // (e.g. top-n sessions plus a remainder row) instead of trimming here.
+    // The response size is deterministic, so it is asserted in every build
+    // (ADR 0003 caps `sessions`); time and memory only in release builds.
+    assert!(response_ok, "response {response_bytes} B over 1 MiB");
     if !cfg!(debug_assertions) {
         assert!(cold_ok, "cold {cold:?}");
         assert!(warm_ok, "warm {warm:?}");

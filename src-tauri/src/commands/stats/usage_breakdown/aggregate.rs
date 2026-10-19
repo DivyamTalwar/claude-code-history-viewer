@@ -1,11 +1,12 @@
 //! Sum contributions into the requested intervals and sessions (ADR 0002
-//! §3–§6, §9). Pure: no file access.
+//! §3–§6, §9) and cap the session list (ADR 0003). Pure: no file access.
 
 use super::contribution::{Contribution, FileBucket};
+use super::ranking::{self, RankKey};
 use super::sources::{records_sidechains, ProviderScan, SessionInput};
 use super::{
-    IntervalUsage, PricedModelStats, PricingSource, ProviderCoverage, SessionRef, SessionUsage,
-    SourceCostCoverage, UsageBreakdownResponse, UsageCoverage, UsageInterval,
+    IntervalUsage, PricedModelStats, PricingSource, ProviderCoverage, SessionRef, SessionRemainder,
+    SessionUsage, SourceCostCoverage, UsageBreakdownResponse, UsageCoverage, UsageInterval,
 };
 use crate::commands::stats::{stats_provider_id, StatsProvider, UNKNOWN_MODEL_NAME};
 use crate::models::{ModelContextStats, ModelStats};
@@ -15,7 +16,7 @@ use std::collections::{BTreeMap, HashMap};
 /// Bucket key of the response: (provider, model, service tier, pricing source).
 type BucketKey = (&'static str, String, Option<String>, PricingSource);
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 struct BucketTotals {
     message_count: u32,
     input: u64,
@@ -40,14 +41,7 @@ impl BucketTotals {
         self.cache_read += u64::from(t.cache_read);
         self.reasoning += u64::from(t.reasoning);
         self.cost_usd += contribution.cost_usd;
-        let tier = u64::from(contribution.context_tier);
-        let context = self
-            .context
-            .entry(tier)
-            .or_insert_with(|| ModelContextStats {
-                min_context_tokens: tier,
-                ..ModelContextStats::default()
-            });
+        let context = self.context_tier(u64::from(contribution.context_tier));
         context.token_count += total;
         context.input_tokens += u64::from(t.input);
         context.output_tokens += u64::from(t.output);
@@ -58,12 +52,43 @@ impl BucketTotals {
         context.reasoning_tokens += u64::from(t.reasoning);
     }
 
+    /// Add another bucket of the same key (the session remainder).
+    fn merge(&mut self, other: BucketTotals) {
+        self.message_count = self.message_count.saturating_add(other.message_count);
+        self.input += other.input;
+        self.output += other.output;
+        self.cache_creation += other.cache_creation;
+        self.cache_read += other.cache_read;
+        self.reasoning += other.reasoning;
+        self.cost_usd += other.cost_usd;
+        for (tier, other) in other.context {
+            let context = self.context_tier(tier);
+            context.token_count += other.token_count;
+            context.input_tokens += other.input_tokens;
+            context.output_tokens += other.output_tokens;
+            context.cache_creation_tokens += other.cache_creation_tokens;
+            context.cache_creation_tokens_1h += other.cache_creation_tokens_1h;
+            context.cache_creation_tokens_5m += other.cache_creation_tokens_5m;
+            context.cache_read_tokens += other.cache_read_tokens;
+            context.reasoning_tokens += other.reasoning_tokens;
+        }
+    }
+
+    fn context_tier(&mut self, tier: u64) -> &mut ModelContextStats {
+        self.context
+            .entry(tier)
+            .or_insert_with(|| ModelContextStats {
+                min_context_tokens: tier,
+                ..ModelContextStats::default()
+            })
+    }
+
     fn token_count(&self) -> u64 {
         self.input + self.output + self.cache_creation + self.cache_read + self.reasoning
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 struct BucketMap(BTreeMap<BucketKey, BucketTotals>);
 
 impl BucketMap {
@@ -78,6 +103,12 @@ impl BucketMap {
             bucket.pricing_source,
         );
         self.0.entry(key).or_default().add(contribution);
+    }
+
+    fn merge(&mut self, other: BucketMap) {
+        for (key, totals) in other.0 {
+            self.0.entry(key).or_default().merge(totals);
+        }
     }
 
     /// Buckets by token count, largest first; ties in key order.
@@ -147,16 +178,68 @@ fn interval_of(intervals: &[UsageInterval], ts_ms: i64) -> Option<usize> {
         .map(|_| index)
 }
 
+/// One session of the response with its rank, and its buckets kept for the
+/// remainder row in case the cap cuts it.
+struct RankedSession {
+    usage: SessionUsage,
+    buckets: BucketMap,
+    cost: f64,
+    tokens: u64,
+}
+
+impl RankedSession {
+    fn new(usage: SessionUsage, buckets: BucketMap) -> Self {
+        let cost = ranking::session_cost(&usage.models);
+        let tokens = usage.models.iter().map(|m| m.stats.token_count).sum();
+        Self {
+            usage,
+            buckets,
+            cost,
+            tokens,
+        }
+    }
+
+    fn key(&self) -> RankKey<'_> {
+        RankKey {
+            cost: self.cost,
+            tokens: self.tokens,
+            last_ts: self.usage.last_ts,
+            session_ref: &self.usage.session_ref,
+        }
+    }
+}
+
+/// Rank the sessions (ADR 0003) and list the first `max_sessions`; every
+/// other session is merged, bucket by bucket, into one remainder row.
+fn cap_sessions(
+    mut ranked: Vec<RankedSession>,
+    max_sessions: usize,
+) -> (Vec<SessionUsage>, SessionRemainder) {
+    ranked.sort_by(|a, b| ranking::rank_order(&a.key(), &b.key()));
+    let cut = ranked.split_off(max_sessions.min(ranked.len()));
+    let mut buckets = BucketMap::default();
+    let mut remainder = SessionRemainder::default();
+    for session in cut {
+        buckets.merge(session.buckets);
+        remainder.message_count += session.usage.message_count;
+        remainder.session_count += 1;
+    }
+    remainder.models = buckets.into_priced();
+    let listed = ranked.into_iter().map(|session| session.usage).collect();
+    (listed, remainder)
+}
+
 pub(super) fn aggregate(
     intervals: &[UsageInterval],
     sessions: &[SessionInput],
     scans: &[ProviderScan],
+    max_sessions: usize,
 ) -> UsageBreakdownResponse {
     let mut interval_totals: Vec<IntervalTotals> = intervals
         .iter()
         .map(|_| IntervalTotals::default())
         .collect();
-    let mut session_usage = Vec::new();
+    let mut ranked = Vec::new();
     let mut undated_rows = 0u64;
     let mut unknown_model_tokens = 0u64;
     let mut shares: HashMap<StatsProvider, SourceShare> = HashMap::new();
@@ -201,7 +284,7 @@ pub(super) fn aggregate(
         if message_count == 0 {
             continue;
         }
-        session_usage.push(SessionUsage {
+        let usage = SessionUsage {
             session_ref: SessionRef {
                 provider: provider.to_string(),
                 file_path: session.file_path.clone(),
@@ -209,20 +292,14 @@ pub(super) fn aggregate(
                 project_path: session.project_path.clone(),
             },
             title: session.title.clone(),
-            models: buckets.into_priced(),
+            models: buckets.clone().into_priced(),
             first_ts,
             last_ts,
             message_count,
-        });
+        };
+        ranked.push(RankedSession::new(usage, buckets));
     }
-
-    // Largest sessions first; file path breaks ties deterministically.
-    session_usage.sort_by(|a, b| {
-        let tokens = |s: &SessionUsage| s.models.iter().map(|m| m.stats.token_count).sum::<u64>();
-        tokens(b)
-            .cmp(&tokens(a))
-            .then_with(|| a.session_ref.file_path.cmp(&b.session_ref.file_path))
-    });
+    let (sessions, session_remainder) = cap_sessions(ranked, max_sessions);
 
     UsageBreakdownResponse {
         intervals: intervals
@@ -235,7 +312,8 @@ pub(super) fn aggregate(
                 session_count: totals.session_count,
             })
             .collect(),
-        sessions: session_usage,
+        sessions,
+        session_remainder,
         coverage: UsageCoverage {
             providers: scans
                 .iter()

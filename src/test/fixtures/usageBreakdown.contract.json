@@ -1,4 +1,5 @@
 {
+  "limits": { "max_intervals": 1000, "max_sessions": 250 },
   "requests": [
     {
       "scope": {
@@ -128,6 +129,39 @@
         "message_count": 1
       }
     ],
+    "session_remainder": {
+      "models": [
+        {
+          "pricing_source": "estimate",
+          "stats": {
+            "provider_id": "claude",
+            "model_name": "claude-haiku-5-5",
+            "message_count": 4,
+            "token_count": 2000,
+            "input_tokens": 2000,
+            "output_tokens": 0,
+            "cache_creation_tokens": 0,
+            "cache_read_tokens": 0,
+            "reasoning_tokens": 0,
+            "context_breakdown": [
+              {
+                "min_context_tokens": 0,
+                "token_count": 2000,
+                "input_tokens": 2000,
+                "output_tokens": 0,
+                "cache_creation_tokens": 0,
+                "cache_creation_tokens_5m": 0,
+                "cache_creation_tokens_1h": 0,
+                "cache_read_tokens": 0,
+                "reasoning_tokens": 0
+              }
+            ]
+          }
+        }
+      ],
+      "message_count": 4,
+      "session_count": 2
+    },
     "coverage": {
       "providers": [
         {
