@@ -5345,11 +5345,15 @@ pub async fn get_global_stats_summary(
     };
 
     if providers_to_include.contains(&StatsProvider::Claude) {
-        collect_claude_base(
-            &PathBuf::from(&claude_path).join("projects"),
-            &mut session_files,
-            &mut project_names,
-        );
+        // Empty is the default root, never a path relative to the working
+        // directory (#693).
+        if let Some(base) = crate::providers::claude::base_path_or_default(&claude_path) {
+            collect_claude_base(
+                &base.join("projects"),
+                &mut session_files,
+                &mut project_names,
+            );
+        }
 
         if let Some(ref custom_paths) = custom_claude_paths {
             for custom in custom_paths {

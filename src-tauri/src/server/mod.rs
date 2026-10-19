@@ -1085,6 +1085,76 @@ mod tests {
         );
     }
 
+    /// #693. The root guard lets an empty `claudePath` through as "use the
+    /// default", so every route behind it reads `~/.claude`, never a
+    /// `projects/` folder relative to the server's working directory. An
+    /// absent `claudePath` (global stats) means the same.
+    #[tokio::test]
+    #[serial]
+    async fn test_an_empty_claude_path_reads_the_default_root() {
+        let home = crate::test_utils::SandboxHome::new();
+        let project = home.path().join(".claude").join("projects").join("p");
+        std::fs::create_dir_all(&project).unwrap();
+        let session = history_row("s1", "u1", Some("needle-693 in the default root"), 0)
+            + &history_row("s1", "a1", None, 100);
+        std::fs::write(project.join("s1.jsonl"), session).unwrap();
+
+        let claude_only = serde_json::json!(["claude"]);
+        let routes = [
+            ("scan_projects", serde_json::json!({ "claudePath": "" })),
+            (
+                "scan_all_projects",
+                serde_json::json!({ "claudePath": "", "activeProviders": claude_only }),
+            ),
+            (
+                "search_messages",
+                serde_json::json!({ "claudePath": "", "query": "needle-693", "filters": {} }),
+            ),
+            (
+                "search_all_providers",
+                serde_json::json!({
+                    "claudePath": "", "query": "needle-693", "activeProviders": claude_only
+                }),
+            ),
+        ];
+        let mut results = Vec::new();
+        for (route, body) in routes {
+            let (status, json) = post_read_only(route, body).await;
+            assert_eq!(status, StatusCode::OK, "{route}: {json}");
+            results.push((route, json.as_array().map(Vec::len)));
+        }
+        for (label, body) in [
+            (
+                "get_global_stats_summary tokens, empty claudePath",
+                serde_json::json!({ "claudePath": "", "activeProviders": claude_only }),
+            ),
+            (
+                "get_global_stats_summary tokens, no claudePath",
+                serde_json::json!({ "activeProviders": claude_only }),
+            ),
+        ] {
+            let (status, json) = post_read_only("get_global_stats_summary", body).await;
+            assert_eq!(status, StatusCode::OK, "{label}: {json}");
+            results.push((label, json["total_tokens"].as_u64().map(|t| t as usize)));
+        }
+        // The default root's one project, its one match and its 100 tokens,
+        // on every route at once.
+        assert_eq!(
+            results,
+            [
+                ("scan_projects", Some(1)),
+                ("scan_all_projects", Some(1)),
+                ("search_messages", Some(1)),
+                ("search_all_providers", Some(1)),
+                (
+                    "get_global_stats_summary tokens, empty claudePath",
+                    Some(100)
+                ),
+                ("get_global_stats_summary tokens, no claudePath", Some(100)),
+            ]
+        );
+    }
+
     /// An `AppState` differing only in the two inputs the gate reads.
     fn state_with(loopback_bind: bool, auth_token: Option<&str>) -> Arc<AppState> {
         let state = test_state(auth_token);

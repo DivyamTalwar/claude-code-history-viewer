@@ -184,7 +184,12 @@ pub async fn scan_projects(claude_path: String) -> Result<Vec<ClaudeProject>, St
 pub(crate) fn scan_projects_blocking(claude_path: String) -> Vec<ClaudeProject> {
     #[cfg(debug_assertions)]
     let start_time = std::time::Instant::now();
-    let projects_path = PathBuf::from(&claude_path).join("projects");
+    // Empty is the default root, never a path relative to the working
+    // directory (#693).
+    let Some(claude_base) = crate::providers::claude::base_path_or_default(&claude_path) else {
+        return vec![];
+    };
+    let projects_path = claude_base.join("projects");
 
     if !projects_path.exists() {
         return vec![];

@@ -488,7 +488,12 @@ fn search_messages_blocking(
     let max_results = limit.unwrap_or(DEFAULT_SEARCH_LIMIT);
     validate_search_filters(&filters)?;
 
-    let projects_path = PathBuf::from(&claude_path).join("projects");
+    // Empty is the default root, never a path relative to the working
+    // directory (#693).
+    let Some(claude_base) = crate::providers::claude::base_path_or_default(&claude_path) else {
+        return Ok(vec![]);
+    };
+    let projects_path = claude_base.join("projects");
     if !projects_path.exists() {
         return Ok(vec![]);
     }
