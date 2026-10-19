@@ -41,7 +41,7 @@ export const OpenCodeStepRenderer = memo<OpenCodeStepProps>(
             )}
           </div>
           {hasTokens && (
-            <span className={cn(layout.smallText, "font-mono text-muted-foreground")}>
+            <span className={cn(layout.smallText, "font-mono tabular-nums text-muted-foreground")}>
               <Coins size={14} className="inline mr-0.5" />
               {fmt.cost(cost)}
             </span>
@@ -78,7 +78,7 @@ function TokenBadge({ icon: Icon, label, value }: { icon: React.ComponentType<{ 
   const fmt = useFormat();
   if (value === 0) return null;
   return (
-    <span className="text-caption text-muted-foreground font-mono flex items-center gap-0.5">
+    <span className="text-caption text-muted-foreground font-mono tabular-nums flex items-center gap-0.5">
       <Icon size={14} />
       {label}: {fmt.count(value)}
     </span>

@@ -326,7 +326,7 @@ export const MessageNavigator: React.FC<MessageNavigatorProps> = ({
           <ListTree className="w-4 h-4 text-muted-foreground" />
 
           {/* Entry count */}
-          <span className="text-caption font-mono text-muted-foreground">{allEntries.length}</span>
+          <span className="text-caption font-mono tabular-nums text-muted-foreground">{allEntries.length}</span>
         </div>
       </aside>
     );

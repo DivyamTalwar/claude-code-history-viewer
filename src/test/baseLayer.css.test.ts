@@ -80,6 +80,11 @@ describe("F1b base layer", () => {
     });
   });
 
+  it("only numbers (.tabular-nums) are exempt from Korean anywhere-wrapping, never all monospace text", () => {
+    const exempt = inBase((r) => /:lang\(ko\)/.test(r.selector) && decls(r)["overflow-wrap"] === "normal");
+    expect(exempt.map(selectors)).toEqual([[":lang(ko) .tabular-nums"]]);
+  });
+
   it("caption and list text get line height 1.5 in Korean, Japanese and Chinese (1.4 otherwise)", () => {
     const leading: Record<string, Record<string, string>> = {};
     root.walkRules((rule) => {

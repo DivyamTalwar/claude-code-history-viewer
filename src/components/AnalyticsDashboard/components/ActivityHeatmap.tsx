@@ -260,7 +260,7 @@ export const ActivityHeatmapComponent: React.FC<ActivityHeatmapProps> = React.me
           </span>
         </div>
 
-        <span className="text-caption font-mono text-muted-foreground">
+        <span className="text-caption font-mono tabular-nums text-muted-foreground">
           {t("analytics.calendarTotal", { count: totalMessages })}
         </span>
       </div>

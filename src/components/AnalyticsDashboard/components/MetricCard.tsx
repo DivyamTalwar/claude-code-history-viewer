@@ -146,7 +146,7 @@ export const MetricCard: React.FC<MetricCardProps> = ({
         {/* Sub value */}
         {subValue && (
           <div className="mt-3 pt-3 border-t border-border/30">
-            <div className="font-mono text-caption text-muted-foreground/70">
+            <div className="font-mono tabular-nums text-caption text-muted-foreground/70">
               {subValue}
             </div>
           </div>

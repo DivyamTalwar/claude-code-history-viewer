@@ -1004,13 +1004,13 @@
     overflow-wrap: anywhere;
   }
 
-  /* Numeric tokens are atomic in every locale. `anywhere` also shrinks an
-     element's min-content width to a single character, so a squeezed flex
-     item could split 69 into 6/9 or 17.6K into 17.6/K. Metrics, counts and
-     compact magnitudes use the mono / tabular figure styling, so restore
-     normal wrapping there; long paths and CJK prose keep `anywhere` (path
-     elements set word-break: break-all themselves, which still wraps). */
-  :lang(ko) :is(.font-mono, .tabular-nums) {
+  /* Numbers stay whole. `anywhere` also shrinks min-content to one
+     character, so a squeezed flex item would split 69 into 6/9 or 17.6K
+     into 17.6/K. `.tabular-nums` is the numeric-value marker: put it on the
+     element whose own text is the count, metric, cost, duration or time.
+     Not on `.font-mono` - hashes, paths, ids and code are not numbers and
+     must keep wrapping inside their card. */
+  :lang(ko) .tabular-nums {
     overflow-wrap: normal;
   }
 
@@ -2004,6 +2004,8 @@
   }
 
   /* === Numeric Variants === */
+  /* Also the numeric-value marker: a Korean UI never breaks inside it
+     (base layer, CJK line breaking). */
   .tabular-nums {
     font-variant-numeric: tabular-nums;
   }

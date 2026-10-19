@@ -222,7 +222,7 @@ export const RecentEditsViewer: React.FC<RecentEditsViewerProps> = ({
                 edits: result.totalEditsCount,
               })}
             </p>
-            <span className="text-caption text-muted-foreground font-mono shrink-0">
+            <span className="text-caption text-muted-foreground font-mono tabular-nums shrink-0">
               {loaded} / {total}
             </span>
           </div>

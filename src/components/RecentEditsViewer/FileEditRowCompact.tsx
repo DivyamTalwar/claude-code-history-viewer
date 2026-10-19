@@ -218,12 +218,12 @@ export const FileEditRowCompact: React.FC<FileEditRowCompactProps> = ({
             </span>
             <span className="shrink-0 font-mono text-caption text-muted-foreground">
               {edit.lines_added > 0 && (
-                <span className="text-success">
+                <span className="text-success tabular-nums">
                   +{edit.lines_added}
                 </span>
               )}
               {edit.lines_removed > 0 && (
-                <span className="ml-1 text-destructive">
+                <span className="ml-1 text-destructive tabular-nums">
                   -{edit.lines_removed}
                 </span>
               )}

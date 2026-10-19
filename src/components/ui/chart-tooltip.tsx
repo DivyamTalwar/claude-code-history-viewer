@@ -45,7 +45,7 @@ export const ChartTooltip: React.FC<ChartTooltipProps> = ({
               <React.Fragment key={`${row.label}-${idx}`}>
                 <span className="text-primary-foreground/60">{row.label}</span>
                 <span
-                  className="text-right font-medium"
+                  className="text-right font-medium tabular-nums"
                   style={row.color ? { color: row.color } : undefined}
                 >
                   {row.value}

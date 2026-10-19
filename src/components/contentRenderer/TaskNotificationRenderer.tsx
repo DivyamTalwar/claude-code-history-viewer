@@ -110,7 +110,7 @@ const TaskRow = memo(function TaskRow({
         )}
       >
         {/* Index number */}
-        <span className="text-caption font-mono text-muted-foreground/50 w-4 text-right">
+        <span className="text-caption font-mono tabular-nums text-muted-foreground/50 w-4 text-right">
           {String(index + 1).padStart(2, "0")}
         </span>
 
@@ -306,7 +306,7 @@ export const TaskNotificationRenderer = memo(function TaskNotificationRenderer({
               "bg-background/60 border border-border/50"
             )}>
               <Hash className="w-3.5 h-3.5 text-muted-foreground" />
-              <span className="text-caption font-mono font-medium text-foreground/80">
+              <span className="text-caption font-mono tabular-nums font-medium text-foreground/80">
                 {notifications.length}
               </span>
             </div>
@@ -322,7 +322,7 @@ export const TaskNotificationRenderer = memo(function TaskNotificationRenderer({
                   "bg-success/10 border border-success/20"
                 )}>
                   <CircleCheck className="w-3.5 h-3.5 text-success" />
-                  <span className="text-caption font-mono text-success">
+                  <span className="text-caption font-mono tabular-nums text-success">
                     {statusCounts.completed}
                   </span>
                 </div>
@@ -334,7 +334,7 @@ export const TaskNotificationRenderer = memo(function TaskNotificationRenderer({
                   "animate-pulse-subtle"
                 )}>
                   <LoaderCircle className="w-3.5 h-3.5 text-info animate-spin" />
-                  <span className="text-caption font-mono text-info">
+                  <span className="text-caption font-mono tabular-nums text-info">
                     {statusCounts.running}
                   </span>
                 </div>
@@ -345,7 +345,7 @@ export const TaskNotificationRenderer = memo(function TaskNotificationRenderer({
                   "bg-destructive/10 border border-destructive/20"
                 )}>
                   <CircleX className="w-3.5 h-3.5 text-destructive" />
-                  <span className="text-caption font-mono text-destructive">
+                  <span className="text-caption font-mono tabular-nums text-destructive">
                     {statusCounts.failed}
                   </span>
                 </div>
