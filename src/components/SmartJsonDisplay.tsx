@@ -74,7 +74,7 @@ const formatValue = (key: string, value: unknown): React.ReactNode => {
         return <span className="text-emerald-600 dark:text-emerald-400 font-mono break-all">"{value}"</span>;
     }
 
-    if (typeof value === 'number') return <span className="text-blue-600 dark:text-blue-400 font-mono tabular-nums">{value}</span>;
+    if (typeof value === 'number') return <span className="text-blue-600 dark:text-blue-400 font-mono">{value}</span>;
     if (typeof value === 'boolean') return <span className="text-purple-600 dark:text-purple-400 font-bold font-mono">{String(value)}</span>;
 
     // Nested objects - simple recursive flatten or generic json

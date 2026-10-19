@@ -16,6 +16,7 @@ import {
 } from "../utils";
 import { supportsConversationBreakdown } from "../../../utils/providers";
 import { useFormat } from "@/lib/format/useFormat";
+import { keepNumbersWhole } from "@/utils/keepNumbersWhole";
 
 interface SessionStatsViewProps {
   sessionStats: SessionTokenStats;
@@ -206,7 +207,7 @@ export const SessionStatsView: React.FC<SessionStatsViewProps> = ({
                 {t("analytics.startTime")}
               </div>
               <div className="font-mono text-caption text-foreground mt-0.5">
-                {fmt.dateTime(sessionStats.first_message_time)}
+                {keepNumbersWhole(fmt.dateTime(sessionStats.first_message_time))}
               </div>
             </div>
 
@@ -230,7 +231,7 @@ export const SessionStatsView: React.FC<SessionStatsViewProps> = ({
                 {t("analytics.endTime")}
               </div>
               <div className="font-mono text-caption text-foreground mt-0.5">
-                {fmt.dateTime(sessionStats.last_message_time)}
+                {keepNumbersWhole(fmt.dateTime(sessionStats.last_message_time))}
               </div>
             </div>
           </div>

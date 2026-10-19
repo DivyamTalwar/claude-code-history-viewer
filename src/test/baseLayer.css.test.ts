@@ -71,7 +71,7 @@ describe("F1b base layer", () => {
 
   it("Korean breaks between words; Japanese and Chinese keep per-character breaking (never keep-all)", () => {
     const ko = inBase((r) => selectors(r).includes(":lang(ko)"));
-    expect(ko.map(decls)).toEqual([{ "word-break": "keep-all", "overflow-wrap": "anywhere" }]);
+    expect(ko.map(decls)).toEqual([{ "word-break": "keep-all", "overflow-wrap": "break-word" }]);
     const jaZh = inBase((r) => selectors(r).includes(":lang(ja)"));
     expect(jaZh.map(selectors)).toEqual([[":lang(ja)", ":lang(zh)"]]);
     expect(jaZh.map(decls)).toEqual([{ "line-break": "strict" }]);
@@ -80,9 +80,22 @@ describe("F1b base layer", () => {
     });
   });
 
-  it("only numbers (.tabular-nums) are exempt from Korean anywhere-wrapping, never all monospace text", () => {
-    const exempt = inBase((r) => /:lang\(ko\)/.test(r.selector) && decls(r)["overflow-wrap"] === "normal");
-    expect(exempt.map(selectors)).toEqual([[":lang(ko) .tabular-nums"]]);
+  it("never lowers min-content: no anywhere / break-all wrapping and no per-class exemption in the base layer", () => {
+    // `overflow-wrap: anywhere` and `word-break: break-all` count their break
+    // points in min-content, so a squeezed flex or grid item splits 69 into
+    // 6/9 and 1.4 MB into 1/./4/M/B. `break-word` only breaks a word wider
+    // than its whole line, so no element needs an exemption (none may exist,
+    // or numbers would depend on carrying a class again).
+    const lowering: string[] = [];
+    for (const layer of baseLayers) {
+      layer.walkDecls((d) => {
+        if ((d.prop === "overflow-wrap" || d.prop === "word-wrap") && d.value === "anywhere") lowering.push(`${(d.parent as Rule).selector} { ${d} }`);
+        if (d.prop === "word-break" && /break-all|break-word/.test(d.value)) lowering.push(`${(d.parent as Rule).selector} { ${d} }`);
+      });
+    }
+    expect(lowering).toEqual([]);
+    const wrapping = inBase((r) => /:lang\(/.test(r.selector) && decls(r)["overflow-wrap"] !== undefined);
+    expect(wrapping.map(selectors)).toEqual([[":lang(ko)"]]);
   });
 
   it("caption and list text get line height 1.5 in Korean, Japanese and Chinese (1.4 otherwise)", () => {

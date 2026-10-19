@@ -227,7 +227,7 @@ export const FileEditItem: React.FC<FileEditItemProps> = ({
                   toggleView("added");
                 }}
                 className={cn(
-                  "text-success bg-success/15 px-1.5 py-0.5 rounded transition-all tabular-nums",
+                  "text-success bg-success/15 px-1.5 py-0.5 rounded transition-all",
                   isExpanded && viewMode === "added"
                     ? "ring-2 ring-success/70"
                     : "hover:ring-1 hover:ring-success/50"
@@ -246,7 +246,7 @@ export const FileEditItem: React.FC<FileEditItemProps> = ({
                   toggleView("removed");
                 }}
                 className={cn(
-                  "text-destructive bg-destructive/15 px-1.5 py-0.5 rounded transition-all tabular-nums",
+                  "text-destructive bg-destructive/15 px-1.5 py-0.5 rounded transition-all",
                   isExpanded && viewMode === "removed"
                     ? "ring-2 ring-destructive/70"
                     : "hover:ring-1 hover:ring-destructive/50"

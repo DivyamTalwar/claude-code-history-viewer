@@ -1,16 +1,19 @@
-// Long monospace tokens still wrap inside their card in the Korean UI
+// Long monospace tokens wrap inside their card in every UI language
 // (inner-UI plan F1b, CJK wrapping follow-up).
 //
-// Real WebKit, the Korean UI on a 390x844 phone at root font scale 125%.
-// Korean text breaks with `overflow-wrap: anywhere`; only numbers are exempt
-// (`.tabular-nums`, see cjk.numericAtomic.test). Identifiers set in
-// monospace are not numbers: a full commit hash passed to a slash command and
-// a long path pattern must wrap inside the card, never run past its edge.
+// Real WebKit, a 390x844 phone at root font scale 125%. Korean text breaks
+// with `keep-all` + `overflow-wrap: break-word`; break-word never lowers an
+// element's min-content width, so it cannot shrink a flex item that holds a
+// long token. Identifiers are not numbers and may break anywhere, so the
+// components that show them in a flex row opt in where they render them
+// (`wrap-anywhere`): the argument of a slash command (a full commit hash) and
+// a Glob pattern must wrap inside the card, never run past its edge.
 // The cases are added to the generated Korean session (fixture copy owned by
 // this file), then their rows are opened as a user would.
-// Before the fix (UI_TEST_DIST=<F1b build whose exception covered every
-// `.font-mono` element>) both cases run past the card. Skipped without WebKit
-// or a built server.
+// Red: the F1b build whose exception covered every `.font-mono` element
+// (41ac2d22) and the break-word base layer without the component opt-in fail
+// in Korean; develop fails in every language. Skipped without WebKit or a
+// built server.
 
 import fs from "node:fs";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -106,14 +109,16 @@ const tokenGeometry = (page, token) =>
     };
   }, token);
 
-describe.skipIf(!ENABLED)("long monospace tokens wrap in the Korean UI (real WebKit)", () => {
-  it.each([
-    ["a commit hash passed to /review (command argument)", COMMIT_HASH, (page) => page.getByRole("button", { name: /\/review/ }).click()],
-    ["a long path pattern in a Glob call", GLOB_PATTERN, (page, run) => run({ do: "expandToolRows", tools: ["Glob"] })],
-  ])(
-    "390x844 / font scale 125%: %s stays inside its card",
-    async (_label, token, open) => {
-      const session = await openScenario(browser, app, SCENARIO_ID, { locale: "ko", variant: { fontScale: 1.25 } });
+const CASES = [
+  ["a commit hash passed to /review (command argument)", COMMIT_HASH, (page) => page.getByRole("button", { name: /\/review/ }).click()],
+  ["a long path pattern in a Glob call", GLOB_PATTERN, (page, run) => run({ do: "expandToolRows", tools: ["Glob"] })],
+];
+
+describe.skipIf(!ENABLED)("long monospace tokens wrap inside their card (real WebKit)", () => {
+  it.each(["ko", "ja", "en"].flatMap((locale) => CASES.map((c) => [locale, ...c])))(
+    "%s UI, 390x844 / font scale 125%: %s stays inside its card",
+    async (locale, _label, token, open) => {
+      const session = await openScenario(browser, app, SCENARIO_ID, { locale, variant: { fontScale: 1.25 } });
       try {
         const scenario = expandScenarios().find((s) => s.id === SCENARIO_ID);
         const run = createActions({ session, scenario, manifest: app.fixture, t: session.t });

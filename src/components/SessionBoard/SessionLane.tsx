@@ -17,6 +17,7 @@ import type { ActiveBrush } from "@/utils/brushMatchers";
 import type { ClaudeMessage } from "../../types";
 import { useTranslation } from "react-i18next";
 import { useFormat } from "@/lib/format/useFormat";
+import { keepNumbersWhole } from "@/utils/keepNumbersWhole";
 
 
 
@@ -271,7 +272,7 @@ export const SessionLane = ({
                         <div className="flex items-center justify-between">
                             <div className="flex items-center gap-1.5 overflow-hidden">
                                 <span className="text-caption font-mono text-muted-foreground/70 shrink-0">
-                                    {fmt.time(session.last_modified)}  •  {fmt.date(session.last_modified, "short")}
+                                    {keepNumbersWhole(fmt.time(session.last_modified))}  •  {fmt.date(session.last_modified, "short")}
                                 </span>
                             </div>
                             <div className="flex gap-3 items-center">

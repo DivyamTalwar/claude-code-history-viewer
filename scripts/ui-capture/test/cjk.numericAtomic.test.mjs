@@ -1,28 +1,32 @@
-// Numeric tokens never break inside themselves (inner-UI plan F1b, CJK
-// wrapping follow-up).
+// Numbers never break inside themselves (inner-UI plan F1b, CJK wrapping).
 //
-// Real WebKit, the session board at 390x844 with root font scale 125%, in
-// every CJK UI language. The board's metrics are plain numbers and compact
-// magnitudes (69, 181, 17.6K, 501.3K); a numeric token must always render on
-// one line. F1b's global Korean `overflow-wrap: anywhere` let a squeezed flex
-// item size down to a single digit and split 69 into 6/9 — this test pins the
-// invariant so the wrapping rule can never bite numbers again.
-// Before the fix (UI_TEST_DIST=<F1b head without the atomic-number rule>)
-// the Korean case fails. Skipped without WebKit or a built server.
+// Real WebKit, 390x844 with root font scale 125 %, in every CJK UI language.
+// Every number in UI text is measured with a DOM Range: its sign, digits,
+// separators and what is glued to it (17.6K, 3.5%, 62×) must render on one
+// line. A unit after a space (1.4 MB) may move to the next line, as on
+// develop. Code, paths and ids are not numbers and are skipped.
+//
+// Two mechanisms split numbers in the Korean UI, both pinned here:
+//   - `overflow-wrap: anywhere` counts its break points in min-content, so a
+//     squeezed flex or grid item shrinks to one character: 69 -> 6/9 on the
+//     board, 1.4 MB -> 1/./4/M/B on the archive's expiry cards. The base layer
+//     uses `break-word`, which never lowers min-content, so no number needs a
+//     class to stay whole.
+//   - WebKit breaks a keep-all text node that holds Hangul after every
+//     punctuation mark, so a date and time rendered as one text node
+//     ("… 오후 01:26:25", the message header's details popover) wraps after
+//     "01:". keepNumbersWhole() renders such numbers as their own text node.
+// Before the fix (UI_TEST_DIST=<F1b 027986fb build>) the Korean archive and
+// transcript cases fail. Skipped without WebKit or a built server.
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { webkit } from "playwright";
 import { browserRequirement } from "./requirements.mjs";
 import { openScenario, startApp } from "./appSession.mjs";
 
-/* global document, getComputedStyle, NodeFilter */
+/* global document, NodeFilter */
 
 const ENABLED = browserRequirement({ webkit: true, server: true }, { label: "cjk.numericAtomic.test" }).enabled;
-
-// A whole text node that is one numeric token: digits with optional
-// thousands separators / decimal point, an optional compact-magnitude
-// suffix (ASCII or CJK: 17.6K, 501.3K, 1.8万, 5940만) and optional %.
-const NUMERIC_TOKEN = /^\d[\d,.]*\s*(?:[KkMmB]|만|万|억|천)?%?$/;
 
 let app;
 let browser;
@@ -38,51 +42,79 @@ afterAll(async () => {
   await app?.stop();
 });
 
-/** Visible text nodes that are a single numeric token and their rendered line counts. */
-const numericTokenLines = (page) =>
+/**
+ * Every number in visible UI text: `core` (sign, digits, separators, a glued
+ * K/M/B/T, % or ×), its unit (glued or after a space), the text around it and
+ * the number of lines the core spans. Popovers hidden by opacity count: they
+ * are laid out and shown on hover.
+ */
+const numbersOnPage = (page) =>
   page.evaluate(() => {
-    const NUMERIC_TOKEN = /^\d[\d,.]*\s*(?:[KkMmB]|만|万|억|천)?%?$/;
+    const TOKEN =
+      /(?<![\p{L}\p{N}_.,:/\\-])(?<core>[+\-\u2212]?\d+(?:[.,:/-]\d+)*(?:[KkMBT](?!\p{L}))?(?:%|\u00d7)?)(?<unit>\u2060?(?:KB|MB|GB|TB|kB|ms|만|억|천|万|亿|萬|億|千|분|초|시간|일|개|회|건|件|個|个|回|次|秒|分|小时|時間|天|日|[smhdx%]))?(?<spaced>[ \u00a0](?:KB|MB|GB|TB|kB|B|ms|s|K|M))?(?![\p{L}\p{N}_])/gu;
+    const SKIP = 'pre, code, kbd, samp, textarea, input, [contenteditable="true"]';
+    const lines = (node, start, end) => {
+      const range = document.createRange();
+      range.setStart(node, start);
+      range.setEnd(node, end);
+      const rects = [...range.getClientRects()].filter((r) => r.width > 0.3 && r.height > 0);
+      return rects.length ? new Set(rects.map((r) => Math.round(r.top))).size : 0;
+    };
     const out = [];
     const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
     for (let n = walker.nextNode(); n; n = walker.nextNode()) {
-      const value = n.nodeValue ?? "";
-      if (!NUMERIC_TOKEN.test(value)) continue;
+      const text = n.nodeValue ?? "";
       const el = n.parentElement;
-      if (!el || !el.checkVisibility()) continue;
-      const range = document.createRange();
-      range.selectNodeContents(n);
-      const lines =
-        new Set(
-          [...range.getClientRects()]
-            .filter((r) => r.width > 1 && r.height > 0)
-            .map((r) => Math.round(r.top)),
-        ).size || 1;
-      out.push({
-        text: value,
-        lines,
-        overflowWrap: getComputedStyle(el).overflowWrap,
-      });
+      if (!el || !el.checkVisibility() || el.closest(SKIP)) continue;
+      // Paths and ids (a/b, 41ac2d22cac2…) may wrap anywhere; they are not numbers.
+      if (/\w[\\/]\w/.test(text) || /[0-9a-f]{12,}/i.test(text)) continue;
+      const context = (el.textContent ?? text).trim().slice(0, 80);
+      for (const m of text.matchAll(TOKEN)) {
+        const { core, unit = "", spaced = "" } = m.groups;
+        const coreLines = lines(n, m.index, m.index + core.length);
+        if (!coreLines) continue;
+        out.push({ text: m[0], core, unit: unit || spaced.trim(), context, lines: coreLines });
+      }
     }
     return out;
   });
 
-describe.skipIf(!ENABLED)("atomic numeric tokens (real WebKit)", () => {
-  it.each(["ko", "ja", "zh-CN"])(
-    "%s UI, board at 390x844 / font scale 125%: every numeric metric renders on one line",
-    async (locale) => {
-      const session = await openScenario(browser, app, "board--390x844--dark", {
-        locale,
-        variant: { fontScale: 1.25 },
-      });
-      try {
-        const nodes = await numericTokenLines(session.page);
-        expect(nodes.length, "no numeric metrics visible on the board to measure").toBeGreaterThan(0);
-        const split = nodes.filter((n) => n.lines > 1);
-        expect(split, JSON.stringify(split)).toEqual([]);
-      } finally {
-        await session.close();
-      }
-    },
-    120_000,
-  );
+/** Open `id`, run `prepare` (scrolling, expanding), and measure every number on the page. */
+async function measure(id, locale, prepare = async () => {}) {
+  const session = await openScenario(browser, app, id, { locale, variant: { fontScale: 1.25 } });
+  try {
+    await prepare(session.page);
+    return await numbersOnPage(session.page);
+  } finally {
+    await session.close();
+  }
+}
+
+const split = (numbers) => numbers.filter((n) => n.lines > 1);
+const LOCALES = ["ko", "ja", "zh-CN"];
+
+describe.skipIf(!ENABLED)("numbers never break inside themselves (real WebKit, 390x844, font scale 125%)", () => {
+  it.each(LOCALES)("%s UI, board: every metric renders on one line", async (locale) => {
+    const numbers = await measure("board--390x844--dark", locale);
+    expect(numbers.length, "no numbers visible on the board to measure").toBeGreaterThan(10);
+    expect(split(numbers), JSON.stringify(split(numbers))).toEqual([]);
+  }, 120_000);
+
+  it.each(LOCALES)("%s UI, archive: file sizes in the expiry cards keep their number on one line (UI font, no class)", async (locale) => {
+    const numbers = await measure("archive--390x844--dark", locale, async (page) => {
+      // The expiry cards sit below the fold: bring each size into view as a user would.
+      const sizes = page.getByText(/^\d[\d,.]*\s?(?:B|KB|MB|GB|TB)$/);
+      for (let i = 0; i < (await sizes.count()); i += 1) await sizes.nth(i).scrollIntoViewIfNeeded();
+    });
+    const sizes = numbers.filter((n) => /^(?:B|KB|MB|GB|TB)$/.test(n.unit));
+    expect(sizes.length, "no file sizes on the archive to measure").toBeGreaterThan(0);
+    expect(split(numbers), JSON.stringify(split(numbers))).toEqual([]);
+  }, 120_000);
+
+  it.each(LOCALES)("%s UI, transcript: message times, also inside a localized date in the details popover, stay whole", async (locale) => {
+    const numbers = await measure("transcript-mixed-turn--390x844--dark", locale);
+    const times = numbers.filter((n) => /^\d{1,2}:\d{2}(?::\d{2})?$/.test(n.core) && /[\u3040-\u30ff\u4e00-\u9fff\uac00-\ud7af]/.test(n.context));
+    expect(times.length, "no localized message times to measure").toBeGreaterThan(0);
+    expect(split(numbers), JSON.stringify(split(numbers))).toEqual([]);
+  }, 120_000);
 });

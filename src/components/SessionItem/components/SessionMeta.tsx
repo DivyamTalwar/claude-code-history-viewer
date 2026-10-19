@@ -26,7 +26,7 @@ export const SessionMeta: React.FC<SessionMetaProps> = ({
     <div className="flex min-w-0 items-center gap-2 ml-7 text-caption">
       <span
         className={cn(
-          "flex shrink-0 items-center gap-1 whitespace-nowrap font-mono tabular-nums",
+          "flex shrink-0 items-center gap-1 whitespace-nowrap font-mono",
           isSelected ? "text-accent/80" : "text-muted-foreground"
         )}
       >
@@ -37,7 +37,7 @@ export const SessionMeta: React.FC<SessionMetaProps> = ({
       </span>
       <span
         className={cn(
-          "flex shrink-0 items-center gap-1 whitespace-nowrap font-mono tabular-nums",
+          "flex shrink-0 items-center gap-1 whitespace-nowrap font-mono",
           isSelected ? "text-accent/80" : "text-muted-foreground"
         )}
       >

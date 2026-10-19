@@ -19,6 +19,7 @@ import type { PathContext } from "@/lib/format/path";
 import { PathText } from "@/lib/format/PathText";
 import { useSessionTokenStats } from "./useSessionTokenStats";
 import { useFormat } from "@/lib/format/useFormat";
+import { keepNumbersWhole } from "@/utils/keepNumbersWhole";
 
 /**
  * A moment as date and time, each kept on one line: in a narrow column the
@@ -38,7 +39,7 @@ const Moment = ({ timestamp }: { timestamp: string }) => {
   return (
     <time dateTime={timestamp} title={fmt.dateTimeFull(date)} className="flex flex-wrap gap-x-1.5">
       <span className="whitespace-nowrap">{fmt.date(date, "long")}</span>
-      <span className="whitespace-nowrap">{fmt.time(date)}</span>
+      <span className="whitespace-nowrap">{keepNumbersWhole(fmt.time(date))}</span>
     </time>
   );
 };

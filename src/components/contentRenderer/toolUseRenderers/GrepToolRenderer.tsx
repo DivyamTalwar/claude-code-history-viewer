@@ -83,7 +83,7 @@ export const GrepToolRenderer = memo(function GrepToolRenderer({ toolId, input }
         )}
         {input.head_limit != null && (
           <ToolUsePropertyRow label={t("rendererLabels.limit")} className="items-center">
-            <code className={cn(layout.bodyText, "font-mono tabular-nums text-foreground")}>{input.head_limit}</code>
+            <code className={cn(layout.bodyText, "font-mono text-foreground")}>{input.head_limit}</code>
           </ToolUsePropertyRow>
         )}
       </div>

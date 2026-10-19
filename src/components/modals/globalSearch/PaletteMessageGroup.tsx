@@ -24,6 +24,7 @@ import { messageItemValue } from "./paletteMessageValues";
 import { FailedLoad, PALETTE_GROUP_CLASS, ProviderBadge, ShowMoreItem } from "./PalettePlaceGroups";
 import type { MessageSearchView } from "./usePaletteMessageSearch";
 import { useFormat } from "@/lib/format/useFormat";
+import { keepNumbersWhole } from "@/utils/keepNumbersWhole";
 
 // Conversation titles per project, shared across palette opens. Keyed by
 // path + last_modified so a rescan that touched the project refetches.
@@ -339,7 +340,7 @@ export function PaletteMessageGroup({
                       {result.type === "assistant" && <Bot className="w-3.5 h-3.5" />}
                       {result.type}
                     </span>
-                    <span className="text-list text-muted-foreground">{formatTimestamp(result.timestamp)}</span>
+                    <span className="text-list text-muted-foreground">{keepNumbersWhole(formatTimestamp(result.timestamp))}</span>
                   </div>
                   {name && (
                     <p className="flex items-center gap-1 text-list text-muted-foreground/70 mb-0.5">

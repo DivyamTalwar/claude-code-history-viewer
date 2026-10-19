@@ -6,6 +6,7 @@ import { TrendingUp, Zap, Database, Eye, Brain } from "lucide-react";
 import type { SessionTokenStats } from "../types";
 import { cn } from "@/lib/utils";
 import { useFormat } from "@/lib/format/useFormat";
+import { keepNumbersWhole } from "@/utils/keepNumbersWhole";
 
 /**
  * SessionStatsCard - Compact token usage card
@@ -86,7 +87,7 @@ export const SessionStatsCard = memo(({
 
           {/* Right: Time */}
           <div className="text-caption text-muted-foreground/70 font-mono tabular-nums">
-            {fmt.dateTime(stats.first_message_time)}
+            {keepNumbersWhole(fmt.dateTime(stats.first_message_time))}
           </div>
         </div>
 

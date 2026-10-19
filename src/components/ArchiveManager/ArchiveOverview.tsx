@@ -394,7 +394,7 @@ export const ArchiveOverview: React.FC = () => {
               {t('archive.overview.fullBackup.noProjects')}
             </div>
           ) : (
-            <div className="flex items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <Switch
                   id={backupSubagentsId}
@@ -587,7 +587,7 @@ export const ArchiveOverview: React.FC = () => {
                           <p className="text-body truncate">
                             {expiring.session.summary || `Session ${expiring.session.session_id.slice(-8)}`}
                           </p>
-                          <div className="flex items-center gap-2 mt-1">
+                          <div className="flex flex-wrap items-center gap-2 mt-1">
                             <Badge variant="destructive" className="text-caption">
                               {t('archive.overview.expiring.daysRemaining', { days: expiring.daysRemaining })}
                             </Badge>
@@ -629,7 +629,7 @@ export const ArchiveOverview: React.FC = () => {
                           <p className="text-body truncate">
                             {expiring.session.summary || `Session ${expiring.session.session_id.slice(-8)}`}
                           </p>
-                          <div className="flex items-center gap-2 mt-1">
+                          <div className="flex flex-wrap items-center gap-2 mt-1">
                             <Badge variant="destructive" className="text-caption">
                               {t('archive.overview.expiring.daysRemaining', { days: expiring.daysRemaining })}
                             </Badge>

@@ -9,6 +9,7 @@ import { CircleQuestionMark } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
+import { keepNumbersWhole } from "../../../utils/keepNumbersWhole";
 import { getShortModelName } from "../../../utils/model";
 import { ModelLifecycleBadge } from "@/components/ModelLifecycleBadge";
 import { getToolName } from "../../../utils/toolUtils";
@@ -73,11 +74,11 @@ export const MessageHeader: React.FC<MessageHeaderProps> = ({ message }) => {
         <Tooltip>
           <TooltipTrigger asChild>
             <button type="button" className="cursor-default">
-              {fmt.time(message.timestamp)}
+              {keepNumbersWhole(fmt.time(message.timestamp))}
             </button>
           </TooltipTrigger>
           <TooltipContent side="top" sideOffset={4}>
-            {fmt.dateTimeFull(message.timestamp)}
+            {keepNumbersWhole(fmt.dateTimeFull(message.timestamp))}
           </TooltipContent>
         </Tooltip>
         {message.isSidechain && (
@@ -108,7 +109,7 @@ export const MessageHeader: React.FC<MessageHeaderProps> = ({ message }) => {
                 isTooltipOpen ? "opacity-100 pointer-events-auto" : "opacity-0 group-hover:opacity-100 pointer-events-none"
               )}>
                 <p className="mb-1"><strong>{t("assistantMessageDetails.model")}:</strong> {message.model}</p>
-                <p className="mb-1"><strong>{t("messageViewer.time")}:</strong> {fmt.dateTimeFull(message.timestamp)}</p>
+                <p className="mb-1"><strong>{t("messageViewer.time")}:</strong> {keepNumbersWhole(fmt.dateTimeFull(message.timestamp))}</p>
                 {message.usage.input_tokens && <p>{t("assistantMessageDetails.input")}: {fmt.count(message.usage.input_tokens)}</p>}
                 {message.usage.output_tokens && <p>{t("assistantMessageDetails.output")}: {fmt.count(message.usage.output_tokens)}</p>}
                 {message.usage.cache_creation_input_tokens ? <p>{t("assistantMessageDetails.cacheCreation")}: {fmt.count(message.usage.cache_creation_input_tokens)}</p> : null}

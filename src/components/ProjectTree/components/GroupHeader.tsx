@@ -121,7 +121,7 @@ export const GroupHeader: React.FC<GroupHeaderProps> = ({
       </span>
 
       {/* Count Badge */}
-      <span className={cn("flex items-center gap-1 text-caption font-mono tabular-nums px-1.5 py-0.5 rounded", colors.badge)}>
+      <span className={cn("flex items-center gap-1 text-caption font-mono px-1.5 py-0.5 rounded", colors.badge)}>
         {count}
       </span>
     </button>

@@ -995,23 +995,19 @@
     }
   }
 
-  /* CJK line breaking (F1b, G-CJ2, plan D12): Korean breaks between words
-     (keep-all; anywhere stops a long path or English word from overflowing).
+  /* CJK line breaking (F1b, G-CJ2, plan D12). Korean breaks between words
+     (keep-all). A word wider than its whole line still breaks instead of
+     overflowing (break-word), but unlike `anywhere` that last-resort break
+     never lowers an element's min-content width: a squeezed flex or grid
+     item keeps its longest word, so Korean words and numbers (69, 17.6K,
+     1.4 MB) never fall apart into one-character columns. Never `anywhere`
+     here. A token that must shrink inside a flex row (a hash, path or glob
+     pattern) opts in with `wrap-anywhere` where it is rendered.
      Japanese and Chinese keep their normal per-character breaking - keep-all
      there would glue whole sentences - with strict kinsoku rules. */
   :lang(ko) {
     word-break: keep-all;
-    overflow-wrap: anywhere;
-  }
-
-  /* Numbers stay whole. `anywhere` also shrinks min-content to one
-     character, so a squeezed flex item would split 69 into 6/9 or 17.6K
-     into 17.6/K. `.tabular-nums` is the numeric-value marker: put it on the
-     element whose own text is the count, metric, cost, duration or time.
-     Not on `.font-mono` - hashes, paths, ids and code are not numbers and
-     must keep wrapping inside their card. */
-  :lang(ko) .tabular-nums {
-    overflow-wrap: normal;
+    overflow-wrap: break-word;
   }
 
   :lang(ja),
@@ -2004,8 +2000,6 @@
   }
 
   /* === Numeric Variants === */
-  /* Also the numeric-value marker: a Korean UI never breaks inside it
-     (base layer, CJK line breaking). */
   .tabular-nums {
     font-variant-numeric: tabular-nums;
   }

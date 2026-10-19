@@ -41,6 +41,7 @@ import {
 import { calculateConversationBreakdownCoverage } from "../../../utils/providers";
 import { ModelLifecycleBadge } from "../../ModelLifecycleBadge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../../ui/tooltip";
+import { keepNumbersWhole } from "@/utils/keepNumbersWhole";
 
 interface GlobalStatsViewProps {
   globalSummary: GlobalStatsSummary;
@@ -186,7 +187,7 @@ export const GlobalStatsView: React.FC<GlobalStatsViewProps> = ({
           </span>
         )}
         <span className="px-2 py-1 rounded-md bg-muted/40 text-muted-foreground text-caption">
-          {t("analytics.lastUpdated", "Last updated")}: {lastUpdated}
+          {t("analytics.lastUpdated", "Last updated")}: {keepNumbersWhole(lastUpdated)}
         </span>
       </div>
 

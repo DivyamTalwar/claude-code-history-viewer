@@ -84,7 +84,7 @@ export const TerminalExecutionResultRenderer = memo(function TerminalExecutionRe
           <span
             className={cn(
               layout.monoText,
-              "px-1.5 py-0.5 rounded tabular-nums",
+              "px-1.5 py-0.5 rounded",
               isSuccess ? "bg-success/20 text-success" : "bg-warning/20 text-warning"
             )}
           >

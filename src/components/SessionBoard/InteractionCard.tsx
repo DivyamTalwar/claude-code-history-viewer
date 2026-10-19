@@ -22,6 +22,7 @@ import { getCardSemantics } from "@/utils/cardSemantics";
 import { ExpandedCard } from "./ExpandedCard";
 import { formatCommandMessageText } from "@/utils/commandMessage";
 import { useFormat } from "@/lib/format/useFormat";
+import { keepNumbersWhole } from "@/utils/keepNumbersWhole";
 import { scrollBehavior } from "@/utils/motion";
 interface InteractionCardProps {
     message: ClaudeMessage;
@@ -335,7 +336,7 @@ export const InteractionCard = memo(({
                                 {agentName} {totalMessagesCount > 1 && `(x${totalMessagesCount})`}
                             </span>
                             <span className="text-caption text-muted-foreground font-mono">
-                                {fmt.time(message.timestamp)}
+                                {keepNumbersWhole(fmt.time(message.timestamp))}
                             </span>
                         </div>
 
@@ -551,7 +552,7 @@ export const InteractionCard = memo(({
                         )}
                     </div>
                     <span className="text-caption text-muted-foreground font-mono">
-                        {fmt.time(message.timestamp)}
+                        {keepNumbersWhole(fmt.time(message.timestamp))}
                     </span>
                 </div>
 

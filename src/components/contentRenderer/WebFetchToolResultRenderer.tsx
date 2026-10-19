@@ -15,6 +15,7 @@ import { getVariantStyles, layout } from "../renderers";
 import { ToolResultCard } from "./ToolResultCard";
 import { getCommonToolErrorMessages } from "./toolResultErrorMessages";
 import { useFormat } from "@/lib/format/useFormat";
+import { keepNumbersWhole } from "@/utils/keepNumbersWhole";
 
 /** Web fetch result content structure */
 interface WebFetchResult {
@@ -173,7 +174,7 @@ export const WebFetchToolResultRenderer = memo(function WebFetchToolResultRender
           <Clock className={layout.iconSizeSmall} />
           <span>
             {t("webFetchToolResultRenderer.retrievedAt")}:{" "}
-            {fmt.dateTime(retrieved_at)}
+            {keepNumbersWhole(fmt.dateTime(retrieved_at))}
           </span>
         </div>
       )}
