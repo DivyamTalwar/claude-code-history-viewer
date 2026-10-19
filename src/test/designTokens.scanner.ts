@@ -584,10 +584,6 @@ export function scanProgramFile(file: ts.SourceFile, checker: ts.TypeChecker, fi
   const findings: Finding[] = [];
   /** Parts of templates / `+` chains folded to UNKNOWN past MAX_ALTERNATIVES: scanned on their own. */
   const folded = new Set<ts.Node>();
-  const insideFolded = (node: ts.Node): boolean => {
-    for (let n: ts.Node | undefined = node; n && !ts.isSourceFile(n); n = n.parent) if (folded.has(n)) return true;
-    return false;
-  };
   const report = (node: ts.Node, category: Category, snippet: string) => {
     const line = file.getLineAndCharacterOfPosition(node.getStart(file)).line + 1;
     findings.push({ file: fileName, line, category, snippet: normalize(snippet) });
@@ -677,7 +673,9 @@ export function scanProgramFile(file: ts.SourceFile, checker: ts.TypeChecker, fi
       parent = parent.parent;
     }
     if (!parent || !(ts.isTemplateSpan(parent) || (ts.isBinaryExpression(parent) && parent.operatorToken.kind === ts.SyntaxKind.PlusToken))) return false;
-    return !insideFolded(node); // folded to UNKNOWN there: nothing scanned it yet
+    // Only the operand handed to the enclosing string's product can be folded; when the
+    // enclosing `+` / template was folded itself, it is scanned on its own and covers this literal.
+    return !folded.has(child);
   };
 
   const visit = (node: ts.Node) => {

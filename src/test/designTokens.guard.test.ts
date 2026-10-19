@@ -302,6 +302,11 @@ describe("design-token guard: a template with more than 64 alternatives (CodeRab
     expect(only(`${DECL7}declare const on: boolean; const c = \`${OVERFLOW} \${on ? "rounded-2xl" : "rounded-md"}\`;`)).toEqual(["radius"]);
   });
 
+  it("counts a literal inside a folded `+` span once (CodeRabbit 4309063910)", () => {
+    expect(only(`${DECL7}declare const on: boolean; const c = \`${OVERFLOW} \${(on ? "a" : "b") + " rounded-2xl"}\`;`)).toEqual(["radius"]);
+    expect(only(`${DECL7}declare const on: boolean; const c = \`${OVERFLOW} \${((on ? "a" : "b") + " rounded-2xl")}\`;`)).toEqual(["radius"]);
+  });
+
   it("still reports a dynamic style utility after the overflow", () => {
     expect(only(`${DECL7}declare const tone: string; <div className={\`${OVERFLOW} bg-\${tone}\`} />;`)).toEqual(["dynamicClass"]);
   });
