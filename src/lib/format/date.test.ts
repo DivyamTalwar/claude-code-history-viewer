@@ -18,10 +18,22 @@ const TZ = "Asia/Seoul";
 const AT = "2026-06-29T21:44:30Z";
 const NOW = Date.parse("2026-07-02T03:00:00Z");
 
+// Korean's AM marker is CLDR data that changed: "오전" up to CLDR 47, "AM"
+// from CLDR 48 (ICU 78, Node 20.20+). Take it from the running ICU; the rest
+// of every Korean string below (order, spacing, date, no seconds) is fixed.
+const KO_AM =
+  new Intl.DateTimeFormat("ko", { hour: "numeric", timeZone: "UTC" })
+    .formatToParts(Date.UTC(2026, 0, 1, 6))
+    .find((part) => part.type === "dayPeriod")?.value ?? "";
+
+it("Korean AM marker is one of the known CLDR forms", () => {
+  expect(["오전", "AM"]).toContain(KO_AM);
+});
+
 describe("formatTime / formatDateTime — two styles, no seconds", () => {
   it.each([
     ["en", "6:44 AM", "Jun 30, 6:44 AM"],
-    ["ko", "오전 6:44", "6월 30일 오전 6:44"],
+    ["ko", `${KO_AM} 6:44`, `6월 30일 ${KO_AM} 6:44`],
     ["ja", "6:44", "6月30日 6:44"],
     ["zh-CN", "6:44", "6月30日 6:44"],
     ["zh-TW", "上午6:44", "6月30日 上午6:44"],
@@ -38,7 +50,7 @@ describe("formatTime / formatDateTime — two styles, no seconds", () => {
 
   it("keeps seconds for the full form (tooltips)", () => {
     expect(formatDateTimeFull(AT, "en", { timeZone: TZ })).toBe("June 30, 2026 at 6:44:30 AM");
-    expect(formatDateTimeFull(AT, "ko", { timeZone: TZ })).toBe("2026년 6월 30일 오전 6:44:30");
+    expect(formatDateTimeFull(AT, "ko", { timeZone: TZ })).toBe(`2026년 6월 30일 ${KO_AM} 6:44:30`);
   });
 
   it("accepts epoch milliseconds and Date objects", () => {
@@ -128,8 +140,10 @@ describe("isSameLocalDay", () => {
 describe("app language en + OS ko → no Korean dates", () => {
   it("never falls back to the OS locale", () => {
     withOsLocale("ko-KR", () => {
-      // Control: an unlocalized call really prints Korean under the stub.
-      expect(new Date(AT).toLocaleTimeString(undefined, { timeZone: TZ })).toMatch(/오전/);
+      // Control: unlocalized calls really print Korean under the stub (Hangul
+      // in a date in every CLDR version; Korean order for a time).
+      expect(new Date(AT).toLocaleDateString(undefined, { timeZone: TZ, month: "long" })).toBe("6월");
+      expect(new Date(AT).toLocaleTimeString(undefined, { timeZone: TZ })).toBe(`${KO_AM} 6:44:30`);
 
       const outputs = [
         formatTime(AT, "en", { timeZone: TZ }),
