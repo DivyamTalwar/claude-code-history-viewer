@@ -5,6 +5,7 @@
 //   pnpm ui:capture --scenarios scripts/ui-capture/ci-scenarios.mjs   the CI subset
 //   pnpm ui:capture --repro                  capture twice, gate reproducibility (0%)
 //   pnpm ui:capture --base <ref|dir> [--gate reproducibility|unchanged|changed]
+//   pnpm ui:capture --base <ref> --gate unchanged --expect-changed <id,prefix*>   intended changes
 //   pnpm ui:capture --approve | --approve-from <run-dir>
 //
 // See scripts/ui-capture/README.md. Exit code 1 when any scenario fails to
@@ -21,6 +22,7 @@ import { generateFixture, snapshotTree } from "./fixtures/generate.mjs";
 import { createActions } from "./lib/actions.mjs";
 import { newScenarioPage, settle, screenshot } from "./lib/browser.mjs";
 import { GATES, formatReport, runGate } from "./lib/compare.mjs";
+import { ExpectedChangesError, expectedBy, parseExpectedList, unmatchedPatterns } from "./lib/expectedChanges.mjs";
 import { SUPPORTED_LOCALES, loadTranslator } from "./lib/i18n.mjs";
 import { checkMeasurementState, runProbes } from "./lib/probes.mjs";
 import { populationFailures, runInnerProbes } from "./lib/innerProbes.mjs";
@@ -55,6 +57,12 @@ const HELP = `usage: pnpm ui:capture [options]
   --base <ref|dir>        compare against a git ref (built + captured in a temp
                           worktree, cached) or a directory of baseline PNGs / a run dir
   --gate <mode>           ${GATES.join(" | ")} (default: reproducibility)
+  --expect-changed <ids>  with --gate unchanged: scenarios this change alters on
+                          purpose (comma list of exact ids or <prefix>*); they
+                          may exceed 0.1% and are reported as expected-change.
+                          An entry matching no selected scenario is an error.
+                          CI takes it from the PR body line
+                          \`ui-expected-changes: <ids>\` (see README "Gates")
   --approved <dir>        approved baselines for --gate changed (default .ui-capture/approved)
   --approve               after capturing, copy this run's PNGs into the approved dir
   --approve-from <dir>    approve an existing run dir without capturing
@@ -83,7 +91,7 @@ const HELP = `usage: pnpm ui:capture [options]
 `;
 
 function parseArgs(argv) {
-  const opts = { build: true, approve: false, repro: false, only: [], variant: {} };
+  const opts = { build: true, approve: false, repro: false, only: [], expectChanged: [], variant: {} };
   const value = (i, flag) => {
     const v = argv[i + 1];
     if (v === undefined || v.startsWith("--")) throw new UsageError(`${flag} needs a value`);
@@ -95,6 +103,7 @@ function parseArgs(argv) {
       case "--repro": opts.repro = true; break;
       case "--base": opts.base = value(i, arg); i += 1; break;
       case "--gate": opts.gate = value(i, arg); i += 1; break;
+      case "--expect-changed": opts.expectChanged = expectChangedList(value(i, arg)); i += 1; break;
       case "--approved": opts.approved = path.resolve(value(i, arg)); i += 1; break;
       case "--approve": opts.approve = true; break;
       case "--approve-from": opts.approveFrom = path.resolve(value(i, arg)); i += 1; break;
@@ -118,6 +127,7 @@ function parseArgs(argv) {
   }
   if (opts.gate && !GATES.includes(opts.gate)) throw new UsageError(`--gate must be one of ${GATES.join(", ")}`);
   if (opts.gate && !opts.base) throw new UsageError("--gate needs --base (or use --repro)");
+  if (opts.expectChanged.length && opts.gate !== "unchanged") throw new UsageError("--expect-changed applies to --gate unchanged only");
   if (opts.repro && opts.base) throw new UsageError("--repro and --base are exclusive");
   if (opts.locale && !SUPPORTED_LOCALES.includes(opts.locale)) throw new UsageError(`--locale must be one of ${SUPPORTED_LOCALES.join(", ")}`);
   try {
@@ -129,6 +139,19 @@ function parseArgs(argv) {
   if (opts.variant.live && (opts.repro || opts.base)) throw new UsageError("--live is for interaction tests; it cannot feed a pixel gate (--repro / --base)");
   opts.approved ??= path.join(OUT_ROOT, "approved");
   return opts;
+}
+
+/** `--expect-changed` value: at least one entry, each an id or `<prefix>*`. */
+function expectChangedList(text) {
+  let entries;
+  try {
+    entries = parseExpectedList(text);
+  } catch (error) {
+    if (error instanceof ExpectedChangesError) throw new UsageError(error.message);
+    throw error;
+  }
+  if (entries.length === 0) throw new UsageError("--expect-changed needs at least one scenario id");
+  return entries;
 }
 
 // ---------------------------------------------------------------------------
@@ -582,9 +605,16 @@ async function main() {
   }
   const scenarios = opts.only.length ? pool.filter((s) => opts.only.some((o) => s.id.includes(o))) : pool;
   if (scenarios.length === 0) throw new UsageError(`--only ${opts.only.join(",")} matches no scenario`);
+  // Before anything is built or captured, so a typo fails at once.
+  const unmatched = unmatchedPatterns(opts.expectChanged, scenarios.map((s) => s.id));
+  if (unmatched.length) throw new UsageError(`--expect-changed ${unmatched.join(", ")} matches no selected scenario (--list prints them)`);
   if (opts.list) {
     for (const scenario of scenarios) console.log(scenario.id);
     return 0;
+  }
+  if (opts.expectChanged.length) {
+    const covered = scenarios.filter((s) => expectedBy(s.id, opts.expectChanged)).map((s) => s.id);
+    console.log(`▸ expected changes (--expect-changed ${opts.expectChanged.join(",")}): ${covered.length} scenario(s) may exceed 0.1%: ${covered.join(", ")}`);
   }
   if (inactive.length) {
     const owners = [...new Set(inactive.map((s) => s.activatesWith))].sort();
@@ -610,6 +640,7 @@ async function main() {
 
   const failures = [];
   let comparison = null;
+  let gateNotes = "";
 
   if (opts.repro) {
     const first = await captureRun({ app: head, scenarios, declared, inactive, locale, measurement, variant: opts.variant, runDir: path.join(runDir, "run-1"), label: "repro run 1" });
@@ -636,6 +667,7 @@ async function main() {
       baseDir: comparison.baseDir,
       approvedDir: opts.approved,
       diffDir: path.join(runDir, "compare", "diff"),
+      expectChanged: opts.expectChanged,
     });
     const report = formatReport({ ...outcome, baseLabel: comparison.baseLabel, headLabel: comparison.headLabel });
     fs.mkdirSync(path.join(runDir, "compare"), { recursive: true });
@@ -643,6 +675,10 @@ async function main() {
     writeJson(path.join(runDir, "compare", "report.json"), { ...outcome, base: comparison.baseLabel, head: comparison.headLabel });
     console.log(`\n${report}`);
     failures.push(...outcome.failures.map((f) => `gate ${comparison.gate}: ${f}`));
+    const notes = [];
+    if (outcome.expectedChanges.length) notes.push(`${outcome.expectedChanges.length} expected change(s)`);
+    if (outcome.warnings.length) notes.push(`${outcome.warnings.length} warning(s)`);
+    if (notes.length) gateNotes = ` (${notes.join(", ")}; see the report above)`;
   }
 
   fs.mkdirSync(path.join(OUT_ROOT, "runs"), { recursive: true });
@@ -656,7 +692,7 @@ async function main() {
     for (const failure of failures) console.log(`  - ${failure}`);
     return 1;
   }
-  console.log(`✓ ${scenarios.length} scenarios captured${comparison ? `, gate ${comparison.gate} passed` : ""}`);
+  console.log(`✓ ${scenarios.length} scenarios captured${comparison ? `, gate ${comparison.gate} passed${gateNotes}` : ""}`);
   return 0;
 }
 
