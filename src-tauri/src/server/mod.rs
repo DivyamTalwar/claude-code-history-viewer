@@ -1011,7 +1011,7 @@ mod tests {
     /// The old stats routes (#691, backported): the history-root guard checks
     /// the requested directory or file, so the scans behind it must never
     /// follow a symlink out of the root: not a session file, not a project
-    /// directory.
+    /// directory, not a session's subagent folder.
     #[cfg(unix)]
     #[tokio::test]
     #[serial]
@@ -1025,8 +1025,16 @@ mod tests {
         let outside = tempfile::tempdir().unwrap();
         let private = outside.path().join("private.jsonl");
         std::fs::write(&private, history_row("private", "x1", None, 4_242)).unwrap();
+        let subagents = outside.path().join("subagents");
+        std::fs::create_dir_all(&subagents).unwrap();
+        std::fs::write(
+            subagents.join("agent-x.jsonl"),
+            history_row("s1", "x2", None, 4_242),
+        )
+        .unwrap();
         symlink(&private, project.join("escaped.jsonl")).unwrap();
         symlink(outside.path(), claude.join("projects").join("evil")).unwrap();
+        symlink(outside.path(), project.join("s1")).unwrap();
 
         let project_path = project.to_string_lossy();
         let session_path = project.join("s1.jsonl");
