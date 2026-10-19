@@ -21,7 +21,7 @@ import { measureMotion } from "../lib/motion.mjs";
 import { browserRequirement } from "./requirements.mjs";
 import { openScenario, startApp } from "./appSession.mjs";
 
-/* global document */
+/* global document, window, Element */
 
 const ENABLED = browserRequirement({ webkit: true, server: true }, { label: "motion.reduce.test" }).enabled;
 
@@ -68,11 +68,34 @@ const INTERACTIONS = [
  * jumps go through the virtual list (instant) and some glide to a match
  * already on the page, so one press is not enough to see a smooth scroll:
  * walk SEARCH_PRESSES matches and keep every measurement.
+ *
+ * Two signals per run: the scroll the app asks for (`behavior` of every
+ * scrollTo / scrollBy / scrollIntoView call, recorded by a wrapper) and how
+ * the page moved (consecutive frames with a scroll event). How many frames a
+ * smooth scroll spreads over depends on the engine build: macOS WebKit
+ * glides over many, while the Linux CI runner's WebKit showed at most 2 for
+ * the same jumps. So "the test can see it" rests on the request, which every
+ * build reports the same way, and the frame runs are an extra check where
+ * the engine glides.
  */
 const SEARCH_PRESSES = 8;
 async function searchScrolls(motion) {
   const session = await openScenario(browser, app, "transcript--1440x900--light", { variant: { live: true, motion } });
   try {
+    await session.page.evaluate(() => {
+      const requests = [];
+      window.__scrollRequests = requests;
+      const wrap = (target, name) => {
+        const original = target[name];
+        target[name] = function (...args) {
+          const options = args[0];
+          requests.push(options && typeof options === "object" ? (options.behavior ?? "auto") : "auto");
+          return original.apply(this, args);
+        };
+      };
+      for (const name of ["scrollTo", "scrollBy", "scrollIntoView"]) wrap(Element.prototype, name);
+      for (const name of ["scrollTo", "scrollBy"]) wrap(window, name);
+    });
     const input = session.page.locator("#main-content").getByRole("textbox", { name: session.t("messageViewer.searchPlaceholder") }).first();
     await input.fill("the");
     const runs = [];
@@ -80,7 +103,8 @@ async function searchScrolls(motion) {
       runs.push(await measureMotion(session.page, () => input.press("Enter")));
       await new Promise((resolve) => setTimeout(resolve, 400));
     }
-    return runs;
+    const requests = await session.page.evaluate(() => window.__scrollRequests);
+    return { runs, requests };
   } finally {
     await session.close();
   }
@@ -103,14 +127,20 @@ describe.skipIf(!ENABLED)("reduced motion in the running app (real WebKit, --liv
     expect(motion.animationsAt.some((n) => n > 0) || motion.transitionEvents > 0 || motion.animationEvents > 0, JSON.stringify(motion)).toBe(true);
   }, 120_000);
 
-  it("search: without a preference, a jump to a match glides over consecutive frames (the test can see it)", async () => {
-    const runs = await searchScrolls("full");
-    expect(Math.max(...runs.map((m) => m.scrollRun)), JSON.stringify(runs.map((m) => [m.scrollFrames, m.scrollRun]))).toBeGreaterThanOrEqual(3);
+  it("search: without a preference, a jump to a match asks for a smooth scroll (the test can see it)", async () => {
+    const { runs, requests } = await searchScrolls("full");
+    const detail = JSON.stringify({ requests, frames: runs.map((m) => [m.scrollFrames, m.scrollRun]) });
+    expect(requests.filter((b) => b === "smooth").length, detail).toBeGreaterThan(0);
   }, 180_000);
 
   it("search: under prefers-reduced-motion: reduce, every jump to a match is instant", async () => {
-    const runs = await searchScrolls("reduce");
-    expect(runs.map((m) => m.scrollRun).filter((run) => run > 2), JSON.stringify(runs.map((m) => [m.scrollFrames, m.scrollRun]))).toEqual([]);
+    const { runs, requests } = await searchScrolls("reduce");
+    const detail = JSON.stringify({ requests, frames: runs.map((m) => [m.scrollFrames, m.scrollRun]) });
+    // The app asks for scrolls (the jumps happen) but never a smooth one ...
+    expect(requests.length, detail).toBeGreaterThan(0);
+    expect(requests.filter((b) => b === "smooth"), detail).toEqual([]);
+    // ... and the page does not glide (CSS scroll-behavior is off too).
+    expect(runs.map((m) => m.scrollRun).filter((run) => run > 2), detail).toEqual([]);
     for (const m of runs) expect(m.animationsAt).toEqual([0, 0, 0]);
   }, 180_000);
 
