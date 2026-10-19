@@ -57,6 +57,23 @@ describe("format module invariant", () => {
     ).toEqual([]);
   });
 
+  it("has no hand-rolled percent arithmetic in screens — shares go through formatPercent", () => {
+    // Catches helpers that dodge the name check: rounding to 0-100 by hand
+    // (`Math.round(x * 100)`) or stitching a `%` onto a fixed string. A value
+    // that really is not a share (a zoom level, a progress step)
+    // marks its own line: `// not a share (…)` — reviewed, not silent.
+    const notAShare = (finding: string) => {
+      const [, lineNo] = finding.split(":");
+      const line = readFileSync(join(ROOT, finding.split(":")[0]!)).toString().split("\n");
+      return /not a share/.test(line[Number(lineNo) - 1] ?? "");
+    };
+    expect(
+      findings(/Math\.round\([^()\n]*\*\s*100\b|\.toFixed\([^()\n]*\)[^%\n]*%/).filter(
+        (finding) => !notAShare(finding),
+      ),
+    ).toEqual([]);
+  });
+
   it("has no hand-built day key from a UTC ISO string", () => {
     expect(findings(/toISOString\(\)\.(slice|split|substring)\(/)).toEqual([]);
   });

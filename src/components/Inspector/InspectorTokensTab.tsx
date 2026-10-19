@@ -25,8 +25,6 @@ import type { SessionTokenStats } from "@/types";
 import { useSessionTokenStats } from "./useSessionTokenStats";
 import { useFormat } from "@/lib/format/useFormat";
 
-const percent = (part: number, total: number) => (total > 0 ? Math.round((part / total) * 100) : 0);
-
 const estimatedCost = (stats: SessionTokenStats | null): number | null => {
   if (!stats) return null;
   const summary = calculateGlobalCostSummary(stats.model_distribution ?? [], stats.total_tokens);
@@ -134,7 +132,7 @@ export const InspectorTokensTab = () => {
                   icon={row.icon}
                   color={row.color}
                   value={fmt.tokens(row.value)}
-                  detail={`${percent(row.value, total)}%`}
+                  detail={fmt.percent(total > 0 ? row.value / total : 0)}
                 />
               ))}
             </dl>
@@ -150,7 +148,7 @@ export const InspectorTokensTab = () => {
                   label={<span className="min-w-0 truncate font-mono">{model.model_name}</span>}
                   title={model.model_name}
                   value={fmt.tokens(model.token_count)}
-                  detail={`${percent(model.token_count, total)}%`}
+                  detail={fmt.percent(total > 0 ? model.token_count / total : 0)}
                 />
               ))}
             </dl>
