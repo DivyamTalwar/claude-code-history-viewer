@@ -7,6 +7,7 @@
 //! that spawned them (#577). Other providers go through their existing stats
 //! paths per request.
 
+use super::availability::{store_availability, StoreAvailability};
 use super::contribution::{
     from_antigravity_records, from_messages, read_claude_file, FileContributions,
 };
@@ -22,6 +23,7 @@ use crate::models::ClaudeSession;
 use rayon::prelude::*;
 use std::collections::{HashMap, HashSet};
 use std::fs;
+use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -178,6 +180,8 @@ pub(super) struct ProviderScan {
     /// Roots, project lists or session lists that could not be read at all.
     pub sources_failed: u64,
     pub not_supported: bool,
+    /// The provider's store (or the requested project) is not on disk.
+    pub store_missing: bool,
 }
 
 impl ProviderScan {
@@ -188,6 +192,7 @@ impl ProviderScan {
             sessions_failed: 0,
             sources_failed: 0,
             not_supported: !reports_token_usage(provider),
+            store_missing: false,
         }
     }
 
@@ -199,9 +204,33 @@ impl ProviderScan {
             self.sessions_failed + self.sources_failed,
             self.sessions_scanned,
         ) {
+            (0, 0) if self.store_missing => ProviderScanStatus::NotFound,
             (0, _) => ProviderScanStatus::Scanned,
             (_, 0) => ProviderScanStatus::Unreadable,
             _ => ProviderScanStatus::Partial,
+        }
+    }
+
+    /// Run `read` only when the provider's store can be read (ADR 0003 §7):
+    /// a missing store is `not_found`, an unreadable one a failed source.
+    fn when_store_present(
+        &mut self,
+        read: impl FnOnce(&mut Self) -> Vec<(String, ClaudeSession)>,
+    ) -> Vec<(String, ClaudeSession)> {
+        match store_availability(self.provider) {
+            StoreAvailability::Missing => {
+                self.store_missing = true;
+                Vec::new()
+            }
+            StoreAvailability::Unreadable(error) => {
+                log::warn!(
+                    "usage breakdown: {} store: {error}",
+                    stats_provider_id(self.provider)
+                );
+                self.sources_failed += 1;
+                Vec::new()
+            }
+            StoreAvailability::Present => read(self),
         }
     }
 }
@@ -233,17 +262,19 @@ pub(super) fn collect(plan: &ScopePlan, mode: StatsMode) -> Collected {
                         &mut scan,
                     )
                 } else {
-                    let tasks = match load_stats_sessions(*provider, project_path) {
-                        Ok(sessions) => sessions
-                            .into_iter()
-                            .map(|session| (project_path.clone(), session))
-                            .collect(),
-                        Err(error) => {
-                            log::warn!("usage breakdown: {project_path}: {error}");
-                            scan.sources_failed += 1;
-                            Vec::new()
+                    let tasks = scan.when_store_present(|scan| {
+                        match load_stats_sessions(*provider, project_path) {
+                            Ok(sessions) => sessions
+                                .into_iter()
+                                .map(|session| (project_path.clone(), session))
+                                .collect(),
+                            Err(error) => {
+                                log::warn!("usage breakdown: {project_path}: {error}");
+                                scan.sources_failed += 1;
+                                Vec::new()
+                            }
                         }
-                    };
+                    });
                     collect_provider_sessions(*provider, tasks, mode, &mut scan)
                 };
                 collected.sessions.extend(sessions);
@@ -263,8 +294,10 @@ pub(super) fn collect(plan: &ScopePlan, mode: StatsMode) -> Collected {
                             claude_root_projects(claude_path, custom_claude_paths, &mut scan);
                         collect_claude(projects, mode, &mut scan)
                     } else {
-                        let tasks = provider_all_sessions(*provider, &mut scan);
-                        collect_provider_sessions(*provider, tasks, mode, &mut scan)
+                        let provider = *provider;
+                        let tasks =
+                            scan.when_store_present(|scan| provider_all_sessions(provider, scan));
+                        collect_provider_sessions(provider, tasks, mode, &mut scan)
                     };
                     collected.sessions.extend(sessions);
                 }
@@ -323,25 +356,33 @@ fn account_unreadable(dir: &Path, errors: &[String], scan: &mut ProviderScan) {
     }
 }
 
-/// Walk one project directory without following a symlink. Returns its
-/// files and the links the walk skipped (for [`account_links`]), or `None`
-/// when the directory itself cannot be resolved (a failed source). What the
-/// walk could not read is accounted here.
+/// Where a directory the request reads resolves to, or why it does not.
+enum Located {
+    Dir(PathBuf),
+    /// Not on disk: nothing to read, not a failure.
+    Missing,
+    /// There but not a usable directory (permissions, not a directory).
+    Unusable(String),
+}
+
+fn locate_dir(dir: &Path) -> Located {
+    match fs::canonicalize(dir) {
+        Ok(canonical) if canonical.is_dir() => Located::Dir(canonical),
+        Ok(canonical) => Located::Unusable(format!("{} is not a directory", canonical.display())),
+        Err(error) if error.kind() == ErrorKind::NotFound => Located::Missing,
+        Err(error) => Located::Unusable(format!("{}: {error}", dir.display())),
+    }
+}
+
+/// Walk one project directory (canonical `root`) without following a
+/// symlink. Returns its files and the links the walk skipped, for
+/// [`account_links`]; what the walk could not read is accounted here.
 fn walk_project(
     project_dir: &Path,
     project_path: &str,
+    root: PathBuf,
     scan: &mut ProviderScan,
-) -> Option<(ClaudeProjectFiles, Vec<PathBuf>)> {
-    let root = match fs::canonicalize(project_dir) {
-        Ok(root) if root.is_dir() => root,
-        _ => {
-            log::warn!(
-                "usage breakdown: Claude project '{project_path}' is not a readable directory"
-            );
-            scan.sources_failed += 1;
-            return None;
-        }
-    };
+) -> (ClaudeProjectFiles, Vec<PathBuf>) {
     // Same file set as the old stats (`session_files`): any `*.jsonl` entry
     // that is not a symlink, so a non-file named like a session surfaces as
     // a failed session.
@@ -352,13 +393,26 @@ fn walk_project(
         root,
         files: walk.files,
     };
-    Some((project, walk.links))
+    (project, walk.links)
 }
 
 /// The one project of a project scope; the project directory is its only
-/// history root.
+/// history root. A project that is not on disk is `not_found`.
 fn claude_project_scope(project_path: &str, scan: &mut ProviderScan) -> Option<ClaudeProjectFiles> {
-    let (project, links) = walk_project(Path::new(project_path), project_path, scan)?;
+    let project_dir = Path::new(project_path);
+    let root = match locate_dir(project_dir) {
+        Located::Dir(root) => root,
+        Located::Missing => {
+            scan.store_missing = true;
+            return None;
+        }
+        Located::Unusable(error) => {
+            log::warn!("usage breakdown: Claude project: {error}");
+            scan.sources_failed += 1;
+            return None;
+        }
+    };
+    let (project, links) = walk_project(project_dir, project_path, root, scan);
     account_links(&links, std::slice::from_ref(&project.root), scan);
     Some(project)
 }
@@ -382,25 +436,25 @@ fn claude_root_projects(
             }
         }
     }
-    // Each root's `projects/` folder and its canonical path.
+    // Each root's `projects/` folder and its canonical path. A root without
+    // one holds no history yet; none at all is `not_found`.
     let mut roots: Vec<(PathBuf, PathBuf)> = Vec::new();
     for base in bases {
         let projects_dir = base.join("projects");
-        match fs::canonicalize(&projects_dir) {
-            Ok(canonical) => {
+        match locate_dir(&projects_dir) {
+            Located::Dir(canonical) => {
                 if roots.iter().all(|(_, seen)| *seen != canonical) {
                     roots.push((projects_dir, canonical));
                 }
             }
-            Err(error) => {
-                log::warn!(
-                    "usage breakdown: cannot read {}: {error}",
-                    projects_dir.display()
-                );
+            Located::Missing => {}
+            Located::Unusable(error) => {
+                log::warn!("usage breakdown: cannot read Claude projects: {error}");
                 scan.sources_failed += 1;
             }
         }
     }
+    scan.store_missing = roots.is_empty();
     let canonical_roots: Vec<PathBuf> = roots.iter().map(|(_, root)| root.clone()).collect();
     let mut projects = Vec::new();
     for (projects_dir, _) in &roots {
@@ -418,11 +472,20 @@ fn claude_root_projects(
         account_unreadable(projects_dir, &listing.errors, scan);
         account_links(&listing.links, &canonical_roots, scan);
         for dir in listing.dirs {
+            let root = match locate_dir(&dir) {
+                Located::Dir(root) => root,
+                // Removed since the listing.
+                Located::Missing => continue,
+                Located::Unusable(error) => {
+                    log::warn!("usage breakdown: Claude project: {error}");
+                    scan.sources_failed += 1;
+                    continue;
+                }
+            };
             let project_path = dir.to_string_lossy().to_string();
-            if let Some((project, links)) = walk_project(&dir, &project_path, scan) {
-                account_links(&links, &canonical_roots, scan);
-                projects.push(project);
-            }
+            let (project, links) = walk_project(&dir, &project_path, root, scan);
+            account_links(&links, &canonical_roots, scan);
+            projects.push(project);
         }
     }
     projects

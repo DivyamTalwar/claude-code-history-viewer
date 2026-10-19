@@ -24,6 +24,7 @@ use std::collections::HashSet;
 use std::fmt;
 
 mod aggregate;
+mod availability;
 mod contribution;
 mod contribution_cache;
 mod ranking;
@@ -256,6 +257,10 @@ pub enum ProviderScanStatus {
     Partial,
     Unreadable,
     NotSupported,
+    /// No history store of the provider on this machine, or the requested
+    /// project directory does not exist: nothing to read, which is not the
+    /// same as a store that was read and held no usage (ADR 0003 §7).
+    NotFound,
 }
 
 /// How much of a provider's priced usage is in [`PricingSource::Source`]

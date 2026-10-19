@@ -4,7 +4,8 @@
 - **Date**: 2026-10-19
 - **Supersedes**: [ADR 0002](0002-usage-breakdown.md) §10, the response-size line (≤ 1 MiB now
   holds on the reference fixture and is asserted). Narrows ADR 0002 §5 "No new price function
-  exists" to displayed costs (§3 below). Everything else in ADR 0002 stands.
+  exists" to displayed costs (§3 below). Amends ADR 0002 §9 (coverage): symlinks, unreadable
+  parts of a root and the `not_found` status (§7 below). Everything else in ADR 0002 stands.
 - **Plan reference**: inner-UI plan v3 §4.7 (budget: "세션 목록을 상위 n + 나머지 합으로"), §4.9
   (session detail), §5 rows AN1 and AN2.
 
@@ -176,6 +177,21 @@ or project directory it may not list, an I/O error while listing `projects/` —
 source that was not read: `partial` when something else was read, `unreadable` when nothing
 was. Such errors used to be dropped, so a project whose only history sat in a mode-000
 directory was `scanned` with zero usage.
+
+**A store that is not there is `not_found`.** Coverage gains a fifth status: `not_found` — the
+provider has no history store on this machine, or the requested project directory does not
+exist. Nothing was read and nothing failed, which is neither `scanned` (a store that was read and
+held no usage) nor `unreadable` (a store that exists but cannot be read).
+
+- The existing provider scanners answer `Ok([])` for an empty store and for no store alike
+  (Gemini, Pi, Qwen, …) and an error for some missing stores (Codex), so availability is decided
+  before a scanner runs (`usage_breakdown/availability.rs`). Presence is the provider's own
+  detection — `detect()`, the one the provider list uses — so no store layout is copied; the
+  store root it names must also open, or the provider is `unreadable`.
+- Claude: none of the request's `projects/` folders exists → `not_found`; a root without one adds
+  nothing. A custom root that fails validation is still a failed source.
+- Wire: `ProviderScanStatus` in Rust and TypeScript, and the contract fixture's
+  `provider_scan_statuses` lists all five values for both contract tests.
 
 ## Consequences
 

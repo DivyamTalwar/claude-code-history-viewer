@@ -27,6 +27,71 @@ impl EnvGuard {
         std::env::set_var(key, value);
         Self { key, previous }
     }
+
+    fn remove(key: &'static str) -> Self {
+        let previous = std::env::var_os(key);
+        std::env::remove_var(key);
+        Self { key, previous }
+    }
+}
+
+/// Every variable a token-reporting provider reads to locate its store.
+/// Cleared, the sandbox home is the only place a store could be.
+const STORE_ENV: [&str; 22] = [
+    "ANTIGRAVITY_USER_DIR",
+    "CLINE_DATA_DIR",
+    "CLINE_DIR",
+    "CLINE_SESSION_DATA_DIR",
+    "CODEX_HOME",
+    "COPILOT_CLI_HOME",
+    "CURSOR_USER_DIR",
+    "FORGE_CONFIG",
+    "GEMINI_HOME",
+    "GROK_HOME",
+    "INTERPRETER_HOME",
+    "KILO_HOME",
+    "KIMI_CODE_HOME",
+    "KIMI_HOME",
+    "KIMI_SHARE_DIR",
+    "LLM_USER_PATH",
+    "OPENCODE_HOME",
+    "QWEN_HOME",
+    "QWEN_RUNTIME_DIR",
+    "XDG_CONFIG_HOME",
+    "XDG_DATA_HOME",
+    "ZCODE_HOME",
+];
+
+fn without_store_env() -> Vec<EnvGuard> {
+    STORE_ENV.iter().map(|key| EnvGuard::remove(key)).collect()
+}
+
+/// (id, wire status, sessions scanned, sessions failed) per provider.
+fn wire_statuses(response: &UsageBreakdownResponse) -> Vec<(String, String, u64, u64)> {
+    response
+        .coverage
+        .providers
+        .iter()
+        .map(|p| {
+            let status = serde_json::to_value(p.status).unwrap();
+            (
+                p.id.clone(),
+                status.as_str().unwrap().to_string(),
+                p.sessions_scanned,
+                p.sessions_failed,
+            )
+        })
+        .collect()
+}
+
+fn supported_provider_ids() -> Vec<&'static str> {
+    let mut ids: Vec<&str> = all_stats_providers()
+        .into_iter()
+        .filter(|p| reports_token_usage(*p))
+        .map(stats_provider_id)
+        .collect();
+    ids.sort_unstable();
+    ids
 }
 
 impl Drop for EnvGuard {
@@ -246,9 +311,32 @@ async fn all_scope_reports_each_provider_and_matches_legacy_global_total() {
     assert_eq!(aider.sessions_scanned, 0);
 }
 
+/// The legacy scanners answer `Ok([])` both for an empty store and for no
+/// store at all, so availability is decided before they run: every
+/// supported provider whose store is not on disk is `not_found`, never a
+/// `scanned` zero (`AN0b` review P2).
 #[tokio::test]
 #[serial]
-async fn a_provider_that_cannot_be_read_is_unreadable_not_zero() {
+async fn every_supported_provider_without_a_store_is_not_found() {
+    let home = SandboxHome::new();
+    let _env = without_store_env();
+    let supported = supported_provider_ids();
+    assert_eq!(supported.len(), 18);
+
+    let response = get_usage_breakdown(all_request(&supported, &home.path().join(".claude")))
+        .await
+        .expect("breakdown");
+    let expected: Vec<(String, String, u64, u64)> = supported
+        .iter()
+        .map(|id| ((*id).to_string(), "not_found".to_string(), 0, 0))
+        .collect();
+    assert_eq!(wire_statuses(&response), expected);
+    assert_eq!(total_tokens(&response), 0);
+}
+
+#[tokio::test]
+#[serial]
+async fn a_missing_store_or_project_is_not_found_and_never_zero_usage() {
     let home = SandboxHome::new();
     let claude = UsageFixture::write(
         "p1",
@@ -261,14 +349,15 @@ async fn a_provider_that_cannot_be_read_is_unreadable_not_zero() {
         .await
         .expect("breakdown");
     assert_eq!(
-        coverage(&response, "claude").status,
-        ProviderScanStatus::Scanned
+        wire_statuses(&response),
+        [
+            ("claude".to_string(), "scanned".to_string(), 1, 0),
+            ("codex".to_string(), "not_found".to_string(), 0, 0)
+        ]
     );
-    let codex = coverage(&response, "codex");
-    assert_eq!(codex.status, ProviderScanStatus::Unreadable);
     assert_eq!(total_tokens(&response), 100);
 
-    // A missing Claude project is unreadable too.
+    // A Claude project that is not there is not found either.
     let response = get_usage_breakdown(project_request(
         "claude",
         claude
@@ -280,8 +369,46 @@ async fn a_provider_that_cannot_be_read_is_unreadable_not_zero() {
     .await
     .expect("breakdown");
     assert_eq!(
-        coverage(&response, "claude").status,
-        ProviderScanStatus::Unreadable
+        wire_statuses(&response),
+        [("claude".to_string(), "not_found".to_string(), 0, 0)]
+    );
+}
+
+/// A store that is there but cannot be listed is `unreadable`, not a
+/// `scanned` zero and not `not_found` (Pi keeps `~/.pi/agent/sessions`).
+#[cfg(unix)]
+#[tokio::test]
+#[serial]
+async fn a_store_that_exists_but_cannot_be_read_is_unreadable() {
+    let home = SandboxHome::new();
+    let sessions = home.path().join(".pi/agent/sessions");
+    fs::create_dir_all(sessions.join("--work-app--")).unwrap();
+    let Some(_unreadable) = Unreadable::new(&sessions) else {
+        return;
+    };
+    let response = get_usage_breakdown(all_request(&["pi"], &home.path().join(".claude")))
+        .await
+        .expect("breakdown");
+    assert_eq!(
+        wire_statuses(&response),
+        [("pi".to_string(), "unreadable".to_string(), 0, 0)]
+    );
+}
+
+/// The other side of the line: a store that exists and holds nothing was
+/// read, so it is `scanned` with zero sessions, not `not_found`.
+#[tokio::test]
+#[serial]
+async fn an_empty_store_that_exists_is_scanned() {
+    let home = SandboxHome::new();
+    let _gemini = EnvGuard::remove("GEMINI_HOME");
+    fs::create_dir_all(home.path().join(".gemini/tmp")).unwrap();
+    let response = get_usage_breakdown(all_request(&["gemini"], &home.path().join(".claude")))
+        .await
+        .expect("breakdown");
+    assert_eq!(
+        wire_statuses(&response),
+        [("gemini".to_string(), "scanned".to_string(), 0, 0)]
     );
 }
 

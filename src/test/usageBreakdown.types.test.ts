@@ -13,6 +13,7 @@ import fixture from "./fixtures/usageBreakdown.contract.json";
 import {
   MAX_USAGE_INTERVALS,
   MAX_USAGE_SESSIONS,
+  PROVIDER_SCAN_STATUSES,
   USAGE_BREAKDOWN_COMMAND,
   USAGE_BREAKDOWN_WIRE_KEYS,
   usageBreakdownArgs,
@@ -80,6 +81,15 @@ describe("wire keys match the shared fixture", () => {
       max_intervals: MAX_USAGE_INTERVALS,
       max_sessions: MAX_USAGE_SESSIONS,
     });
+  });
+
+  it("coverage statuses match the backend's, not_found included (ADR 0003 §7)", () => {
+    expect([...PROVIDER_SCAN_STATUSES]).toEqual(fixture.provider_scan_statuses);
+    const statuses = response.coverage.providers.map((provider) => provider.status);
+    expect(statuses).toContain("not_found");
+    for (const status of statuses) {
+      expect(PROVIDER_SCAN_STATUSES).toContain(status);
+    }
   });
 });
 

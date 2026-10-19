@@ -209,6 +209,35 @@ impl UsageFixture {
     }
 }
 
+/// Makes a directory unreadable (mode 000) and restores it when dropped —
+/// declare it after the fixture so it drops first.
+#[cfg(unix)]
+pub struct Unreadable(PathBuf);
+
+#[cfg(unix)]
+impl Unreadable {
+    /// `None` when the process reads the directory anyway (running as
+    /// root): there is nothing to test then.
+    pub fn new(dir: &Path) -> Option<Self> {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(dir, fs::Permissions::from_mode(0o000)).expect("chmod 000");
+        let guard = Self(dir.to_path_buf());
+        if fs::read_dir(dir).is_ok() {
+            eprintln!("skipped: {} stays readable at mode 000", dir.display());
+            return None;
+        }
+        Some(guard)
+    }
+}
+
+#[cfg(unix)]
+impl Drop for Unreadable {
+    fn drop(&mut self) {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = fs::set_permissions(&self.0, fs::Permissions::from_mode(0o755));
+    }
+}
+
 /// Summed usage of one reference bucket.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct RefTotals {

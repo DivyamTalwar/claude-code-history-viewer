@@ -1640,6 +1640,47 @@ fn load_stats_sessions(
     }
 }
 
+/// The provider's own store detection (`providers::<id>::detect`, the one
+/// the provider list uses): where its store is and whether it holds history.
+/// `None` when the provider cannot even locate a store. The scanners above
+/// answer `Ok([])` both for an empty store and for a missing one, so a
+/// caller that reports coverage asks this first.
+fn stats_provider_store(provider: StatsProvider) -> Option<providers::ProviderInfo> {
+    match provider {
+        StatsProvider::Aider => providers::aider::detect(),
+        StatsProvider::AmazonQ => providers::amazon_q::detect(),
+        StatsProvider::Cline => providers::cline::detect(),
+        StatsProvider::Codebuddy => providers::codebuddy::detect(),
+        StatsProvider::Codex => providers::codex::detect(),
+        StatsProvider::Continue => providers::continue_dev::detect(),
+        StatsProvider::ForgeCode => providers::forgecode::detect(),
+        StatsProvider::Kilo => providers::kilo::detect(),
+        StatsProvider::OpenCode => providers::opencode::detect(),
+        StatsProvider::OpenHands => providers::openhands::detect(),
+        StatsProvider::OpenInterpreter => providers::openinterpreter::detect(),
+        StatsProvider::PearAI => providers::pearai::detect(),
+        StatsProvider::Qwen => providers::qwen::detect(),
+        StatsProvider::Zcode => providers::zcode::detect(),
+        StatsProvider::Trae => providers::trae::detect(),
+        StatsProvider::Vibe => providers::vibe::detect(),
+        StatsProvider::Zed => providers::zed::detect(),
+        StatsProvider::Crush => providers::crush::detect(),
+        StatsProvider::CursorAgent => providers::cursor_agent::detect(),
+        StatsProvider::Goose => providers::goose::detect(),
+        StatsProvider::Kiro => providers::kiro::detect(),
+        StatsProvider::Llm => providers::llm::detect(),
+        StatsProvider::Grok => providers::grok::detect(),
+        StatsProvider::Kimi => providers::kimi::detect(),
+        StatsProvider::Antigravity => providers::antigravity::detect(),
+        StatsProvider::Copilot => providers::copilot::detect(),
+        StatsProvider::Ompi => providers::ompi::detect(),
+        StatsProvider::Pi => providers::pi::detect(),
+        StatsProvider::Gemini => providers::gemini::detect(),
+        StatsProvider::Cursor => providers::cursor::detect(),
+        StatsProvider::Claude => providers::claude::detect(),
+    }
+}
+
 fn load_stats_messages(
     provider: StatsProvider,
     session_path: &str,

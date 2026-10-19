@@ -14,7 +14,7 @@ use crate::commands::stats::{
 use crate::test_utils::SandboxHome;
 use serial_test::serial;
 use std::fs;
-use std::os::unix::fs::{symlink, PermissionsExt};
+use std::os::unix::fs::symlink;
 use std::path::{Path, PathBuf};
 use tempfile::TempDir;
 
@@ -252,30 +252,6 @@ fn the_reader_opens_only_regular_files_inside_its_root() {
     assert!(error.contains("outside the scanned root"), "{error}");
     let inside = read_claude_file(&project.join("s1.jsonl"), &root, mode).unwrap();
     assert_eq!(inside.contributions.len(), 1);
-}
-
-/// Makes a directory unreadable (mode 000) and restores it when dropped,
-/// before the fixture's temporary directory is removed.
-struct Unreadable(PathBuf);
-
-impl Unreadable {
-    /// `None` when the process reads it anyway (running as root): there is
-    /// nothing to test then.
-    fn new(dir: &Path) -> Option<Self> {
-        fs::set_permissions(dir, fs::Permissions::from_mode(0o000)).unwrap();
-        let guard = Self(dir.to_path_buf());
-        if fs::read_dir(dir).is_ok() {
-            eprintln!("skipped: {} stays readable at mode 000", dir.display());
-            return None;
-        }
-        Some(guard)
-    }
-}
-
-impl Drop for Unreadable {
-    fn drop(&mut self) {
-        let _ = fs::set_permissions(&self.0, fs::Permissions::from_mode(0o755));
-    }
 }
 
 /// A 77-token session in `<project>/locked/`, as the review probe wrote it.

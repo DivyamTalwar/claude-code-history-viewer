@@ -96,7 +96,27 @@ export interface SessionUsage {
   message_count: number;
 }
 
-export type ProviderScanStatus = "scanned" | "partial" | "unreadable" | "not_supported";
+/**
+ * Coverage status per provider (ADR 0002 §9, ADR 0003 §7), in the order of
+ * the contract fixture's `provider_scan_statuses`:
+ *
+ * - `scanned`: the store was read completely (it may hold no usage);
+ * - `partial`: some sessions, files or directories could not be read, or a
+ *   symlink out of the history root was refused;
+ * - `unreadable`: nothing could be read;
+ * - `not_supported`: the history format records no token usage;
+ * - `not_found`: no store of the provider on this machine, or the requested
+ *   project directory does not exist — nothing to read, never a zero.
+ */
+export const PROVIDER_SCAN_STATUSES = [
+  "scanned",
+  "partial",
+  "unreadable",
+  "not_supported",
+  "not_found",
+] as const;
+
+export type ProviderScanStatus = (typeof PROVIDER_SCAN_STATUSES)[number];
 
 export type SourceCostCoverage = "all" | "some" | "none";
 
