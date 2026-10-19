@@ -43,4 +43,29 @@ describe("SessionStatsCard in Korean", () => {
     expect(screen.getByText("추론")).toBeInTheDocument();
     expect(text).not.toMatch(/Reasoning/i);
   });
+
+  it("keeps each compact numeral and its 만/억 suffix on one unbreakable line", () => {
+    render(<SessionStatsCard stats={stats} />);
+    for (const text of ["1.8만", "50.1만", "220만", "3980만"]) {
+      const span = screen.getByText(text);
+      expect((span as HTMLElement).style.whiteSpace).toBe("nowrap");
+    }
+  });
+});
+
+describe("SessionStatsCard in Japanese", () => {
+  beforeAll(async () => {
+    await i18n.changeLanguage("ja");
+  });
+  afterAll(async () => {
+    await i18n.changeLanguage("en");
+  });
+
+  it("keeps each compact numeral and its 万 suffix on one unbreakable line", () => {
+    render(<SessionStatsCard stats={stats} />);
+    for (const text of ["1.8万", "50.1万", "220万", "3980万"]) {
+      const span = screen.getByText(text);
+      expect((span as HTMLElement).style.whiteSpace).toBe("nowrap");
+    }
+  });
 });

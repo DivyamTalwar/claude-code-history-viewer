@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { TrendingUp, Zap, Database, Eye, Brain } from "lucide-react";
 import type { SessionTokenStats } from "../types";
 import { cn } from "@/lib/utils";
+import { NoBreak } from "@/lib/format/NoBreak";
 import { useFormat } from "@/lib/format/useFormat";
 
 /**
@@ -98,12 +99,12 @@ export const SessionStatsCard = memo(({
               <div key={token.key} className="flex items-center gap-1.5">
                 <Icon className="w-3.5 h-3.5 shrink-0" style={{ color: token.color }} />
                 <span className="text-caption text-muted-foreground">{token.label}</span>
-                <span
+                <NoBreak
                   className="font-mono text-caption font-semibold tabular-nums"
                   style={{ color: token.color }}
                 >
                   {fmt.tokens(token.value)}
-                </span>
+                </NoBreak>
                 <span className="text-caption text-muted-foreground/50 tabular-nums">
                   {fmt.percent(percentage / 100)}
                 </span>
