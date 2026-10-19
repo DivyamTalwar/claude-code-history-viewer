@@ -13,7 +13,11 @@
 //! Drift guards: the table is the same file; the two rule lists that live in
 //! TypeScript code are compared with `calculations.ts` by a test here; the
 //! golden file pins [`session_cost`] to `summarizeBucketCost` for the
-//! sessions of the golden scenarios (`usageBreakdown.reconciliation.test.ts`).
+//! sessions of the golden scenarios (`usageBreakdown.reconciliation.test.ts`);
+//! and the pricing matrix pins every rate row of every model in the table —
+//! base, context tiers, service tiers and their context tiers, name
+//! matching — to the same function (`pricing_matrix_tests.rs`,
+//! `usageBreakdown.pricingMatrix.test.ts`).
 
 use super::{PricedModelStats, PricingSource, SessionRef};
 use crate::models::ModelStats;
@@ -667,3 +671,7 @@ mod tests {
         );
     }
 }
+
+#[cfg(test)]
+#[path = "pricing_matrix_tests.rs"]
+mod pricing_matrix_tests;

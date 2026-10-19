@@ -93,8 +93,21 @@ order, so both sides produce the same number.
     digits (all 18 golden sessions are bit-identical today). Its `session_cap` scenario covers a
     fast tier, 1-hour cache writes, a long-context tier, provider cost, a mixed session and an
     unpriced model.
-  - Not caught: a change to the TypeScript pricing *rules* that no scenario exercises. It can
-    only move sessions near the cut; it never changes a displayed number or a total.
+  - the pricing matrix covers the table, not only the scenarios: for every model in
+    `model-pricing.json`, its base rates (every token class, with and without a breakdown), each
+    context tier at and just below its threshold, each service tier and its context tiers, and a
+    dated, decorated form of its name; plus the bucket rules (source cost, source-cost-only
+    providers, token-unsupported models, name forms on a key whose shorter prefix key is priced
+    differently). `pricing_matrix_tests.rs` writes the mirror's price of each case
+    (`usageBreakdown.pricingMatrix.json`, 553 cases today); `usageBreakdown.pricingMatrix.test.ts`
+    rebuilds every case and requires the same `f64` from `summarizeBucketCost`, and fails when the
+    table has models or tiers the file does not cover. Six single-rule mutations of
+    `calculations.ts` (the `@` and `:` separators, the context-tier threshold, the 1-hour write
+    fallback, the `priority` alias, the bracket strip) all fail it; three of them (both
+    separators and the bracket strip) pass the whole earlier frontend suite.
+  - Not caught: a TypeScript rule that no case exercises (a new rule shape the matrix does not
+    generate). It can only move sessions near the cut; it never changes a displayed number or a
+    total.
 - Rejected:
   - ranking by tokens: it cuts expensive light sessions, the case the overview table exists for;
   - prices in the request: a new request field the plan does not need.
@@ -214,14 +227,15 @@ held no usage) nor `unreadable` (a store that exists but cannot be read).
   needs every session asks a narrower question: project scope, one day, or the session's span.
 - The backend carries an ordering-only copy of the price rules. A rule change in
   `calculations.ts` has to be mirrored in `ranking.rs`; the guards in §3 catch the cases they
-  cover. A price edit reaches both sides through the shared table; when it touches a model the
-  golden scenarios use (Sonnet 4.5, Haiku 5.5, Opus 5.5) the recorded ranking costs change, and
-  the Rust golden test asks for `CCHV_UPDATE_GOLDEN=1`. The `ranking.rs` unit tests read their
+  cover. A price edit reaches both sides through the shared table; every price edit changes the
+  pricing matrix, and one that touches a model the golden scenarios use (Sonnet 4.5, Haiku 5.5,
+  Opus 5.5) changes the recorded ranking costs too: the Rust tests ask for
+  `CCHV_UPDATE_GOLDEN=1`, which regenerates both files, and the diff shows the effect per rule. The `ranking.rs` unit tests read their
   expected rates from the table, so they survive price edits (one canonical check keeps Sonnet
   4.5 input at $3 / 1M, the example of ADR 0002 §8 (3) that the TypeScript tests already use).
 - The cap bounds the number of session rows, not their bytes. No fixed n guarantees 1 MiB for any
   number of models or tiers per session, path and title lengths, or interval count; that would
   need byte-aware truncation and a policy for when `intervals` alone exceed the budget. n = 100 is
   sized on the reference fixture with up to three models per session, the case the gate asserts.
-- The golden file is compared as text: the recorded ranking costs are computed floats, and
-  serde_json's default parser does not promise an exact round trip.
+- The golden file and the pricing matrix are compared as text: the recorded costs are computed
+  floats, and serde_json's default parser does not promise an exact round trip.
