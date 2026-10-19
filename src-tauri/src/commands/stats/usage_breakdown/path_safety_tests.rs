@@ -233,6 +233,33 @@ async fn a_symlink_that_stays_inside_the_root_is_an_alias_not_a_failure() {
     );
 }
 
+/// An empty `claude_path` means the default root, `~/.claude`, as the HTTP
+/// route's root guard reads it (`require_claude_base`: "empty means use the
+/// default"), not a `projects/` folder relative to the working directory.
+#[tokio::test]
+#[serial]
+async fn an_empty_claude_path_means_the_default_root() {
+    let home = SandboxHome::new();
+    write_rows(
+        &home.path().join(".claude/projects/p/s1.jsonl"),
+        &[row("s1", "a1", "2026-10-15T12:00:00Z").tokens(INSIDE_TOKENS, 0, 0, 0)],
+    );
+
+    let response = get_usage_breakdown(all_request(Path::new("")))
+        .await
+        .unwrap();
+    assert_eq!(total_tokens(&response), INSIDE_TOKENS);
+    assert_eq!(claude(&response), (ProviderScanStatus::Scanned, 1, 0));
+    // The old global summary reads the same roots.
+    assert_eq!(legacy_global_total(Path::new("")).await, INSIDE_TOKENS);
+
+    fs::remove_dir_all(home.path().join(".claude")).unwrap();
+    let response = get_usage_breakdown(all_request(Path::new("")))
+        .await
+        .unwrap();
+    assert_eq!(claude(&response), (ProviderScanStatus::NotFound, 0, 0));
+}
+
 /// Defense in depth: even a path handed straight to the reader is opened
 /// only as a regular file inside its canonical root.
 #[test]

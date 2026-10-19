@@ -70,6 +70,8 @@ pub enum UsageScope {
     /// `get_global_stats_summary` (default root + user custom roots).
     All {
         providers: Vec<String>,
+        /// The default Claude root (`~/.claude`-shaped); empty means
+        /// `~/.claude` itself.
         claude_path: String,
         custom_claude_paths: Vec<CustomClaudePathParam>,
     },

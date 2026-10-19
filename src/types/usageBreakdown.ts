@@ -30,6 +30,7 @@ export type UsageScope =
   | {
       kind: "all";
       providers: string[];
+      /** The default Claude root (`~/.claude`-shaped); empty means `~/.claude` itself. */
       claude_path: string;
       /** Same shape as `get_global_stats_summary`'s `customClaudePaths`. */
       custom_claude_paths: CustomClaudePath[];

@@ -13,7 +13,7 @@ use super::contribution::{
 };
 use super::contribution_cache::contribution_cache;
 use super::{ProviderScanStatus, UsageScope};
-use crate::commands::stats::session_files::{claude_project_dirs, walk_session_files};
+use crate::commands::stats::session_files::{claude_base, claude_project_dirs, walk_session_files};
 use crate::commands::stats::{
     all_stats_providers, claude_session_heads, detect_project_provider,
     load_antigravity_usage_records, load_stats_messages, load_stats_sessions, scan_stats_projects,
@@ -419,13 +419,13 @@ fn claude_project_scope(project_path: &str, scan: &mut ProviderScan) -> Option<C
 
 /// The projects of the default root and every valid custom root, each root
 /// read once even when listed twice. Symlinked project directories are never
-/// walked.
+/// walked. An empty `claude_path` is the default root (`claude_base`).
 fn claude_root_projects(
     claude_path: &str,
     custom_claude_paths: &[String],
     scan: &mut ProviderScan,
 ) -> Vec<ClaudeProjectFiles> {
-    let mut bases = vec![PathBuf::from(claude_path)];
+    let mut bases: Vec<PathBuf> = claude_base(claude_path).into_iter().collect();
     for custom in custom_claude_paths {
         let base = PathBuf::from(custom);
         match crate::utils::validate_custom_claude_path(&base) {
