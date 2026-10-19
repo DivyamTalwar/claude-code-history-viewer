@@ -53,6 +53,13 @@ on:
 permissions:
   contents: read
 
+# One run per PR: a body edit (`edited`, e.g. CodeRabbit's summary) or a new
+# push cancels that PR's run still in progress instead of stacking a second
+# full run. Pushes to main/develop are never cancelled.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   frontend:
     name: Frontend Test Suite
