@@ -33,6 +33,8 @@ mod sources;
 mod fixture;
 #[cfg(test)]
 mod golden_tests;
+#[cfg(all(test, unix))]
+mod path_safety_tests;
 #[cfg(test)]
 mod perf_tests;
 #[cfg(test)]

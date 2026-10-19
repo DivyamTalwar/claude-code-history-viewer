@@ -148,6 +148,29 @@ build, Apple M4 Pro, `cargo test --release perf_budget -- --ignored --nocapture
 - 250 is the owner's starting point, confirmed by measurement: about 30 % below the budget on
   the reference fixture, and AN1 needs 5.
 
+### 7. What a scan does not read (amends ADR 0002 §9)
+
+Coverage says what was read; these rules decide what is read at all. They come from the AN0b
+review, which reproduced each case through the read-only HTTP route.
+
+**Symlinks are never followed inside a history root.** The Claude walk
+(`commands/stats/session_files.rs`) is shared by the old stats commands and this command, so
+both read the same file set: every `*.jsonl` entry under a project directory that is not a
+symlink. A symlinked project directory under `projects/` is not walked either.
+
+- The root a request names may itself be reached through a symlink (a symlinked `~/.claude`,
+  #355). The HTTP route's root guard judges it by its canonical path; nothing inside it is
+  followed.
+- A skipped link that resolves inside one of the request's canonical roots is an **alias** of
+  history that is read directly, so it is dropped silently (it used to be counted twice). Any
+  other skipped link — out of the roots, or dangling — is **refused** and counts as a source
+  that was not read: the provider is `partial` (or `unreadable` when nothing else was read),
+  never `scanned`.
+- Defense in depth: a file is opened only as a regular file whose canonical path lies inside the
+  root it was found under, through its canonical path, and the opened handle must be the file
+  that was checked (same device and inode on Unix). A file swapped for a symlink after the walk
+  is not read. The contribution cache never answers a symlink with its target's entry.
+
 ## Consequences
 
 - The response is bounded by `intervals` plus 250 session rows: 718.6 KiB instead of 1,986.2 KiB

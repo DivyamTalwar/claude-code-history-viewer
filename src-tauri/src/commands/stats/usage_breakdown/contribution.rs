@@ -11,6 +11,7 @@
 //! double counts.
 
 use super::{timestamp_ms_floor, PricingSource};
+use crate::commands::stats::session_files::open_session_file;
 use crate::commands::stats::{
     capture_session_title, context_tier_min_tokens, dedup_source_cost, dedup_token_totals,
     dedup_usage_key, extract_token_usage, normalize_service_tier, parse_raw_log_entry_simd,
@@ -22,7 +23,6 @@ use crate::models::{ClaudeMessage, TokenUsage};
 use crate::utils::find_line_ranges;
 use memmap2::Mmap;
 use std::collections::{HashMap, HashSet};
-use std::fs;
 use std::path::Path;
 
 /// One row's token growth per class. `u32` like the `TokenUsage` counters it
@@ -317,15 +317,19 @@ impl ContributionBuilder {
 /// Read one Claude session file through the same pipeline as the old
 /// project stats (`RawLogEntry → ClaudeMessage`, `should_include_stats_entry`).
 ///
+/// `root` is the canonical directory the file was found under: the file is
+/// opened only as a regular file inside it, never through a symlink
+/// (`session_files::open_session_file`).
+///
 /// The timestamp is read from the raw row, before `ClaudeMessage::try_from`
 /// stamps `Utc::now()` on undated rows.
 #[allow(unsafe_code)] // Read-only mmap, as in the old scan paths.
-pub(super) fn read_claude_file(path: &Path, mode: StatsMode) -> Result<FileContributions, String> {
-    let metadata = fs::metadata(path).map_err(|e| format!("{}: {e}", path.display()))?;
-    if !metadata.is_file() {
-        return Err(format!("{}: not a regular file", path.display()));
-    }
-    let file = fs::File::open(path).map_err(|e| format!("{}: {e}", path.display()))?;
+pub(super) fn read_claude_file(
+    path: &Path,
+    root: &Path,
+    mode: StatsMode,
+) -> Result<FileContributions, String> {
+    let (file, _) = open_session_file(path, root)?;
     // SAFETY: the file is only read and the handle outlives the map. Session
     // files are append-only.
     let mmap = unsafe { Mmap::map(&file) }.map_err(|e| format!("{}: {e}", path.display()))?;

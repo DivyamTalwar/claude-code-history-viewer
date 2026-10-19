@@ -98,11 +98,15 @@ impl ContributionCache {
         F: FnOnce() -> Result<FileContributions, String>,
     {
         // Files that cannot be resolved or stat'ed are computed uncached; the
-        // loader reports the failure.
-        let Ok(canonical) = fs::canonicalize(path) else {
+        // loader reports the failure. A symlink is never answered with its
+        // target's entry: the loader refuses it.
+        let Ok(metadata) = fs::symlink_metadata(path) else {
             return load().map(Arc::new);
         };
-        let Ok(metadata) = fs::metadata(&canonical) else {
+        if metadata.file_type().is_symlink() {
+            return load().map(Arc::new);
+        }
+        let Ok(canonical) = fs::canonicalize(path) else {
             return load().map(Arc::new);
         };
         let size = metadata.len();
@@ -320,6 +324,29 @@ mod tests {
             .unwrap();
         assert_eq!(data.title.as_ref().map(String::len), Some(10_000));
         assert_eq!(cache.usage().entries, 0);
+    }
+
+    /// A symlink is never answered with its target's entry: the loader
+    /// decides (and refuses it), so an alias cannot count a file twice.
+    #[cfg(unix)]
+    #[test]
+    fn a_symlink_is_never_served_from_the_cache() {
+        let dir = TempDir::new().unwrap();
+        let target = write(&dir, "a.jsonl", "{}\n");
+        let link = dir.path().join("link.jsonl");
+        std::os::unix::fs::symlink(&target, &link).unwrap();
+        let cache = ContributionCache::new(1 << 20);
+        let loads = Cell::new(0);
+        cache
+            .get_or_load(&target, StatsMode::BillingTotal, load_counting(&loads, 1))
+            .unwrap();
+        let through_link =
+            cache.get_or_load(
+                &link,
+                StatsMode::BillingTotal,
+                || Err("refused".to_string()),
+            );
+        assert_eq!(through_link.unwrap_err(), "refused");
     }
 
     #[test]

@@ -12,6 +12,7 @@ use super::contribution::{
 };
 use super::contribution_cache::contribution_cache;
 use super::{ProviderScanStatus, UsageScope};
+use crate::commands::stats::session_files::{claude_project_dirs, walk_session_files};
 use crate::commands::stats::{
     all_stats_providers, claude_session_heads, detect_project_provider,
     load_antigravity_usage_records, load_stats_messages, load_stats_sessions, scan_stats_projects,
@@ -23,7 +24,6 @@ use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use walkdir::WalkDir;
 
 /// Whether the provider's history format carries token usage at all. A
 /// provider without it is reported `not_supported` (never as zero usage) and
@@ -226,7 +226,7 @@ pub(super) fn collect(plan: &ScopePlan, mode: StatsMode) -> Collected {
             if !scan.not_supported {
                 let sessions = if *provider == StatsProvider::Claude {
                     collect_claude(
-                        claude_project_files(Path::new(project_path), project_path, &mut scan)
+                        claude_project_scope(project_path, &mut scan)
                             .into_iter()
                             .collect(),
                         mode,
@@ -277,64 +277,120 @@ pub(super) fn collect(plan: &ScopePlan, mode: StatsMode) -> Collected {
 
 // ---- Claude -----------------------------------------------------------------
 
-/// One Claude project directory and its `*.jsonl` files.
+/// One Claude project directory, its `*.jsonl` files, and the canonical
+/// directory every one of them must stay inside when it is read.
 struct ClaudeProjectFiles {
     project_path: String,
+    root: PathBuf,
     files: Vec<PathBuf>,
 }
 
-fn claude_project_files(
+/// Account for the symlinks a walk did not follow (ADR 0003 §7). One that
+/// resolves inside `roots` (the request's canonical history roots) is an
+/// alias of history that is read directly, so it is skipped silently; any
+/// other one — pointing out of the roots or nowhere — is refused and
+/// reported like a source that could not be read.
+fn account_links(links: &[PathBuf], roots: &[PathBuf], scan: &mut ProviderScan) {
+    for link in links {
+        match fs::canonicalize(link) {
+            Ok(target) if roots.iter().any(|root| target.starts_with(root)) => {
+                log::debug!(
+                    "usage breakdown: {} is an alias inside the history root; not followed",
+                    link.display()
+                );
+            }
+            _ => {
+                log::warn!(
+                    "usage breakdown: {} leaves the history root; not followed",
+                    link.display()
+                );
+                scan.sources_failed += 1;
+            }
+        }
+    }
+}
+
+/// Walk one project directory without following a symlink. Returns its
+/// files and the links the walk skipped (for [`account_links`]), or `None`
+/// when the directory itself cannot be resolved (a failed source).
+fn walk_project(
     project_dir: &Path,
     project_path: &str,
     scan: &mut ProviderScan,
-) -> Option<ClaudeProjectFiles> {
-    if !project_dir.is_dir() {
-        log::warn!("usage breakdown: Claude project '{project_path}' is not a readable directory");
-        scan.sources_failed += 1;
-        return None;
-    }
-    // Same file set as the old project stats: any `*.jsonl` entry, so a
-    // non-file named like a session surfaces as a failed session.
-    let files = WalkDir::new(project_dir)
-        .into_iter()
-        .filter_map(Result::ok)
-        .filter(|entry| entry.path().extension().and_then(|s| s.to_str()) == Some("jsonl"))
-        .map(|entry| entry.path().to_path_buf())
-        .collect();
-    Some(ClaudeProjectFiles {
+) -> Option<(ClaudeProjectFiles, Vec<PathBuf>)> {
+    let root = match fs::canonicalize(project_dir) {
+        Ok(root) if root.is_dir() => root,
+        _ => {
+            log::warn!(
+                "usage breakdown: Claude project '{project_path}' is not a readable directory"
+            );
+            scan.sources_failed += 1;
+            return None;
+        }
+    };
+    // Same file set as the old stats (`session_files`): any `*.jsonl` entry
+    // that is not a symlink, so a non-file named like a session surfaces as
+    // a failed session.
+    let walk = walk_session_files(project_dir);
+    let project = ClaudeProjectFiles {
         project_path: project_path.to_string(),
-        files,
-    })
+        root,
+        files: walk.files,
+    };
+    Some((project, walk.links))
+}
+
+/// The one project of a project scope; the project directory is its only
+/// history root.
+fn claude_project_scope(project_path: &str, scan: &mut ProviderScan) -> Option<ClaudeProjectFiles> {
+    let (project, links) = walk_project(Path::new(project_path), project_path, scan)?;
+    account_links(&links, std::slice::from_ref(&project.root), scan);
+    Some(project)
 }
 
 /// The projects of the default root and every valid custom root, each root
-/// read once even when listed twice.
+/// read once even when listed twice. Symlinked project directories are never
+/// walked.
 fn claude_root_projects(
     claude_path: &str,
     custom_claude_paths: &[String],
     scan: &mut ProviderScan,
 ) -> Vec<ClaudeProjectFiles> {
-    let mut roots = vec![PathBuf::from(claude_path)];
+    let mut bases = vec![PathBuf::from(claude_path)];
     for custom in custom_claude_paths {
         let base = PathBuf::from(custom);
         match crate::utils::validate_custom_claude_path(&base) {
-            Ok(_) => roots.push(base),
+            Ok(_) => bases.push(base),
             Err(error) => {
                 log::warn!("usage breakdown: skipping custom Claude path: {error}");
                 scan.sources_failed += 1;
             }
         }
     }
-    let mut seen_roots = HashSet::new();
-    let mut projects = Vec::new();
-    for root in roots {
-        let projects_dir = root.join("projects");
-        let identity = fs::canonicalize(&projects_dir).unwrap_or_else(|_| projects_dir.clone());
-        if !seen_roots.insert(identity) {
-            continue;
+    // Each root's `projects/` folder and its canonical path.
+    let mut roots: Vec<(PathBuf, PathBuf)> = Vec::new();
+    for base in bases {
+        let projects_dir = base.join("projects");
+        match fs::canonicalize(&projects_dir) {
+            Ok(canonical) => {
+                if roots.iter().all(|(_, seen)| *seen != canonical) {
+                    roots.push((projects_dir, canonical));
+                }
+            }
+            Err(error) => {
+                log::warn!(
+                    "usage breakdown: cannot read {}: {error}",
+                    projects_dir.display()
+                );
+                scan.sources_failed += 1;
+            }
         }
-        let entries = match fs::read_dir(&projects_dir) {
-            Ok(entries) => entries,
+    }
+    let canonical_roots: Vec<PathBuf> = roots.iter().map(|(_, root)| root.clone()).collect();
+    let mut projects = Vec::new();
+    for (projects_dir, _) in &roots {
+        let listing = match claude_project_dirs(projects_dir) {
+            Ok(listing) => listing,
             Err(error) => {
                 log::warn!(
                     "usage breakdown: cannot read {}: {error}",
@@ -344,15 +400,13 @@ fn claude_root_projects(
                 continue;
             }
         };
-        let mut dirs: Vec<PathBuf> = entries
-            .filter_map(Result::ok)
-            .map(|entry| entry.path())
-            .filter(|path| path.is_dir())
-            .collect();
-        dirs.sort();
-        for dir in dirs {
+        account_links(&listing.links, &canonical_roots, scan);
+        for dir in listing.dirs {
             let project_path = dir.to_string_lossy().to_string();
-            projects.extend(claude_project_files(&dir, &project_path, scan));
+            if let Some((project, links)) = walk_project(&dir, &project_path, scan) {
+                account_links(&links, &canonical_roots, scan);
+                projects.push(project);
+            }
         }
     }
     projects
@@ -365,13 +419,16 @@ fn collect_claude(
     mode: StatsMode,
     scan: &mut ProviderScan,
 ) -> Vec<SessionInput> {
-    let all_files: Vec<&PathBuf> = projects.iter().flat_map(|p| &p.files).collect();
+    let all_files: Vec<(&PathBuf, &Path)> = projects
+        .iter()
+        .flat_map(|p| p.files.iter().map(|file| (file, p.root.as_path())))
+        .collect();
     let loaded: HashMap<&PathBuf, Result<Arc<FileContributions>, String>> = all_files
         .par_iter()
-        .map(|path| {
+        .map(|&(path, root)| {
             let result =
-                contribution_cache().get_or_load(path, mode, || read_claude_file(path, mode));
-            (*path, result)
+                contribution_cache().get_or_load(path, mode, || read_claude_file(path, root, mode));
+            (path, result)
         })
         .collect();
 

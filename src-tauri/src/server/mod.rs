@@ -946,6 +946,67 @@ mod tests {
         assert_ne!(status, StatusCode::OK);
     }
 
+    /// The review probe of `AN0b`, through the route: the root guard checks
+    /// the requested directory, so the scan itself must never follow a
+    /// symlink out of it — neither a session file nor a project directory.
+    #[cfg(unix)]
+    #[tokio::test]
+    #[serial]
+    async fn test_usage_breakdown_route_never_follows_a_symlink_out_of_the_history_root() {
+        let home = crate::test_utils::SandboxHome::new();
+        let claude = home.path().join(".claude");
+        let project = claude.join("projects").join("p");
+        std::fs::create_dir_all(&project).unwrap();
+        let row = |input: u64| {
+            let row = serde_json::json!({
+                "type": "assistant", "sessionId": "s", "uuid": "a",
+                "timestamp": "2026-10-16T12:00:00Z",
+                "message": {"id": "a", "role": "assistant", "model": "claude-sonnet-4-5-20250929",
+                            "content": [], "usage": {"input_tokens": input, "output_tokens": 0}}
+            });
+            format!("{row}\n")
+        };
+        std::fs::write(project.join("s.jsonl"), row(100)).unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        std::fs::write(outside.path().join("private.jsonl"), row(4_242)).unwrap();
+        std::os::unix::fs::symlink(
+            outside.path().join("private.jsonl"),
+            project.join("escaped.jsonl"),
+        )
+        .unwrap();
+        std::os::unix::fs::symlink(outside.path(), claude.join("projects").join("evil")).unwrap();
+
+        let intervals = serde_json::json!([
+            {"key": "2026-10-16", "start_utc": 1_792_108_800_000_i64, "end_utc": 1_792_195_200_000_i64}
+        ]);
+        let scopes = [
+            serde_json::json!({"kind": "project", "project_path": project.to_string_lossy(), "provider": "claude"}),
+            serde_json::json!({"kind": "all", "providers": ["claude"],
+                               "claude_path": claude.to_string_lossy(), "custom_claude_paths": []}),
+        ];
+        for scope in scopes {
+            let (status, body) = post_usage_breakdown(
+                test_state_read_only(),
+                serde_json::json!({ "request": {
+                    "scope": scope, "stats_mode": "billing_total", "intervals": intervals
+                }}),
+            )
+            .await;
+            assert_eq!(status, StatusCode::OK, "{body}");
+            let tokens: u64 = body["intervals"][0]["models"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|m| m["stats"]["token_count"].as_u64().unwrap())
+                .sum();
+            assert_eq!(tokens, 100, "{scope}: only the history inside the root");
+            assert_eq!(
+                body["coverage"]["providers"][0]["status"], "partial",
+                "{scope}: a refused link is a source that was not read"
+            );
+        }
+    }
+
     /// #640. The restore preview reads a project file the export allowlist
     /// does not cover, authorised by the same recorded-edit history restore
     /// uses.

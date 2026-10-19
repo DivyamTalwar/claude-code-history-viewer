@@ -16,9 +16,9 @@ use std::cmp::Reverse;
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
-use walkdir::WalkDir;
 
 mod cache;
+mod session_files;
 pub mod usage_breakdown;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
@@ -4631,14 +4631,8 @@ pub async fn get_project_token_stats(
 
     // Collect all session files; subagent transcripts are folded into their
     // owning session's item rather than listed as sessions (#577).
-    let session_files: Vec<PathBuf> = claude_session_heads(
-        WalkDir::new(&project_path)
-            .into_iter()
-            .filter_map(std::result::Result::ok)
-            .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("jsonl"))
-            .map(|e| e.path().to_path_buf())
-            .collect(),
-    );
+    let session_files: Vec<PathBuf> =
+        claude_session_heads(claude_project_session_files(&project_path_buf));
 
     #[cfg(debug_assertions)]
     let scan_time = start.elapsed();
@@ -4729,12 +4723,7 @@ pub async fn get_project_stats_summary(
     let e_limit = parse_date_limit(end_date, "end_date");
 
     // Phase 1: Collect all session files
-    let session_files: Vec<PathBuf> = WalkDir::new(&project_path)
-        .into_iter()
-        .filter_map(std::result::Result::ok)
-        .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("jsonl"))
-        .map(|e| e.path().to_path_buf())
-        .collect();
+    let session_files: Vec<PathBuf> = claude_project_session_files(&project_path_buf);
     let scan_time = start.elapsed();
 
     // Subagent transcripts count toward the project's usage but belong to
@@ -4967,6 +4956,29 @@ fn claude_session_heads(files: Vec<PathBuf>) -> Vec<PathBuf> {
         .collect()
 }
 
+/// Every Claude session file under `project_dir` for the stats commands:
+/// symlinks are never followed (`session_files`); what the walk skipped or
+/// could not read is logged. `get_usage_breakdown` uses the same walk and
+/// reports the skipped part in its coverage.
+fn claude_project_session_files(project_dir: &Path) -> Vec<PathBuf> {
+    let walk = session_files::walk_session_files(project_dir);
+    log_skipped_history(project_dir, &walk.links, &walk.errors);
+    walk.files
+}
+
+fn log_skipped_history(dir: &Path, links: &[PathBuf], errors: &[String]) {
+    for link in links {
+        log::warn!(
+            "stats: not following symlink {} under {}",
+            link.display(),
+            dir.display()
+        );
+    }
+    for error in errors {
+        log::warn!("stats: cannot read part of {}: {error}", dir.display());
+    }
+}
+
 /// Comparison stats for one Claude session, with its subagent transcripts'
 /// tokens and messages folded in under `billing_total` (#577).
 fn session_comparison_with_subagents(
@@ -5133,14 +5145,8 @@ pub async fn get_session_comparison(
     let e_limit = parse_date_limit(end_date, "end_date");
 
     // Phase 1: Collect all session files
-    let session_files: Vec<PathBuf> = claude_session_heads(
-        WalkDir::new(&project_path)
-            .into_iter()
-            .filter_map(std::result::Result::ok)
-            .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("jsonl"))
-            .map(|e| e.path().to_path_buf())
-            .collect(),
-    );
+    let session_files: Vec<PathBuf> =
+        claude_session_heads(claude_project_session_files(Path::new(&project_path)));
     let scan_time = start.elapsed();
 
     // Phase 2: Process all session files in parallel with per-message date filtering
@@ -5315,41 +5321,23 @@ pub async fn get_global_stats_summary(
         if !projects_path.exists() {
             return;
         }
-        match fs::read_dir(projects_path) {
-            Ok(entries) => {
-                for project_entry in entries {
-                    let project_entry = match project_entry {
-                        Ok(entry) => entry,
-                        Err(e) => {
-                            log::warn!("Skipping unreadable Claude project entry: {e}");
-                            continue;
-                        }
-                    };
-                    let project_path = project_entry.path();
-
-                    if !project_path.is_dir() {
-                        continue;
-                    }
-
-                    let project_name = project_path
-                        .file_name()
-                        .and_then(|n| n.to_str())
-                        .unwrap_or("Unknown")
-                        .to_string();
-                    project_names.insert(format!("claude:{project_name}"));
-
-                    for entry in WalkDir::new(&project_path)
-                        .into_iter()
-                        .filter_map(std::result::Result::ok)
-                        .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("jsonl"))
-                    {
-                        session_files.push(entry.path().to_path_buf());
-                    }
-                }
-            }
+        // Symlinked project directories are never walked (session_files).
+        let listing = match session_files::claude_project_dirs(projects_path) {
+            Ok(listing) => listing,
             Err(e) => {
                 log::warn!("Failed to read Claude projects directory: {e}");
+                return;
             }
+        };
+        log_skipped_history(projects_path, &listing.links, &listing.errors);
+        for project_path in listing.dirs {
+            let project_name = project_path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("Unknown")
+                .to_string();
+            project_names.insert(format!("claude:{project_name}"));
+            session_files.extend(claude_project_session_files(&project_path));
         }
     };
 
