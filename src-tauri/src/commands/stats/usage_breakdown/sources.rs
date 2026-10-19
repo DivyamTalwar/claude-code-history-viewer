@@ -310,9 +310,23 @@ fn account_links(links: &[PathBuf], roots: &[PathBuf], scan: &mut ProviderScan) 
     }
 }
 
+/// Entries a walk could not read (ADR 0003 §7): each one is a source that
+/// was not read, so the provider is `partial` or `unreadable`, never
+/// `scanned`.
+fn account_unreadable(dir: &Path, errors: &[String], scan: &mut ProviderScan) {
+    for error in errors {
+        log::warn!(
+            "usage breakdown: cannot read part of {}: {error}",
+            dir.display()
+        );
+        scan.sources_failed += 1;
+    }
+}
+
 /// Walk one project directory without following a symlink. Returns its
 /// files and the links the walk skipped (for [`account_links`]), or `None`
-/// when the directory itself cannot be resolved (a failed source).
+/// when the directory itself cannot be resolved (a failed source). What the
+/// walk could not read is accounted here.
 fn walk_project(
     project_dir: &Path,
     project_path: &str,
@@ -332,6 +346,7 @@ fn walk_project(
     // that is not a symlink, so a non-file named like a session surfaces as
     // a failed session.
     let walk = walk_session_files(project_dir);
+    account_unreadable(project_dir, &walk.errors, scan);
     let project = ClaudeProjectFiles {
         project_path: project_path.to_string(),
         root,
@@ -400,6 +415,7 @@ fn claude_root_projects(
                 continue;
             }
         };
+        account_unreadable(projects_dir, &listing.errors, scan);
         account_links(&listing.links, &canonical_roots, scan);
         for dir in listing.dirs {
             let project_path = dir.to_string_lossy().to_string();

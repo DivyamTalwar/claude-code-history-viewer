@@ -1,7 +1,8 @@
-//! A request never leaves its history roots through a symlink (ADR 0003 §7,
-//! `AN0b` review P1). The old stats commands walk Claude history with the
-//! same helper, so every scenario asserts them too: old and new read the
-//! same file set.
+//! A request never leaves its history roots through a symlink, and a part
+//! of a root the walk cannot read is reported, never counted as complete
+//! (ADR 0003 §7, `AN0b` review P1 and P2). The old stats commands walk
+//! Claude history with the same helper, so the symlink scenarios assert
+//! them too: old and new read the same file set.
 
 use super::contribution::read_claude_file;
 use super::fixture::*;
@@ -13,7 +14,7 @@ use crate::commands::stats::{
 use crate::test_utils::SandboxHome;
 use serial_test::serial;
 use std::fs;
-use std::os::unix::fs::symlink;
+use std::os::unix::fs::{symlink, PermissionsExt};
 use std::path::{Path, PathBuf};
 use tempfile::TempDir;
 
@@ -251,4 +252,95 @@ fn the_reader_opens_only_regular_files_inside_its_root() {
     assert!(error.contains("outside the scanned root"), "{error}");
     let inside = read_claude_file(&project.join("s1.jsonl"), &root, mode).unwrap();
     assert_eq!(inside.contributions.len(), 1);
+}
+
+/// Makes a directory unreadable (mode 000) and restores it when dropped,
+/// before the fixture's temporary directory is removed.
+struct Unreadable(PathBuf);
+
+impl Unreadable {
+    /// `None` when the process reads it anyway (running as root): there is
+    /// nothing to test then.
+    fn new(dir: &Path) -> Option<Self> {
+        fs::set_permissions(dir, fs::Permissions::from_mode(0o000)).unwrap();
+        let guard = Self(dir.to_path_buf());
+        if fs::read_dir(dir).is_ok() {
+            eprintln!("skipped: {} stays readable at mode 000", dir.display());
+            return None;
+        }
+        Some(guard)
+    }
+}
+
+impl Drop for Unreadable {
+    fn drop(&mut self) {
+        let _ = fs::set_permissions(&self.0, fs::Permissions::from_mode(0o755));
+    }
+}
+
+/// A 77-token session in `<project>/locked/`, as the review probe wrote it.
+fn locked_session(project: &Path) -> PathBuf {
+    let locked = project.join("locked");
+    write_rows(
+        &locked.join("hidden.jsonl"),
+        &[row("hidden", "h1", "2026-10-15T13:00:00Z").tokens(77, 0, 0, 0)],
+    );
+    locked
+}
+
+#[tokio::test]
+#[serial]
+async fn an_unreadable_subdirectory_makes_the_project_partial_not_complete() {
+    let _home = SandboxHome::new();
+    let fixture = inside_fixture();
+    let locked = locked_session(Path::new(&fixture.project_path()));
+    let Some(_unreadable) = Unreadable::new(&locked) else {
+        return;
+    };
+
+    let response = get_usage_breakdown(project_request(fixture.project_path()))
+        .await
+        .unwrap();
+    assert_eq!(total_tokens(&response), INSIDE_TOKENS);
+    assert_eq!(claude(&response), (ProviderScanStatus::Partial, 1, 0));
+}
+
+/// The review probe: the project's only history sits in a mode-000
+/// directory. That is unreadable, not a project with zero usage.
+#[tokio::test]
+#[serial]
+async fn a_project_whose_history_cannot_be_read_is_unreadable_not_zero() {
+    let _home = SandboxHome::new();
+    let fixture = UsageFixture::write("p", Vec::new());
+    let locked = locked_session(Path::new(&fixture.project_path()));
+    let Some(_unreadable) = Unreadable::new(&locked) else {
+        return;
+    };
+
+    let response = get_usage_breakdown(project_request(fixture.project_path()))
+        .await
+        .unwrap();
+    assert_eq!(total_tokens(&response), 0);
+    assert_eq!(claude(&response), (ProviderScanStatus::Unreadable, 0, 0));
+}
+
+#[tokio::test]
+#[serial]
+async fn an_unreadable_project_directory_makes_the_all_scope_partial() {
+    let _home = SandboxHome::new();
+    let fixture = inside_fixture();
+    let other = fixture.root().join("projects/q");
+    write_rows(
+        &other.join("s2.jsonl"),
+        &[row("s2", "b1", "2026-10-15T14:00:00Z").tokens(5, 0, 0, 0)],
+    );
+    let Some(_unreadable) = Unreadable::new(&other) else {
+        return;
+    };
+
+    let response = get_usage_breakdown(all_request(fixture.root()))
+        .await
+        .unwrap();
+    assert_eq!(total_tokens(&response), INSIDE_TOKENS);
+    assert_eq!(claude(&response), (ProviderScanStatus::Partial, 1, 0));
 }

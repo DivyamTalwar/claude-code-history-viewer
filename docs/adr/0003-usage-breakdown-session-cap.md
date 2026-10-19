@@ -171,6 +171,12 @@ symlink. A symlinked project directory under `projects/` is not walked either.
   that was checked (same device and inode on Unix). A file swapped for a symlink after the walk
   is not read. The contribution cache never answers a symlink with its target's entry.
 
+**What a walk cannot read is reported.** An entry the Claude walk cannot read — a subdirectory
+or project directory it may not list, an I/O error while listing `projects/` — counts as a
+source that was not read: `partial` when something else was read, `unreadable` when nothing
+was. Such errors used to be dropped, so a project whose only history sat in a mode-000
+directory was `scanned` with zero usage.
+
 ## Consequences
 
 - The response is bounded by `intervals` plus 250 session rows: 718.6 KiB instead of 1,986.2 KiB
