@@ -1,5 +1,5 @@
 {
-  "limits": { "max_intervals": 1000, "max_sessions": 250 },
+  "limits": { "max_intervals": 1000, "max_sessions": 100 },
   "provider_scan_statuses": ["scanned", "partial", "unreadable", "not_supported", "not_found"],
   "requests": [
     {

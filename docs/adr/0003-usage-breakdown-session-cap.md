@@ -1,4 +1,4 @@
-# 0003 — Usage breakdown: `sessions` capped at the top 250 by cost plus one remainder row
+# 0003 — Usage breakdown: `sessions` capped at the top 100 by cost plus one remainder row
 
 - **Status**: accepted
 - **Date**: 2026-10-19
@@ -19,6 +19,10 @@ source and an estimate bucket each, each with its `context_breakdown`). Session 
 that grows with use: 250 sessions fit (724 KiB), 1,000 did not. ADR 0002 §10 offered three ways
 out; the owner chose (a): list the top n sessions plus one remainder row, and change nothing else
 in the contract.
+
+The first cut was n = 250. The independent review of AN0b then measured it with every session
+mixing models — a main model plus a small one is common — and the three-model response was
+1,236.8 KiB, over the budget. n is 100 (§6).
 
 Two facts shape the details:
 
@@ -41,7 +45,7 @@ UsageBreakdownResponse {
 }
 ```
 
-- `MAX_SESSIONS = 250` (Rust) and `MAX_USAGE_SESSIONS` (TypeScript). The shared contract fixture
+- `MAX_SESSIONS = 100` (Rust) and `MAX_USAGE_SESSIONS` (TypeScript). The shared contract fixture
   (`usageBreakdown.contract.json`, `limits`) pins both, and now pins `MAX_INTERVALS` the same way.
 - The remainder merges every session that is not listed, bucket by bucket, under the same key as
   an interval: (provider, model, service tier, pricing source). Source and estimate buckets stay
@@ -118,36 +122,44 @@ order, so both sides produce the same number.
   provider }` over the analytics period; share of project tokens, project session count and
   average per message stay exact (they come from `intervals` and the remainder). The session's
   own usage requests intervals around its own span. A session is cut from a project-scope
-  response only when the project has more than 250 sessions with rows in the period and the
+  response only when the project has more than 100 sessions with rows in the period and the
   session ranks below them. Ranks and percentiles ("3rd of 42 by tokens", duration rank) are
   exact only when `session_remainder.session_count == 0`; otherwise AN2 says they are among the
   listed sessions, or narrows the period. The plan does not require a new request field, so none
   is added.
 - **Activity tab day list** (AN2): request that day's interval; the day's sessions are listed up
-  to 250.
+  to 100.
 
 ### 6. Budget (replaces the response-size line of ADR 0002 §10)
 
-Reference fixture as in ADR 0002 §10 (25 projects, 90 KST days, 50,000 Claude rows), release
-build, Apple M4 Pro, `cargo test --release perf_budget -- --ignored --nocapture
---test-threads=1` (`CCHV_PERF_ROWS_PER_SESSION=200` for 250 sessions).
+Reference fixture as in ADR 0002 §10 (25 projects, 90 KST days, 50,000 Claude rows, 1,000
+sessions), release build, Apple M4 Pro, `cargo test --release --lib perf_budget -- --ignored
+--nocapture --test-threads=1`. Three asserted runs: one model per session (the reference
+fixture) and every session mixing two and three models.
 
-| Measure | 1,000 sessions | 250 sessions | Budget |
-|---|---|---|---|
-| Response size | **718.6 KiB** (was 1,986.2 KiB uncut) | 735.0 KiB (nothing cut) | ≤ 1 MiB, asserted |
-| · intervals | 339.4 KiB, 540 buckets | 315.0 KiB, 500 buckets | |
-| · sessions | 375.0 KiB, 250 listed, 498 buckets | 419.8 KiB, 250 listed, 500 buckets | |
-| · session_remainder | 3.9 KiB, 750 sessions, 6 buckets | 0.0 KiB, zero row | |
-| Cold request | 80 ms | 48 ms | ≤ 3 s |
-| Warm request (median of 5) | 18.7 ms | 7.6 ms | ≤ 300 ms |
-| Contribution cache | 2.69 MiB | 2.39 MiB | ≤ 64 MiB |
+| Measure (n = 100) | 1 model | 2 models | 3 models | Budget |
+|---|---|---|---|---|
+| Response size | **492.7 KiB** | **591.4 KiB** | **700.8 KiB** | ≤ 1 MiB, asserted in every run |
+| · intervals | 339.4 KiB, 540 buckets | 339.7 KiB, 540 buckets | 339.4 KiB, 540 buckets | |
+| · sessions | 149.1 KiB, 198 buckets | 247.6 KiB, 383 buckets | 357.2 KiB, 534 buckets | |
+| · session_remainder | 3.9 KiB, 900 sessions | 3.9 KiB, 900 sessions | 3.9 KiB, 900 sessions | |
+| Cold request | 116 ms | 77 ms | 311 ms | ≤ 3 s |
+| Warm request (median of 5) | 40.1 ms | 20.2 ms | 34.4 ms | ≤ 300 ms |
+| Contribution cache | 2.69 MiB | 2.74 MiB | 2.98 MiB | ≤ 64 MiB |
 
-- The uncut figure was re-measured under the same conditions as the capped one (1,986.2 KiB;
-  AN0b's 1,941 KiB came from a shorter temporary path in every `ref`).
-- The response size is deterministic and asserted in every build; time and memory are asserted
-  in release builds, as before.
-- 250 is the owner's starting point, confirmed by measurement: about 30 % below the budget on
-  the reference fixture, and AN1 needs 5.
+- **Why 100.** The cap bounds session rows, not their bytes, and a row grows with its buckets. At
+  n = 250 the three runs measured 718.6, 965.6 and **1,236.8 KiB** (over; `sessions` 893.3 KiB
+  of it). Everything but the session rows stays fixed as n changes, so the three-model response
+  at n = 100 projects to (1,236.8 − 893.3) + 893.3 × 100 / 250 ≈ **700.8 KiB**, 31.6 % below the
+  budget — and measures 700.8 KiB. About n = 190 is the largest three-model fit, with no margin.
+  The one- and two-model projections (493.6 and 592.6 KiB) match their measurements within
+  1.2 KiB. AN1 needs 5; AN2's lists ask narrower questions (§5).
+- The three-model run is the gate: a change that pushes its response over 1 MiB — a larger n,
+  or larger session rows — fails the test. The contract fixture pins n on both sides.
+- The response size is deterministic and asserted whenever the (ignored) perf tests run, debug or
+  release; time and memory are asserted in release builds. Timings vary from run to run (one run
+  shown); sizes do not.
+- History: the first cap (250) measured 718.6 KiB for one model (1,986.2 KiB uncut).
 
 ### 7. What a scan does not read (amends ADR 0002 §9)
 
@@ -195,10 +207,10 @@ held no usage) nor `unreadable` (a store that exists but cannot be read).
 
 ## Consequences
 
-- The response is bounded by `intervals` plus 250 session rows: 718.6 KiB instead of 1,986.2 KiB
-  for 1,000 sessions. Ranking and merging cost no measurable time (warm 18.7 ms capped against
-  19.2 ms uncut in the same session, within run-to-run noise).
-- AN1 and AN2 treat `sessions` as the top 250 and `session_remainder` as the rest. A list that
+- The response is bounded by `intervals` plus 100 session rows: 492.7 KiB instead of
+  1,986.2 KiB for 1,000 sessions, 700.8 KiB when every session mixes three models. Ranking and
+  merging cost no measurable time.
+- AN1 and AN2 treat `sessions` as the top 100 and `session_remainder` as the rest. A list that
   needs every session asks a narrower question: project scope, one day, or the session's span.
 - The backend carries an ordering-only copy of the price rules. A rule change in
   `calculations.ts` has to be mirrored in `ranking.rs`; the guards in §3 catch the cases they
@@ -207,10 +219,9 @@ held no usage) nor `unreadable` (a store that exists but cannot be read).
   the Rust golden test asks for `CCHV_UPDATE_GOLDEN=1`. The `ranking.rs` unit tests read their
   expected rates from the table, so they survive price edits (one canonical check keeps Sonnet
   4.5 input at $3 / 1M, the example of ADR 0002 §8 (3) that the TypeScript tests already use).
-- The cap bounds the number of session rows, not their bytes. A row grows with its buckets: with
-  every session mixing 2 models the reference response is 965.6 KiB (6 % below the budget), with
-  3 models 1,236.8 KiB (over), measured with `CCHV_PERF_MODELS_PER_SESSION`. If real histories
-  look like that, lowering `MAX_SESSIONS` (≈ 200 keeps 2-model sessions near 840 KiB, by
-  proportion) is a one-constant change pinned by the contract fixture.
+- The cap bounds the number of session rows, not their bytes. No fixed n guarantees 1 MiB for any
+  number of models or tiers per session, path and title lengths, or interval count; that would
+  need byte-aware truncation and a policy for when `intervals` alone exceed the budget. n = 100 is
+  sized on the reference fixture with up to three models per session, the case the gate asserts.
 - The golden file is compared as text: the recorded ranking costs are computed floats, and
   serde_json's default parser does not promise an exact round trip.

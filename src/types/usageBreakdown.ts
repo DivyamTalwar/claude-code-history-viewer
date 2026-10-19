@@ -23,7 +23,7 @@ export const MAX_USAGE_INTERVALS = 1_000;
  * Same cap as the backend's `MAX_SESSIONS` (ADR 0003): sessions listed per
  * response; the rest are merged into `session_remainder`.
  */
-export const MAX_USAGE_SESSIONS = 250;
+export const MAX_USAGE_SESSIONS = 100;
 
 export type UsageScope =
   | { kind: "project"; project_path: string; provider: string }

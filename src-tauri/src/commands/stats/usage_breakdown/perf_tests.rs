@@ -1,16 +1,19 @@
 //! Budget measurement (ADR 0002 §10) on the reference fixture: 25 projects
 //! and a synthetic 90-day, 50,000-message Claude history.
 //!
-//! Ignored by default (it writes ~50 MB). Run in release for the numbers the
-//! ADR budgets refer to:
+//! Ignored by default (each run writes ~50 MB). Run in release for the
+//! numbers the ADR budgets refer to:
 //!
 //! ```text
-//! cargo test --release perf_budget -- --ignored --nocapture --test-threads=1
+//! cargo test --release --lib perf_budget -- --ignored --nocapture --test-threads=1
 //! ```
 //!
-//! Time and memory budgets are asserted only in release builds; a debug run
-//! prints the same table for information. The response size does not depend
-//! on the build and is asserted in both (ADR 0003).
+//! Three runs: the reference fixture (one model per session) and the same
+//! history with every session mixing two and three models, whose session
+//! rows are the largest the cap has to bound (ADR 0003 §6). Time and memory
+//! budgets are asserted only in release builds; a debug run prints the same
+//! table for information. The response size does not depend on the build and
+//! is asserted in every run.
 
 use super::contribution_cache::contribution_cache;
 use super::*;
@@ -38,16 +41,6 @@ fn rows_per_session() -> usize {
         .unwrap_or(DEFAULT_ROWS_PER_SESSION)
 }
 
-/// Models per session (default 1, the reference fixture); override with
-/// `CCHV_PERF_MODELS_PER_SESSION` (1–3) to see how the session rows grow
-/// when every session mixes models, as a main model plus a small one does.
-fn models_per_session() -> usize {
-    std::env::var("CCHV_PERF_MODELS_PER_SESSION")
-        .ok()
-        .and_then(|v| v.parse().ok())
-        .filter(|n: &usize| (1..=MODELS.len()).contains(n))
-        .unwrap_or(1)
-}
 const DAY_MS: i64 = 86_400_000;
 /// 2026-07-21T00:00:00+09:00 — the first local (KST) day of the fixture.
 const FIRST_DAY_START_MS: i64 = 1_784_559_600_000;
@@ -79,12 +72,13 @@ fn rfc3339(ms: i64) -> String {
         .to_rfc3339_opts(chrono::SecondsFormat::Millis, true)
 }
 
-/// Writes the history; returns the number of rows written.
-fn write_history(root: &Path) -> usize {
+/// Writes the history, every session mixing `models_per_session` models (a
+/// main model plus small ones); returns the number of rows written.
+fn write_history(root: &Path, models_per_session: usize) -> usize {
+    assert!((1..=MODELS.len()).contains(&models_per_session));
     let mut rng = Rng(0x5eed_cafe);
     let filler = "lorem ipsum dolor sit amet ".repeat(24); // ~650 bytes of text
     let rows_per_session = rows_per_session();
-    let models_per_session = models_per_session();
     let sessions = MESSAGES / rows_per_session;
     let mut rows = 0;
     for s in 0..sessions {
@@ -157,9 +151,33 @@ fn median(mut samples: Vec<Duration>) -> Duration {
 #[serial]
 #[ignore = "perf: writes ~50 MB; run with --release --ignored --nocapture"]
 async fn perf_budget_on_reference_fixture() {
+    budget_run(1).await;
+}
+
+/// Every session mixes two models.
+#[tokio::test]
+#[serial]
+#[ignore = "perf: writes ~50 MB; run with --release --ignored --nocapture"]
+async fn perf_budget_with_two_models_per_session() {
+    budget_run(2).await;
+}
+
+/// Every session mixes three models: the size gate that decided
+/// `MAX_SESSIONS` (ADR 0003 §6). At a cap of 250 this response was
+/// 1,236.8 KiB, over the budget.
+#[tokio::test]
+#[serial]
+#[ignore = "perf: writes ~50 MB; run with --release --ignored --nocapture"]
+async fn perf_budget_with_three_models_per_session() {
+    budget_run(3).await;
+}
+
+/// One measured run; asserts the budgets (size always, time and memory in
+/// release builds).
+async fn budget_run(models_per_session: usize) {
     let home = SandboxHome::new();
     let root = home.path().join(".claude");
-    let rows = write_history(&root);
+    let rows = write_history(&root, models_per_session);
     let bytes_on_disk: u64 = walkdir::WalkDir::new(&root)
         .into_iter()
         .filter_map(Result::ok)
@@ -242,7 +260,7 @@ async fn perf_budget_on_reference_fixture() {
     println!(
         "usage-breakdown perf ({build}): {PROJECTS} projects, {DAYS} KST days, {rows} rows, {} sessions ({} model(s) each), {:.1} MiB on disk",
         cold_response.sessions.len() as u64 + cold_response.session_remainder.session_count,
-        models_per_session(),
+        models_per_session,
         mib(usize::try_from(bytes_on_disk).unwrap_or(usize::MAX))
     );
     println!("| Measure | Result | Budget | |");

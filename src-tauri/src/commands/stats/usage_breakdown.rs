@@ -53,7 +53,9 @@ pub const MAX_INTERVALS: usize = 1_000;
 
 /// Sessions listed per response (ADR 0003); every other session of the
 /// response is merged into [`UsageBreakdownResponse::session_remainder`].
-pub const MAX_SESSIONS: usize = 250;
+/// 100 keeps the reference fixture under the 1 MiB budget even when every
+/// session mixes three models (the asserted perf gate); AN1 lists 5.
+pub const MAX_SESSIONS: usize = 100;
 
 /// Which history the breakdown reads.
 #[derive(Debug, Clone, Serialize, Deserialize)]
