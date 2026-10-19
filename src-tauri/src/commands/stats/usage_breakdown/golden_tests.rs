@@ -23,10 +23,14 @@ fn golden_path() -> PathBuf {
         .join("../src/test/fixtures/usageBreakdown.reconciliation.json")
 }
 
-/// Replace the temporary root in every string so the file is stable.
+/// Replace the temporary root in every string so the file is stable, and
+/// record a path under the root with `/` separators, so the file is the same
+/// on Windows (`<root>\projects\p` there).
 fn normalize(value: Value, root: &str) -> Value {
     match value {
-        Value::String(s) => Value::String(s.replace(root, "<root>")),
+        Value::String(s) if s.contains(root) => {
+            Value::String(s.replace(root, "<root>").replace('\\', "/"))
+        }
         Value::Array(items) => {
             Value::Array(items.into_iter().map(|v| normalize(v, root)).collect())
         }
@@ -260,6 +264,26 @@ async fn build_golden() -> Value {
     })
 }
 
+/// The golden file is the same on every platform: a path under the fixture
+/// root is recorded with `/` separators, whatever the platform joins with.
+#[test]
+fn normalize_records_paths_under_the_root_with_forward_slashes() {
+    let root = r"C:\Users\RUNNER~1\AppData\Local\Temp\.tmpAbC";
+    let value = json!({
+        "project_path": format!(r"{root}\projects\apia"),
+        "sessions": [{ "file_path": format!(r"{root}\projects\apia\s1.jsonl") }],
+        "title": r"not\a\path",
+    });
+    assert_eq!(
+        normalize(value, root),
+        json!({
+            "project_path": "<root>/projects/apia",
+            "sessions": [{ "file_path": "<root>/projects/apia/s1.jsonl" }],
+            "title": r"not\a\path",
+        })
+    );
+}
+
 #[tokio::test]
 #[serial]
 async fn golden_reconciliation_fixture_matches_the_command() {
@@ -288,10 +312,13 @@ async fn golden_reconciliation_fixture_matches_the_command() {
             .zip(text.lines())
             .position(|(stored, built)| stored != built)
             .unwrap_or_else(|| stored.lines().count().min(text.lines().count()));
+        let at = |s: &str| s.lines().nth(line).unwrap_or("<end of file>").to_string();
         panic!(
-            "{} differs from the command's output at line {} (regenerate with CCHV_UPDATE_GOLDEN=1 if the change is intended)",
+            "{} differs from the command's output at line {}\n  stored: {}\n  built:  {}\n(regenerate with CCHV_UPDATE_GOLDEN=1 if the change is intended)",
             path.display(),
-            line + 1
+            line + 1,
+            at(&stored),
+            at(&text),
         );
     }
 }
