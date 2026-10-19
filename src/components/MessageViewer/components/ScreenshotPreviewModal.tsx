@@ -133,7 +133,7 @@ export function ScreenshotPreviewModal({
 
   const [isDragging, setIsDragging] = useState(false);
   // format-guard: not-a-share — zoom level, may exceed 100%
-  const zoomPercent = Math.round(zoom * 100);
+  const zoomLabel = t("captureMode.preview.zoomLevel", { percent: Math.round(zoom * 100) });
 
   return createPortal(
     <div
@@ -154,7 +154,7 @@ export function ScreenshotPreviewModal({
             {t("captureMode.preview.dimensions", { width, height })}
           </span>
           <span className="text-list font-mono text-muted-foreground">
-            {t("captureMode.preview.zoomLevel", { percent: zoomPercent })}
+            {zoomLabel}
           </span>
         </div>
 

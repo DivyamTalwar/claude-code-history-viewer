@@ -7,6 +7,7 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { ArrowUpRight, ArrowDownRight, Minus } from "lucide-react";
+import { useFormat } from "@/lib/format/useFormat";
 import { cn } from "@/lib/utils";
 import type { GrowthTrend, MetricCardProps } from "../types";
 
@@ -36,6 +37,7 @@ const formatMultiple = (pct: number): string => {
  */
 const TrendChip: React.FC<{ trend?: GrowthTrend }> = ({ trend }) => {
   const { t } = useTranslation();
+  const fmt = useFormat();
   if (!trend || trend.kind === "none") return null;
 
   const chip = (direction: TrendDirection, content: React.ReactNode, description?: string) => {
@@ -76,7 +78,9 @@ const TrendChip: React.FC<{ trend?: GrowthTrend }> = ({ trend }) => {
           t("analytics.trend.timesDescription", { value: multiple })
         );
       }
-      return chip(direction, <span>{Math.abs(trend.value)}%</span>, description);
+      // `trend.value` is the whole-percent change (`changePercent`); the arrow
+      // carries the sign, the chip its size in the app language.
+      return chip(direction, <span>{fmt.percent(Math.abs(trend.value) / 100)}</span>, description);
     }
     case "new":
       return chip(

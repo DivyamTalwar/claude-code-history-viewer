@@ -72,8 +72,16 @@ function findings(pattern: RegExp): string[] {
 //     any spelling of 100) inside a rounding call (`Math.round / floor / ceil
 //     / trunc`, an aliased `round(…)`) or a bitwise truncation (`| 0`, `~~`);
 //   - `.toFixed()` / `.toPrecision()` of percent arithmetic;
-//   - `%` text right after percent arithmetic, a rounding call or a
-//     `.toFixed()`, in a template, a `+` concatenation or JSX.
+//   - any value printed right before a literal `%`, however and wherever it
+//     was computed: `${x}%` in a template, `x + "%"`, `{x}%` or `{x}{"%"}` in
+//     JSX, and a message whose text puts `%` right after an interpolation
+//     (`"Top {{percent}}%"`, in any locale) called with a value for it. Only
+//     a literal (`${100}%`) and a value that styles an element are not text:
+//     inside a JSX `style`, `className` or `class` attribute, a `<style>`
+//     element, or an object typed `CSSProperties` (bar widths).
+// The guard reads how text is built, not where values flow, so a `%` made at
+// run time (`String.fromCharCode(37)`) is beyond it.
+//
 // A value that really is not a share (a zoom level, a download step) is
 // exempted only by this exact comment, alone on the line before the site:
 //
@@ -91,9 +99,11 @@ const EXEMPTION = /^\/\/ format-guard: not-a-share — (\S.*)$/;
  * the exemption covers that known expression only.
  */
 const EXEMPTIONS = [
-  "src/components/MessageViewer/components/ScreenshotPreviewModal.tsx: zoom level, may exceed 100% → const zoomPercent = Math.round(zoom * 100);",
+  "src/components/MessageViewer/components/ScreenshotPreviewModal.tsx: zoom level, may exceed 100% → const zoomLabel = t(\"captureMode.preview.zoomLevel\", { percent: Math.round(zoom * 100) });",
+  "src/components/SimpleUpdateModal.tsx: download progress (0-100), how far the update has got → const downloadingLabel = t('simpleUpdateModal.downloading', { progress: updater.state.downloadProgress });",
   "src/components/ui/loading.tsx: progress bar label, how far a task has got (0-100) → const label = `${Math.round(clampedProgress)}%`;",
   "src/hooks/useUpdater.ts: download progress (0-100) for the progress bar and its label → const progress = contentLength > 0 ? Math.round((downloaded / contentLength) * 100) : 0;",
+  "src/layouts/Header/SettingDropdown/FontMenuGroup.tsx: font size setting (90-130), may exceed 100% → const scaleLabel = (scale: number) => `${scale}%`;",
 ];
 
 const unwrap = (node: ts.Expression): ts.Expression =>
@@ -152,7 +162,10 @@ const hasPercentArithmetic = (node: ts.Node) => contains(node, isPercentArithmet
 const isPercentish = (node: ts.Node) =>
   contains(node, (n) => isPercentArithmetic(n) || isCallOf(n, ROUNDING) || isCallOf(n, FIXED));
 
-const startsWithPercentSign = (text: string) => /^\s*%/.test(text);
+/** `%`, and the full-width, small and Arabic percent signs. */
+const PERCENT_SIGN = "[%％﹪٪]";
+const startsWithPercentSign = (text: string) => new RegExp(`^\\s*${PERCENT_SIGN}`).test(text);
+const isLonePercentSign = (text: string) => new RegExp(`^\\s*${PERCENT_SIGN}\\s*$`).test(text);
 
 /** The literal text a `+` right operand starts with (`"%"`, `` `% ${x}` ``), else "". */
 function leadingText(node: ts.Expression): string {
@@ -162,7 +175,178 @@ function leadingText(node: ts.Expression): string {
   return "";
 }
 
-/** The nodes in `node` (not its children) that are hand-rolled percents. */
+/** A literal value (`"50"`, `50`, `-5`, a template without values): text the code wrote, not a value it printed. */
+function isLiteral(node: ts.Expression): boolean {
+  const inner = unwrap(node);
+  if (ts.isStringLiteralLike(inner) || ts.isNumericLiteral(inner)) return true;
+  return (
+    ts.isPrefixUnaryExpression(inner) &&
+    inner.operator === ts.SyntaxKind.MinusToken &&
+    ts.isNumericLiteral(unwrap(inner.operand))
+  );
+}
+
+/** The literal text right after span `i`'s value: the span's own text, else a literal next value (`${x}${"%"}`). */
+function textAfterSpan(spans: readonly ts.TemplateSpan[], i: number): string {
+  const own = spans[i]!.literal.text;
+  if (own !== "") return own;
+  const next = spans[i + 1];
+  return next ? leadingText(next.expression) : "";
+}
+
+/** Blank JSX text and JSX comments (`{}` with no expression) print nothing. */
+const isBlank = (child: ts.JsxChild) =>
+  (ts.isJsxText(child) && child.text.trim() === "") || (ts.isJsxExpression(child) && !child.expression);
+
+const printedChildren = (node: ts.JsxElement | ts.JsxFragment) => node.children.filter((child) => !isBlank(child));
+
+/** The value a JSX child ends with: `{x}`, or the last thing an element holds (`<b>{x}</b>`). */
+function valueAtEnd(child: ts.JsxChild): ts.Expression | undefined {
+  if (ts.isJsxExpression(child)) return child.expression && !isLiteral(child.expression) ? child.expression : undefined;
+  if (!ts.isJsxElement(child) && !ts.isJsxFragment(child)) return undefined;
+  const printed = printedChildren(child);
+  const last = printed[printed.length - 1];
+  return last ? valueAtEnd(last) : undefined;
+}
+
+/** The literal text a JSX child starts with: text, `{"%"}`, or the first thing an element holds (`<small>%</small>`). */
+function textAtStart(child: ts.JsxChild): string {
+  if (ts.isJsxText(child)) return child.text;
+  if (ts.isJsxExpression(child)) return child.expression ? leadingText(child.expression) : "";
+  if (!ts.isJsxElement(child) && !ts.isJsxFragment(child)) return "";
+  const first = printedChildren(child)[0];
+  return first ? textAtStart(first) : "";
+}
+
+/** JSX attributes whose value styles an element and is never shown as text. */
+const STYLE_ATTRIBUTES = new Set(["style", "className", "class"]);
+
+const isCssPropertiesType = (type: ts.TypeNode | undefined) =>
+  type !== undefined && /\bCSSProperties$/.test(type.getText());
+
+/**
+ * Whether `node` is part of a value that styles an element rather than text:
+ * inside a JSX `style` / `className` / `class` attribute or a `<style>`
+ * element, or in an object typed `CSSProperties` (`const s: CSSProperties =
+ * …`, `… satisfies CSSProperties`, `… as CSSProperties`). Any other JSX
+ * element on the way up ends the search: its children are text.
+ */
+function stylesAnElement(node: ts.Node): boolean {
+  for (let n = node.parent; n && !ts.isSourceFile(n); n = n.parent) {
+    if (ts.isJsxAttribute(n)) return STYLE_ATTRIBUTES.has(n.name.getText());
+    if (ts.isJsxElement(n)) return n.openingElement.tagName.getText() === "style";
+    if (ts.isJsxSelfClosingElement(n) || ts.isJsxFragment(n)) return false;
+    if ((ts.isVariableDeclaration(n) || ts.isAsExpression(n) || ts.isSatisfiesExpression(n)) && isCssPropertiesType(n.type)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/** Message key → the interpolations its text prints right before `%` (in any locale). */
+type PercentMessages = ReadonlyMap<string, ReadonlySet<string>>;
+
+/** `{{name}}` or `{{name, format}}`, then a percent sign. */
+const INTERPOLATION_BEFORE_PERCENT = new RegExp(`\\{\\{\\s*([\\w.]+)\\s*(?:,[^}]*)?\\}\\}\\s*${PERCENT_SIGN}`, "g");
+/** i18next plural forms share the key they are called with (`key_one` → `key`). */
+const PLURAL_SUFFIX = /_(?:ordinal_)?(?:zero|one|two|few|many|other)$/;
+
+function percentMessagesOf(catalogs: readonly Record<string, unknown>[]): PercentMessages {
+  const out = new Map<string, Set<string>>();
+  for (const catalog of catalogs) {
+    for (const [key, message] of Object.entries(catalog)) {
+      if (typeof message !== "string") continue;
+      for (const [, name] of message.matchAll(INTERPOLATION_BEFORE_PERCENT)) {
+        const base = key.replace(PLURAL_SUFFIX, "");
+        out.set(base, (out.get(base) ?? new Set<string>()).add(name!));
+      }
+    }
+  }
+  return out;
+}
+
+const LOCALES = join(SRC, "i18n", "locales");
+let appMessages: PercentMessages | undefined;
+/** Every message of every locale (`src/i18n/locales/<language>/<namespace>.json`). */
+const appPercentMessages = (): PercentMessages =>
+  (appMessages ??= percentMessagesOf(
+    readdirSync(LOCALES).flatMap((language) =>
+      readdirSync(join(LOCALES, language))
+        .filter((name) => name.endsWith(".json"))
+        .map((name) => JSON.parse(readFileSync(join(LOCALES, language, name), "utf8")) as Record<string, unknown>),
+    ),
+  ));
+
+const propertyName = (name: ts.PropertyName) =>
+  ts.isIdentifier(name) || ts.isStringLiteralLike(name) ? name.text : undefined;
+
+/** In `t("key", { name: value })` (or `i18n.t`), the values the message prints right before `%`. */
+function percentMessageValues(call: ts.CallExpression, messages: PercentMessages): ts.Node[] {
+  if (calledName(call) !== "t") return [];
+  const [key, values] = call.arguments.map(unwrap);
+  const names = key && ts.isStringLiteralLike(key) ? messages.get(key.text) : undefined;
+  if (!names || !values || !ts.isObjectLiteralExpression(values)) return [];
+  return values.properties.filter((property) => {
+    if (ts.isShorthandPropertyAssignment(property)) return names.has(property.name.text);
+    if (!ts.isPropertyAssignment(property)) return false;
+    return names.has(propertyName(property.name) ?? "") && !isLiteral(property.initializer);
+  });
+}
+
+/** A literal printed where it stands: a `+` operand, a template value or a JSX child (`{"%"}`). */
+function isPrintedInPlace(node: ts.Node): boolean {
+  let child = node;
+  let parent = node.parent;
+  while (ts.isParenthesizedExpression(parent)) [child, parent] = [parent, parent.parent];
+  if (ts.isBinaryExpression(parent)) {
+    const op = parent.operatorToken.kind;
+    return op === ts.SyntaxKind.PlusToken || op === ts.SyntaxKind.PlusEqualsToken;
+  }
+  if (ts.isTemplateSpan(parent)) return parent.expression === child;
+  return ts.isJsxExpression(parent) && (ts.isJsxElement(parent.parent) || ts.isJsxFragment(parent.parent));
+}
+
+/** A literal that names something (a property key, a type) rather than being a value. */
+const isNameOrType = (node: ts.Node) =>
+  ts.isLiteralTypeNode(node.parent) ||
+  ((ts.isPropertyAssignment(node.parent) || ts.isPropertySignature(node.parent)) && node.parent.name === node);
+
+/** The nodes in `node` (not its children) that print a value right before a literal `%`. */
+function printedPercentSites(node: ts.Node, messages: PercentMessages): ts.Node[] {
+  if (ts.isTemplateExpression(node)) {
+    if (stylesAnElement(node)) return [];
+    return node.templateSpans
+      .filter((span, i, spans) => startsWithPercentSign(textAfterSpan(spans, i)) && !isLiteral(span.expression))
+      .map((span) => span.expression);
+  }
+  if (ts.isBinaryExpression(node)) {
+    const op = node.operatorToken.kind;
+    const concat = op === ts.SyntaxKind.PlusToken || op === ts.SyntaxKind.PlusEqualsToken;
+    if (!concat || !startsWithPercentSign(leadingText(node.right)) || isLiteral(node.left)) return [];
+    return stylesAnElement(node) ? [] : [node];
+  }
+  if (ts.isJsxElement(node) || ts.isJsxFragment(node)) {
+    if (ts.isJsxElement(node) && node.openingElement.tagName.getText() === "style") return [];
+    const children = printedChildren(node);
+    return children.flatMap((child, i) => {
+      const value = valueAtEnd(child);
+      const next = children[i + 1];
+      return value && next && startsWithPercentSign(textAtStart(next)) ? [value] : [];
+    });
+  }
+  // A percent sign on its own, handed over as data (`suffix="%"`, `{ unit: "%" }`,
+  // `[x, "%"].join("")`), is only ever there to be printed after a value. Where
+  // it sits right after one (`x + "%"`, `${x}${"%"}`, `{x}{"%"}`) the rules
+  // above already decide.
+  if (ts.isStringLiteralLike(node)) {
+    if (!isLonePercentSign(node.text) || isNameOrType(node) || isPrintedInPlace(node)) return [];
+    return stylesAnElement(node) ? [] : [node];
+  }
+  if (ts.isCallExpression(node)) return percentMessageValues(node, messages);
+  return [];
+}
+
+/** The nodes in `node` (not its children) that are hand-rolled percents by arithmetic. */
 function percentSites(node: ts.Node): ts.Node[] {
   if (isCallOf(node, ROUNDING)) return node.arguments.some(hasPercentArithmetic) ? [node] : [];
   if (isCallOf(node, FIXED)) {
@@ -239,13 +423,19 @@ interface PercentScan {
   exemptions: { line: number; reason: string; site: string; used: boolean }[];
 }
 
-function scanPercent(file: string, source: string): PercentScan {
+function scanPercent(
+  file: string,
+  source: string,
+  { percentMessages = appPercentMessages() }: { percentMessages?: PercentMessages } = {},
+): PercentScan {
   const text = source.replace(/\r\n/g, "\n");
   const kind = file.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS;
   const sf = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, kind);
   const flagged = new Set<number>(); // 0-based lines
   const visit = (node: ts.Node): void => {
-    for (const site of percentSites(node)) flagged.add(sf.getLineAndCharacterOfPosition(site.getStart(sf)).line);
+    for (const site of [...percentSites(node), ...printedPercentSites(node, percentMessages)]) {
+      flagged.add(sf.getLineAndCharacterOfPosition(site.getStart(sf)).line);
+    }
     ts.forEachChild(node, visit);
   };
   visit(sf);
@@ -336,7 +526,10 @@ describe("Intl guard", () => {
 });
 
 /** Lines (1-based) the percent guard reports for one in-memory source. */
-const flaggedLines = (code: string, file = "Probe.tsx") => scanPercent(file, code).findings.map((f) => f.line);
+const flaggedLines = (code: string, options: { file?: string; messages?: Record<string, string> } = {}) =>
+  scanPercent(options.file ?? "Probe.tsx", code, {
+    percentMessages: options.messages ? percentMessagesOf([options.messages]) : undefined,
+  }).findings.map((f) => f.line);
 
 describe("percent guard: hand-rolled percent arithmetic is found", () => {
   it("the plain form", () => {
@@ -388,6 +581,95 @@ describe("percent guard: hand-rolled percent arithmetic is found", () => {
   });
 });
 
+describe("percent guard: a value printed right before a literal `%` is found, however it was computed", () => {
+  it("in a template", () => {
+    // F3b review 7: the share is computed on another line; the template only prints it.
+    expect(flaggedLines("const pct = (part / total) * 100;\nexport const A = () => <span>{`${pct}%`}</span>;")).toEqual(
+      [2],
+    );
+    expect(flaggedLines("export const percent = (pct: number) => `${pct}%`;")).toEqual([1]);
+    expect(flaggedLines("const a = `${pct} %`;")).toEqual([1]);
+    expect(flaggedLines("const a = `Top ${share}% of sessions`;")).toEqual([1]);
+    expect(flaggedLines('const a = `${pct}${"%"}`;')).toEqual([1]);
+    expect(flaggedLines('const a = done ? `${pct}%` : "–";')).toEqual([1]);
+  });
+
+  it("in a `+` concatenation", () => {
+    expect(flaggedLines('const a = pct + "%";')).toEqual([1]);
+    expect(flaggedLines("const a = pct + '%';")).toEqual([1]);
+    expect(flaggedLines('const a = String(pct) + " %";')).toEqual([1]);
+    expect(flaggedLines('const a = `${pct}` + "%";')).toEqual([1]);
+    expect(flaggedLines('const a = "Top " + pct + "%";')).toEqual([1]);
+    expect(flaggedLines('const a = share.toFixed(0) + "%";')).toEqual([1]);
+  });
+
+  it("in JSX: text or a string expression after the value", () => {
+    expect(flaggedLines("const A = () => <span>{pct}%</span>;")).toEqual([1]);
+    expect(flaggedLines("const A = () => <span>{pct} %</span>;")).toEqual([1]);
+    expect(flaggedLines("const A = () => <span>{pct}{'%'}</span>;")).toEqual([1]);
+    expect(flaggedLines('const A = () => <span>{pct}{"%"}</span>;')).toEqual([1]);
+    expect(flaggedLines("const A = () => <span>{pct}{`%`}</span>;")).toEqual([1]);
+    expect(flaggedLines("const A = () => <>{Math.abs(trend.value)}%</>;")).toEqual([1]);
+    expect(flaggedLines('const A = () => <span>{t("a", { value: x })}%</span>;')).toEqual([1]);
+    expect(flaggedLines("const A = () => (\n  <span>\n    {share}\n    %\n  </span>\n);")).toEqual([3]);
+    // A styled element's text is still text.
+    expect(flaggedLines('const A = () => <div style={{ width: "1px" }}>{pct}%</div>;')).toEqual([1]);
+  });
+
+  it("in an attribute shown as text (title, aria-label)", () => {
+    expect(flaggedLines("const A = () => <span title={`${pct}%`} />;")).toEqual([1]);
+    expect(flaggedLines('const A = () => <span style={{ width: "1px" }} aria-label={pct + "%"} />;')).toEqual([1]);
+  });
+
+  it("across JSX elements: the value or the `%` inside a child element", () => {
+    expect(flaggedLines("const A = () => <span>{pct}<small>%</small></span>;")).toEqual([1]);
+    expect(flaggedLines("const A = () => <span>{pct}<small>% done</small></span>;")).toEqual([1]);
+    expect(flaggedLines("const A = () => <p><b>{pct}</b>%</p>;")).toEqual([1]);
+    expect(flaggedLines("const A = () => <p><b>{pct}</b>% done</p>;")).toEqual([1]);
+    expect(flaggedLines("const A = () => (\n  <p>\n    <b>\n      {pct}\n    </b>\n    {/* note */}\n    % done\n  </p>\n);")).toEqual(
+      [4],
+    );
+  });
+
+  it("a lone percent sign handed over to be printed after a value", () => {
+    expect(flaggedLines('const A = () => <Stat value={pct} suffix="%" />;')).toEqual([1]);
+    expect(flaggedLines('const METRICS = [{ value: share, unit: "%" }];')).toEqual([1]);
+    expect(flaggedLines('const a = [pct, "%"].join("");')).toEqual([1]);
+    expect(flaggedLines('const a = String(pct).concat("%");')).toEqual([1]);
+    expect(flaggedLines("const A = () => <><span>{pct}</span><span>%</span></>;")).toEqual([1]);
+  });
+
+  it("a full-width or Arabic percent sign", () => {
+    expect(flaggedLines("const a = `${pct}％`;")).toEqual([1]);
+    expect(flaggedLines("const A = () => <span>{pct}٪</span>;")).toEqual([1]);
+    expect(flaggedLines('const a = pct + "﹪";')).toEqual([1]);
+  });
+
+  it("in a message that prints `%` right after an interpolated value", () => {
+    const messages = { "probe.top": "Top {{percent}}%", "probe.rate": "{{ rate }} % done", "probe.wide": "{{percent}}％" };
+    expect(flaggedLines('const a = t("probe.top", { percent: pct });', { messages })).toEqual([1]);
+    expect(flaggedLines('const a = t("probe.top", { percent });', { messages })).toEqual([1]);
+    expect(flaggedLines('const a = i18n.t("probe.rate", { rate: share * 100 });', { messages })).toEqual([1]);
+    expect(flaggedLines('const a = t("probe.wide", { percent: pct });', { messages })).toEqual([1]);
+    expect(flaggedLines('const a = t(\n  "probe.top",\n  {\n    percent: pct,\n  },\n);', { messages })).toEqual([4]);
+    expect(flaggedLines('const A = () => <span>{t("probe.top", { percent: pct })}</span>;', { messages })).toEqual([
+      1,
+    ]);
+  });
+
+  it("the app's messages: every locale's `{{name}}%`, by key", () => {
+    expect(percentMessagesOf([{ a: "Top {{percent}}%", b: "{{n}} files", c: "{{x, number}} % of {{y}}" }])).toEqual(
+      new Map([
+        ["a", new Set(["percent"])],
+        ["c", new Set(["x"])],
+      ]),
+    );
+    const app = appPercentMessages();
+    expect(app.get("captureMode.preview.zoomLevel")).toEqual(new Set(["percent"]));
+    expect(app.get("simpleUpdateModal.downloading")).toEqual(new Set(["progress"]));
+  });
+});
+
 describe("percent guard: not hand-rolled percent", () => {
   it("shares through formatPercent, 0-100 values for widths, and other rounding", () => {
     for (const code of [
@@ -398,9 +680,49 @@ describe("percent guard: not hand-rolled percent", () => {
       "const scale = fontScalePercent / 100;",
       "const a = Math.round(x);",
       'const a = `${count} files`;\nconst b = "100%";',
-      'const A = () => <span>{t("a", { value: x })}%</span>;',
     ]) {
       expect(flaggedLines(code), code).toEqual([]);
+    }
+  });
+
+  it("a value that styles an element: a JSX style or className, an object typed CSSProperties", () => {
+    for (const code of [
+      "const A = () => <div style={{ width: `${w}%` }} />;",
+      'const A = () => <div style={{ width: w + "%" }} />;',
+      'const A = () => <div style={{ width: done ? `${w}%` : "0%" }} />;',
+      "const A = () => (\n  <div\n    style={{\n      width: `${w}%`,\n    }}\n  />\n);",
+      "const A = () => <div className={`w-[${w}%]`} />;",
+      'const A = () => <div className={cn("bar", `w-[${w}%]`)} />;',
+      "const s: CSSProperties = { width: `${w}%` };",
+      "const s: React.CSSProperties = { left: `${x}%`, top: `${y}%` };",
+      "const s = { width: `${w}%` } satisfies CSSProperties;",
+      "const s = { width: `${w}%` } as React.CSSProperties;",
+    ]) {
+      expect(flaggedLines(code), code).toEqual([]);
+    }
+  });
+
+  it("literal values, `%` before a value, and messages without a value before `%`", () => {
+    const messages = { "probe.top": "Top {{percent}}%", "probe.plain": "{{count}} files" };
+    for (const code of [
+      "const a = `${100}%`;",
+      'const a = "50" + "%";',
+      "const A = () => <span>{100}%</span>;",
+      "const A = () => <span>100%</span>;",
+      "const A = () => <span>{fmt.percent(share)}</span>;",
+      "const a = `%${x}`;",
+      'const a = "%d files";',
+      'const a = "50% off";',
+      'type Unit = "%" | "px";',
+      'const UNITS = { "%": "percent" };',
+      "const A = () => <span>{size}<small>MB</small></span>;",
+      "const A = () => <p><b>{count}</b> files, 100%</p>;",
+      'const a = t("probe.plain", { count: n });',
+      'const a = t("probe.top", { percent: 50 });',
+      'const a = t("probe.unknown", { percent: pct });',
+      'const a = t("probe.top", { other: pct });',
+    ]) {
+      expect(flaggedLines(code, { messages }), code).toEqual([]);
     }
   });
 });
