@@ -25,6 +25,7 @@ import type { SessionTokenStats } from "@/types";
 import { useSessionTokenStats } from "./useSessionTokenStats";
 import { useFormat } from "@/lib/format/useFormat";
 import { numberCopyBoundary } from "@/lib/format/copyNumbers";
+import { Num } from "@/lib/format/Num";
 
 const estimatedCost = (stats: SessionTokenStats | null): number | null => {
   if (!stats) return null;
@@ -65,9 +66,9 @@ const MetricRow = ({
     </dt>
     <dd className="shrink-0 whitespace-nowrap font-mono text-list tabular-nums">
       <span style={color ? { color } : undefined} className={color ? undefined : "text-foreground"}>
-        {value}
+        <Num>{value}</Num>
       </span>
-      {detail !== undefined && <span className="ml-1.5 text-caption text-muted-foreground">{detail}</span>}
+      {detail !== undefined && <span className="ml-1.5 text-caption text-muted-foreground"><Num>{detail}</Num></span>}
     </dd>
   </div>
 );
@@ -109,16 +110,16 @@ export const InspectorTokensTab = () => {
       <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-4" {...numberCopyBoundary}>
         <section aria-label={t("analytics.totalTokens")}>
           <p className="whitespace-nowrap font-mono text-title font-semibold tabular-nums text-foreground">
-            {fmt.tokens(total)}
+            <Num>{fmt.tokens(total)}</Num>
             <span className="ml-1 font-sans text-caption font-normal text-muted-foreground">{t("analytics.tokens")}</span>
           </p>
           <p className="flex flex-wrap gap-x-2 text-caption text-muted-foreground">
             <span className="whitespace-nowrap">
-              <span className="font-mono tabular-nums">{fmt.count(stats.message_count)}</span>{" "}
+              <span className="font-mono tabular-nums"><Num>{fmt.count(stats.message_count)}</Num></span>{" "}
               {t("analytics.messages")}
             </span>
             {Number.isFinite(durationMinutes) && durationMinutes >= 0 && (
-              <span className="whitespace-nowrap">{fmt.minutes(durationMinutes)}</span>
+              <span className="whitespace-nowrap"><Num>{fmt.minutes(durationMinutes)}</Num></span>
             )}
           </p>
         </section>

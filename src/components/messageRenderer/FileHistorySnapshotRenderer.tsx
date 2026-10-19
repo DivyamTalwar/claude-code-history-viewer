@@ -21,7 +21,7 @@ import { getVariantStyles, layout } from "@/components/renderers";
 import { cn } from "@/lib/utils";
 import type { FileHistorySnapshotData } from "../../types";
 import { useFormat } from "@/lib/format/useFormat";
-import { keepNumbersWhole } from "@/utils/keepNumbersWhole";
+import { Num } from "@/lib/format/Num";
 
 type Props = {
   messageId: string;
@@ -80,7 +80,7 @@ export const FileHistorySnapshotRenderer = memo(
             <div className={cn("flex items-center", layout.iconSpacing, styles.icon)}>
               <Clock className={layout.iconSizeSmall} />
               <span>
-                {keepNumbersWhole(fmt.dateTime(snapshot.timestamp))}
+                <Num>{fmt.dateTime(snapshot.timestamp)}</Num>
               </span>
             </div>
           )}

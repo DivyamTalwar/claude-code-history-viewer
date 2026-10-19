@@ -8,6 +8,7 @@ import { useTheme } from "@/contexts/theme";
 import { getPreStyles, getLineStyles, getTokenStyles } from "@/utils/prismStyles";
 import { ToolUseCard } from "./ToolUseCard";
 import { useFormat } from "@/lib/format/useFormat";
+import { Num } from "@/lib/format/Num";
 
 interface BashToolInput {
   command?: string;
@@ -44,7 +45,7 @@ export const BashToolRenderer = memo(function BashToolRenderer({ toolId, input }
           {input.timeout != null && (
             <span className="flex items-center gap-1 text-muted-foreground">
               <Clock className={layout.iconSizeSmall} />
-              {fmt.duration(input.timeout)}
+              <Num>{fmt.duration(input.timeout)}</Num>
             </span>
           )}
         </>

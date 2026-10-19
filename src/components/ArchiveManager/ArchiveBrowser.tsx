@@ -35,6 +35,7 @@ import { isTauri } from '@/utils/platform';
 import { ArchiveCreateDialog } from './ArchiveCreateDialog';
 import type { ArchiveEntry, ArchiveSessionInfo } from '@/types';
 import { appFormat } from "@/lib/format/useFormat";
+import { Num } from "@/lib/format/Num";
 
 const joinArchivePath = (...parts: string[]) =>
   parts
@@ -289,7 +290,7 @@ export const ArchiveBrowser: React.FC = () => {
                     </span>
                     <span className="text-muted-foreground/40">·</span>
                     <span className="text-caption text-muted-foreground">
-                      {appFormat().bytes(entry.totalSizeBytes)}
+                      <Num>{appFormat().bytes(entry.totalSizeBytes)}</Num>
                     </span>
                   </div>
                 </div>
@@ -371,7 +372,7 @@ export const ArchiveBrowser: React.FC = () => {
                                 )}
                                 <span className="text-muted-foreground/40">·</span>
                                 <span className="text-caption text-muted-foreground">
-                                  {appFormat().bytes(session.sizeBytes)}
+                                  <Num>{appFormat().bytes(session.sizeBytes)}</Num>
                                 </span>
                               </div>
                             </div>
@@ -412,7 +413,7 @@ export const ArchiveBrowser: React.FC = () => {
                                         </span>
                                         <span className="text-muted-foreground/30">·</span>
                                         <span className="text-caption text-muted-foreground/60">
-                                          {appFormat().bytes(subagent.sizeBytes)}
+                                          <Num>{appFormat().bytes(subagent.sizeBytes)}</Num>
                                         </span>
                                       </div>
                                     </div>

@@ -41,7 +41,7 @@ import {
 import { calculateConversationBreakdownCoverage } from "../../../utils/providers";
 import { ModelLifecycleBadge } from "../../ModelLifecycleBadge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../../ui/tooltip";
-import { keepNumbersWhole } from "@/utils/keepNumbersWhole";
+import { Num } from "@/lib/format/Num";
 
 interface GlobalStatsViewProps {
   globalSummary: GlobalStatsSummary;
@@ -173,7 +173,7 @@ export const GlobalStatsView: React.FC<GlobalStatsViewProps> = ({
                 : t("analytics.estimatedLabel", "Estimated")}
         </span>
         <span className="px-2 py-1 rounded-md bg-muted/40 text-muted-foreground text-caption">
-          {t("analytics.pricingCoverage", "Pricing coverage")}: {fmt.percent(costSummary.coveragePercent / 100)}
+          {t("analytics.pricingCoverage", "Pricing coverage")}: <Num>{fmt.percent(costSummary.coveragePercent / 100)}</Num>
         </span>
         <span
           className="px-2 py-1 rounded-md bg-muted/40 text-muted-foreground text-caption"
@@ -187,7 +187,7 @@ export const GlobalStatsView: React.FC<GlobalStatsViewProps> = ({
           </span>
         )}
         <span className="px-2 py-1 rounded-md bg-muted/40 text-muted-foreground text-caption">
-          {t("analytics.lastUpdated", "Last updated")}: {keepNumbersWhole(lastUpdated)}
+          {t("analytics.lastUpdated", "Last updated")}: <Num>{lastUpdated}</Num>
         </span>
       </div>
 
@@ -259,12 +259,12 @@ export const GlobalStatsView: React.FC<GlobalStatsViewProps> = ({
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="font-mono text-caption text-muted-foreground">
-                          {metricMode === "cost_estimated" ? formattedTokens : formattedPrice}
+                          <Num>{metricMode === "cost_estimated" ? formattedTokens : formattedPrice}</Num>
                         </span>
                         <span className="font-mono text-caption font-semibold text-foreground">
-                          {metricMode === "cost_estimated"
+                          <Num>{metricMode === "cost_estimated"
                             ? formattedPrice
-                            : formattedTokens}
+                            : formattedTokens}</Num>
                         </span>
                         <span
                           className={cn(
@@ -339,10 +339,10 @@ export const GlobalStatsView: React.FC<GlobalStatsViewProps> = ({
                     <span className="truncate font-medium text-foreground" title={row.replacedBy}>{row.replacedBy}</span>
                   </span>
                   <span className="flex items-center gap-2 font-mono text-caption">
-                    <span className="text-muted-foreground">{fmt.tokens(row.tokenCount)}</span>
-                    <span className="text-muted-foreground">{fmt.cost(row.currentCost)}</span>
+                    <span className="text-muted-foreground"><Num>{fmt.tokens(row.tokenCount)}</Num></span>
+                    <span className="text-muted-foreground"><Num>{fmt.cost(row.currentCost)}</Num></span>
                     <span className="text-muted-foreground">→</span>
-                    <span className="font-semibold text-foreground">{fmt.cost(row.replacementCost)}</span>
+                    <span className="font-semibold text-foreground"><Num>{fmt.cost(row.replacementCost)}</Num></span>
                     {deltaPercent != null && (
                       <span
                         className={cn(
@@ -354,7 +354,7 @@ export const GlobalStatsView: React.FC<GlobalStatsViewProps> = ({
                               : "text-muted-foreground",
                         )}
                       >
-                        {fmt.change(row.currentCost, row.replacementCost).text}
+                        <Num>{fmt.change(row.currentCost, row.replacementCost).text}</Num>
                       </span>
                     )}
                   </span>
@@ -444,7 +444,7 @@ export const GlobalStatsView: React.FC<GlobalStatsViewProps> = ({
                     </div>
                     <div className="text-right">
                       <p className="font-mono text-caption font-bold text-foreground">
-                        {fmt.tokens(project.tokens)}
+                        <Num>{fmt.tokens(project.tokens)}</Num>
                       </p>
                       <p className="text-caption text-muted-foreground">{t("analytics.tokens")}</p>
                     </div>

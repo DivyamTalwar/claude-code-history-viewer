@@ -12,6 +12,7 @@ import type { DailyStatData } from "../types";
 import { localDayKey } from "@/lib/format/localDay";
 import { dayKeyWeekday } from "@/lib/format/date";
 import { useFormat } from "@/lib/format/useFormat";
+import { Num } from "@/lib/format/Num";
 
 interface DailyTrendChartProps {
   dailyData: DailyStatData[];
@@ -103,11 +104,11 @@ export const DailyTrendChart: React.FC<DailyTrendChartProps> = ({ dailyData }) =
         <div className="flex items-center gap-4">
           <div>
             <span className="text-muted-foreground">{t("analytics.dailyAvgTokens")}: </span>
-            <span className="font-mono font-semibold text-foreground">{fmt.tokens(Math.round(totalTokens / dailyData.length))}</span>
+            <span className="font-mono font-semibold text-foreground"><Num>{fmt.tokens(Math.round(totalTokens / dailyData.length))}</Num></span>
           </div>
           <div>
             <span className="text-muted-foreground">{t("analytics.dailyAvgMessages")}: </span>
-            <span className="font-mono font-semibold text-foreground">{fmt.count(Math.round(totalMessages / dailyData.length))}</span>
+            <span className="font-mono font-semibold text-foreground"><Num>{fmt.count(Math.round(totalMessages / dailyData.length))}</Num></span>
           </div>
         </div>
         <div className="flex items-center gap-1.5 text-muted-foreground/60">

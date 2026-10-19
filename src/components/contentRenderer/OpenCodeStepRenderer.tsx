@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 import { getVariantStyles, layout } from "../renderers";
 import { Activity, Hash, Coins, ArrowDownToLine, ArrowUpFromLine, Brain, Database } from "lucide-react";
 import { useFormat } from "@/lib/format/useFormat";
+import { Num } from "@/lib/format/Num";
 
 interface OpenCodeStepProps {
   reason: string;
@@ -43,7 +44,7 @@ export const OpenCodeStepRenderer = memo<OpenCodeStepProps>(
           {hasTokens && (
             <span className={cn(layout.smallText, "font-mono text-muted-foreground")}>
               <Coins size={14} className="inline mr-0.5" />
-              {fmt.cost(cost)}
+              <Num>{fmt.cost(cost)}</Num>
             </span>
           )}
         </div>
@@ -80,7 +81,10 @@ function TokenBadge({ icon: Icon, label, value }: { icon: React.ComponentType<{ 
   return (
     <span className="text-caption text-muted-foreground font-mono flex items-center gap-0.5">
       <Icon size={14} />
-      {label}: {fmt.count(value)}
+      {/* One flex item, as the bare text run was: the space after the colon stays. */}
+      <span>
+        {label}: <Num>{fmt.count(value)}</Num>
+      </span>
     </span>
   );
 }

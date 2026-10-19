@@ -1019,6 +1019,16 @@
     overflow-wrap: break-word;
   }
 
+  /* A formatted number (<Num>, src/lib/format/Num.tsx) breaks like a number:
+     never inside. WebKit's keep-all breaks after the punctuation in 7,803,
+     1.8⁠만 or $270.29 when its box is squeezed; Unicode's own line breaking
+     does not. Every formatter result shown as text goes through <Num> (guard
+     in Num.test.tsx), so no number depends on a class. Same specificity as
+     :lang(ko) above, so this rule comes after it. */
+  [data-num] {
+    word-break: normal;
+  }
+
   :lang(ja),
   :lang(zh) {
     line-break: strict;

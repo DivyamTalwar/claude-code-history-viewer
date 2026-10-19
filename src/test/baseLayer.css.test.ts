@@ -88,6 +88,16 @@ describe("F1b base layer", () => {
     });
   });
 
+  it("a formatted number (<Num>, [data-num]) breaks like a number: word-break normal, after the Korean rule", () => {
+    const num = inBase((r) => selectors(r).includes("[data-num]"));
+    expect(num.map(selectors)).toEqual([["[data-num]"]]);
+    expect(num.map(decls)).toEqual([{ "word-break": "normal" }]);
+    // [data-num] and :lang(ko) have the same specificity, so the later rule wins.
+    const wordBreak = inBase((r) => decls(r)["word-break"] !== undefined).map((r) => r.selector);
+    // The only word-break rules in the base layer: no class-based exemption (.font-mono, .tabular-nums).
+    expect(wordBreak).toEqual([":lang(ko)", "[data-num]"]);
+  });
+
   it("never lowers min-content: no anywhere / break-all wrapping and no per-class exemption in the base layer", () => {
     // `overflow-wrap: anywhere` and `word-break: break-all` count their break
     // points in min-content, so a squeezed flex or grid item splits 69 into

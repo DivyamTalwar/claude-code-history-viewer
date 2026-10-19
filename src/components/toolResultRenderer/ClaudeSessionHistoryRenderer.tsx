@@ -6,7 +6,7 @@ import { useTranslation } from "react-i18next";
 import { layout } from "@/components/renderers";
 import { cn } from "@/lib/utils";
 import { useFormat } from "@/lib/format/useFormat";
-import { keepNumbersWhole } from "@/utils/keepNumbersWhole";
+import { Num } from "@/lib/format/Num";
 
 /** Controlled alternative to <details> for error fallback — uses local state
  *  since this only renders in the catch path where ExpandKeyProvider may be absent */
@@ -100,7 +100,7 @@ export const ClaudeSessionHistoryRenderer = ({ content }: Props) => {
                 </span>
                 {typeof msg.timestamp === "string" && (
                   <span className={cn(layout.smallText, "text-muted-foreground")}>
-                    {keepNumbersWhole(fmt.dateTime(msg.timestamp))}
+                    <Num>{fmt.dateTime(msg.timestamp)}</Num>
                   </span>
                 )}
               </div>

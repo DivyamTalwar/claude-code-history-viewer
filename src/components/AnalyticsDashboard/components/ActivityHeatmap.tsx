@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import type { DailyStats } from "../../../types";
 import { getHeatColor, getHeatTextColor } from "../utils";
 import { useFormat } from "@/lib/format/useFormat";
+import { Num } from "@/lib/format/Num";
 
 interface ActivityHeatmapProps {
   data: DailyStats[];
@@ -126,7 +127,7 @@ const MonthBlock: React.FC<{
   return (
     <div className="flex flex-col gap-1">
       <div className="text-caption font-semibold text-foreground/80 mb-0.5">
-        {monthLabel}
+        <Num>{monthLabel}</Num>
       </div>
 
       {/* Day-of-week headers */}

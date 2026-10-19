@@ -36,6 +36,7 @@ import {
   parseCleanupPeriodInput,
 } from '@/utils/cleanupPeriod';
 import { appFormat } from "@/lib/format/useFormat";
+import { Num } from "@/lib/format/Num";
 
 export const ArchiveOverview: React.FC = () => {
   const { t } = useTranslation();
@@ -447,7 +448,7 @@ export const ArchiveOverview: React.FC = () => {
               </div>
               <div className="flex items-center gap-1.5">
                 <Badge variant="secondary">
-                  {appFormat().bytes(archive.diskUsage.totalBytes)}
+                  <Num>{appFormat().bytes(archive.diskUsage.totalBytes)}</Num>
                 </Badge>
                 <span className="text-list text-muted-foreground">
                   {t('archive.overview.diskUsage.totalSize')}
@@ -592,7 +593,7 @@ export const ArchiveOverview: React.FC = () => {
                               {t('archive.overview.expiring.daysRemaining', { days: expiring.daysRemaining })}
                             </Badge>
                             <span className="text-caption text-muted-foreground">
-                              {appFormat().bytes(expiring.fileSizeBytes)}
+                              <Num>{appFormat().bytes(expiring.fileSizeBytes)}</Num>
                             </span>
                           </div>
                         </div>
@@ -634,7 +635,7 @@ export const ArchiveOverview: React.FC = () => {
                               {t('archive.overview.expiring.daysRemaining', { days: expiring.daysRemaining })}
                             </Badge>
                             <span className="text-caption text-muted-foreground">
-                              {appFormat().bytes(expiring.fileSizeBytes)}
+                              <Num>{appFormat().bytes(expiring.fileSizeBytes)}</Num>
                             </span>
                             <span className="text-caption text-muted-foreground">
                               {t('archive.browse.sessions.subagents', { count: expiring.subagentCount })}

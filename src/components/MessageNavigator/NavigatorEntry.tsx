@@ -8,7 +8,7 @@ import { KIND_STYLES } from "./kindStyles";
 import { OUTLINE_CHILD_INDENT_CLASS } from "./outline/childRowStyles";
 import type { NavigatorEntryData } from "./types";
 import { useFormat } from "@/lib/format/useFormat";
-import { keepNumbersWhole } from "@/utils/keepNumbersWhole";
+import { Num } from "@/lib/format/Num";
 
 interface NavigatorEntryProps {
   entry: NavigatorEntryData;
@@ -106,7 +106,7 @@ export const NavigatorEntry = React.memo<NavigatorEntryProps>(({
           <Wrench className="w-3.5 h-3.5 text-muted-foreground/60" aria-hidden="true" />
         )}
         <span className="ml-auto text-caption text-muted-foreground/60">
-          {keepNumbersWhole(formattedTime)}
+          <Num>{formattedTime}</Num>
         </span>
       </div>
       {/* Preview text; rows without text show their kind instead */}

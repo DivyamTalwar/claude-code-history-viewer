@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
 import { useCaptureExpandState } from "@/contexts/CaptureExpandContext";
 import type { SummaryMessageProps } from "../types";
 import { useFormat } from "@/lib/format/useFormat";
-import { keepNumbersWhole } from "@/utils/keepNumbersWhole";
+import { Num } from "@/lib/format/Num";
 
 export const SummaryMessage: React.FC<SummaryMessageProps> = ({ content, timestamp }) => {
   const [isExpanded, setIsExpanded] = useCaptureExpandState("summary", false);
@@ -38,7 +38,7 @@ export const SummaryMessage: React.FC<SummaryMessageProps> = ({ content, timesta
           {t("messageViewer.priorContext")}
         </span>
         <span className="text-list ml-auto text-info">
-          {keepNumbersWhole(fmt.time(timestamp))}
+          <Num>{fmt.time(timestamp)}</Num>
         </span>
       </button>
 

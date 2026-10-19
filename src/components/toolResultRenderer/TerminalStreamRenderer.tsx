@@ -9,7 +9,7 @@ import { HighlightedText } from "../common/HighlightedText";
 import { AnsiText } from "@/components/common/AnsiText";
 import { stripAnsiCodes } from "@/utils/ansiToHtml";
 import { useFormat } from "@/lib/format/useFormat";
-import { keepNumbersWhole } from "@/utils/keepNumbersWhole";
+import { Num } from "@/lib/format/Num";
 
 type Props = {
   command: string;
@@ -50,7 +50,7 @@ export const TerminalStreamRenderer = ({
             )}
             {timestamp && (
               <span className={`${layout.smallText} text-muted-foreground`}>
-                {keepNumbersWhole(fmt.time(String(timestamp)))}
+                <Num>{fmt.time(String(timestamp))}</Num>
               </span>
             )}
           </div>

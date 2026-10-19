@@ -24,6 +24,7 @@ import { cn } from "@/lib/utils";
 import type { ProgressData, ProgressDataType } from "../../types";
 import { getVariantStyles, type RendererVariant, layout } from "../renderers";
 import { useFormat } from "@/lib/format/useFormat";
+import { Num } from "@/lib/format/Num";
 
 interface ProgressRendererProps {
   data: ProgressData;
@@ -122,7 +123,7 @@ export const ProgressRenderer = memo(function ProgressRenderer({
         </div>
         {data.elapsedTimeMs !== undefined && (
           <span className="text-muted-foreground font-mono">
-            {elapsed(data.elapsedTimeMs)}
+            <Num>{elapsed(data.elapsedTimeMs)}</Num>
           </span>
         )}
       </div>
