@@ -18,11 +18,19 @@ describe("keepNumbersWhole", () => {
     ["총 1,234,567개", ["총 ", "1,234,567", "개"]],
     ["입력: 17.6K", ["입력: ", "17.6K"]],
     ["12.5% 증가", ["12.5%", " 증가"]],
-    ["−1,200 → +3,400", ["−1,200", " → ", "+3,400"]],
+    ["−1,200 → +3,400", ["−", "1,200", " → ", "+3,400"]],
+    ["총 −1,200개", ["총 −", "1,200", "개"]],
     ["2026/06/19", ["2026/06/19"]],
   ])("splits %j so each punctuated number is its own part", (text, parts) => {
     expect(keepNumbersWhole(text)).toEqual(parts);
     expect((keepNumbersWhole(text) as string[]).join("")).toBe(text);
+    // WebKit's keep-all punctuation breaks apply to a text node holding any
+    // non-Latin-1 character, a Unicode minus (U+2212) included, so the minus
+    // stays outside the number's own node ("−1,200" as one node broke as
+    // "−1," / "200" where the whole number still fit the line).
+    for (const part of keepNumbersWhole(text) as string[]) {
+      if (/\d[.,:/]\d/.test(part)) expect([...part].every((c) => c.charCodeAt(0) <= 0xff), part).toBe(true);
+    }
   });
 
   it.each(["2026년 6월 19일", "메시지 12개", "", "PR 42 --strict", "1.", "a.b"])(

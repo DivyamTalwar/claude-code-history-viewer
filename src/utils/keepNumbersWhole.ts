@@ -17,9 +17,11 @@
  * its copy are unchanged. Text without such a number comes back as is.
  */
 
-// A number with at least one inner separator (: , . /), an optional sign, and
-// a compact magnitude or percent sign that belongs to it.
-const PUNCTUATED_NUMBER = /[+\-\u2212]?\d+(?:[.,:/]\d+)+[KMBT%]?/g;
+// A number with at least one inner separator (: , . /), an optional ASCII
+// sign, and a compact magnitude or percent sign that belongs to it. A Unicode
+// minus (U+2212) stays outside the match: it is not Latin-1, so in the
+// number's node it would bring the punctuation breaks back ("−1," / "200").
+const PUNCTUATED_NUMBER = /[+-]?\d+(?:[.,:/]\d+)+[KMBT%]?/g;
 
 export function keepNumbersWhole(text: string): string | string[] {
   const parts: string[] = [];
