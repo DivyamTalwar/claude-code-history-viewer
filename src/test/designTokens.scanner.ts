@@ -365,6 +365,11 @@ const MAX_ALTERNATIVES = 64;
  * literals (`${on ? "rounded-2xl" : "rounded-md"}`) are scanned on their own
  * instead of through this expression.
  */
+/** Type-only wrappers that never change a string's value: `(x)`, `x as T`, `x satisfies T`, `x!`, `<T>x`. */
+function isTypeWrapper(node: ts.Node): node is ts.ParenthesizedExpression | ts.AsExpression | ts.SatisfiesExpression | ts.NonNullExpression | ts.TypeAssertion {
+  return ts.isParenthesizedExpression(node) || ts.isAsExpression(node) || ts.isSatisfiesExpression(node) || ts.isNonNullExpression(node) || ts.isTypeAssertionExpression(node);
+}
+
 function possibleValues(expr: ts.Expression, checker: ts.TypeChecker, partial = false, folded?: Set<ts.Node>): Value[] | null {
   const unknown = partial ? [UNKNOWN] : null;
   const valuesOf = (e: ts.Expression) => possibleValues(e, checker, partial, folded);
@@ -383,7 +388,7 @@ function possibleValues(expr: ts.Expression, checker: ts.TypeChecker, partial = 
     }
     return acc;
   };
-  if (ts.isParenthesizedExpression(expr) || ts.isAsExpression(expr) || ts.isSatisfiesExpression(expr) || ts.isNonNullExpression(expr) || ts.isTypeAssertionExpression(expr)) {
+  if (isTypeWrapper(expr)) {
     return valuesOf(expr.expression);
   }
   if (ts.isStringLiteral(expr) || ts.isNoSubstitutionTemplateLiteral(expr)) return [expr.text];
@@ -560,11 +565,7 @@ export function classContext(node: ts.Node, checker?: ts.TypeChecker, seen: Set<
       continue;
     }
     if (
-      ts.isParenthesizedExpression(parent) ||
-      ts.isAsExpression(parent) ||
-      ts.isSatisfiesExpression(parent) ||
-      ts.isNonNullExpression(parent) ||
-      ts.isTypeAssertionExpression(parent) ||
+      isTypeWrapper(parent) ||
       ts.isJsxExpression(parent) ||
       ts.isTemplateSpan(parent) ||
       ts.isTemplateExpression(parent) ||
@@ -630,7 +631,7 @@ export function scanProgramFile(file: ts.SourceFile, checker: ts.TypeChecker, fi
     return (
       (ts.isBinaryExpression(parent) && parent.operatorToken.kind === ts.SyntaxKind.PlusToken) ||
       ts.isTemplateSpan(parent) ||
-      (ts.isParenthesizedExpression(parent) && isPartOfLargerString(parent))
+      (isTypeWrapper(parent) && isPartOfLargerString(parent))
     );
   };
 
@@ -664,8 +665,7 @@ export function scanProgramFile(file: ts.SourceFile, checker: ts.TypeChecker, fi
     let parent = node.parent;
     while (
       parent &&
-      (ts.isParenthesizedExpression(parent) ||
-        ts.isAsExpression(parent) ||
+      (isTypeWrapper(parent) ||
         (ts.isConditionalExpression(parent) && child !== parent.condition) ||
         (ts.isBinaryExpression(parent) && [ts.SyntaxKind.QuestionQuestionToken, ts.SyntaxKind.BarBarToken].includes(parent.operatorToken.kind)))
     ) {

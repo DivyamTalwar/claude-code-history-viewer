@@ -305,6 +305,11 @@ describe("design-token guard: a template with more than 64 alternatives (CodeRab
   it("counts a literal inside a folded `+` span once (CodeRabbit 4309063910)", () => {
     expect(only(`${DECL7}declare const on: boolean; const c = \`${OVERFLOW} \${(on ? "a" : "b") + " rounded-2xl"}\`;`)).toEqual(["radius"]);
     expect(only(`${DECL7}declare const on: boolean; const c = \`${OVERFLOW} \${((on ? "a" : "b") + " rounded-2xl")}\`;`)).toEqual(["radius"]);
+    // TypeScript wrappers around the `+` or the literal (CodeRabbit, review of c22df4fb)
+    for (const span of [`((on ? "a" : "b") + " rounded-2xl") as string`, `((on ? "a" : "b") + " rounded-2xl") satisfies string`, `((on ? "a" : "b") + " rounded-2xl")!`, `(on ? "a" : "b") + (" rounded-2xl" as string)`, `(on ? "a" : "b") + (" rounded-2xl" satisfies string)`]) {
+      expect(only(`${DECL7}declare const on: boolean; const c = \`${OVERFLOW} \${${span}}\`;`), span).toEqual(["radius"]);
+    }
+    expect(only(`${DECL7}declare const on: boolean; const c = \`${OVERFLOW} \${(on ? "a" : "b") + <string>" rounded-2xl"}\`;`, "x.ts")).toEqual(["radius"]);
   });
 
   it("still reports a dynamic style utility after the overflow", () => {
