@@ -110,6 +110,22 @@ export async function newScenarioPage(
     });
   }
 
+  // Frozen wall clock: Date/performance/timers are faked and paused at
+  // fixedNow; timers only run when settle() advances virtual time. Live mode
+  // runs on the real clock (motion needs real frames).
+  //
+  // Frozen before the page exists. install({ time }) starts a running fake
+  // clock that an open document syncs to wall time at least every 100 ms, and
+  // pauseAt only jumps forward: with a page open, a sync that landed between
+  // the two calls (a loaded machine) put that page's clock past fixedNow and
+  // pauseAt threw "Cannot fast-forward to the past". With no document yet,
+  // both calls only add init scripts, which every new document replays in one
+  // go: paused at exactly fixedNow (test/frozenClock.test.mjs).
+  if (!v.live) {
+    await context.clock.install({ time: new Date(fixedNow) });
+    await context.clock.pauseAt(new Date(fixedNow));
+  }
+
   const page = await context.newPage();
   const tracked = (request) => {
     const url = new URL(request.url());
@@ -126,14 +142,6 @@ export async function newScenarioPage(
     if (message.type() === "error") log.consoleErrors.push(message.text().slice(0, 300));
   });
   page.on("pageerror", (error) => log.pageErrors.push(String(error).slice(0, 300)));
-
-  // Frozen wall clock: Date/performance/timers are faked and paused at
-  // fixedNow; timers only run when settle() advances virtual time. Live mode
-  // runs on the real clock (motion needs real frames).
-  if (!v.live) {
-    await page.clock.install({ time: new Date(fixedNow) });
-    await page.clock.pauseAt(new Date(fixedNow));
-  }
 
   const pendingCount = () => [...inflight].filter((request) => !held.has(request)).length;
 
