@@ -132,7 +132,8 @@ export function ScreenshotPreviewModal({
   }, [width, height, resetZoom]);
 
   const [isDragging, setIsDragging] = useState(false);
-  const zoomPercent = Math.round(zoom * 100); // not a share: zoom level, may exceed 100%
+  // format-guard: not-a-share — zoom level, may exceed 100%
+  const zoomPercent = Math.round(zoom * 100);
 
   return createPortal(
     <div
