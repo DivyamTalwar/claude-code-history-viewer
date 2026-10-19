@@ -4,7 +4,7 @@
  * date (CodeRabbit on #692, after F3b moved the date to the app language).
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import i18n from "@/i18n";
 import { appFormat } from "@/lib/format/useFormat";
 import { ExportImport } from "./ExportImport";
@@ -31,12 +31,20 @@ describe("Import All preview: when the backup was made", () => {
     ["zh-TW", "匯出時間："],
   ])("%s", async (language, label) => {
     await i18n.changeLanguage(language);
-    render(<ExportImport allSettings={null} />);
+    const { unmount } = render(<ExportImport allSettings={null} />);
 
     fireEvent.click(screen.getByRole("button", { name: i18n.t("settingsManager.exportImport.importAllButton") }));
 
     const dialog = await screen.findByRole("dialog");
     const description = document.getElementById(dialog.getAttribute("aria-describedby") ?? "");
     expect(description?.textContent).toBe(`${label}${appFormat().dateTime(EXPORTED_AT)}`);
+
+    // Close the dialog and unmount inside the test: Radix FocusScope defers
+    // its unmount focus work to a timer, which must not outlive the test
+    // environment (an unhandled teardown error otherwise fails the run).
+    fireEvent.keyDown(dialog, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    unmount();
+    await new Promise((resolve) => setTimeout(resolve, 0));
   });
 });
