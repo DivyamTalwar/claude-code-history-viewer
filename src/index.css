@@ -973,11 +973,16 @@
   /* Forced colours (F1b, G-FC1): the selected item and the focused one stay
      visible and look different — selected = Highlight border + 2px
      underline, focus = a CanvasText outline (box-shadow rings are dropped
-     in this mode, so the outline is forced on every focus). */
+     in this mode, so the outline is forced on every focus). The inset ring
+     stays inset: its control sits where an outside ring would be clipped. */
   @media (forced-colors: active) {
     :focus-visible {
       outline: 2px solid CanvasText !important;
       outline-offset: 2px !important;
+    }
+
+    .focus-ring-inset:focus-visible {
+      outline-offset: var(--focus-ring-inset) !important;
     }
 
     [aria-selected="true"],

@@ -120,4 +120,31 @@ describe.skipIf(!ENABLED)("forced colours (real Chromium)", () => {
       await session.close();
     }
   }, 120_000);
+
+  it("an inset-ring control keeps its focus outline inside its box, where its container cannot clip it", async () => {
+    const session = await openScenario(browser, app, "recent-edits--1440x900--light", { variant: { forcedColors: "active" } });
+    try {
+      const canvasText = await systemColor(session.page, "CanvasText");
+      // The app's inset-ring control (a phone-only palette button) is hidden
+      // at this width, so the test adds a button with the same class.
+      await session.page.evaluate(() => {
+        const probe = document.createElement("button");
+        probe.type = "button";
+        probe.id = "inset-ring-probe";
+        probe.className = "focus-ring-inset";
+        probe.textContent = "inset";
+        document.querySelector("#main-content").prepend(probe);
+      });
+      const el = session.page.locator("#inset-ring-probe");
+      expect(await keyboardFocus(session.page, el)).toBe(true);
+      const style = await el.evaluate((node) => {
+        const cs = getComputedStyle(node);
+        return { outlineStyle: cs.outlineStyle, outlineWidth: cs.outlineWidth, outlineColor: cs.outlineColor, outlineOffset: cs.outlineOffset };
+      });
+      await shot(session.page, el, "inset-ring--focus");
+      expect(style).toEqual({ outlineStyle: "solid", outlineWidth: "2px", outlineColor: canvasText, outlineOffset: "-2px" });
+    } finally {
+      await session.close();
+    }
+  }, 120_000);
 });

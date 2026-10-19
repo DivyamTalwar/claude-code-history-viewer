@@ -69,6 +69,14 @@ describe("F1b base layer", () => {
     });
   });
 
+  it("forced colours: the inset ring stays inset (its control would clip a ring drawn outside)", () => {
+    const rules = inBase((r) => media(r) === "(forced-colors: active)");
+    const inset = rules.find((r) => selectors(r).includes(".focus-ring-inset:focus-visible"));
+    // Same layer and !important as the forced `:focus-visible` offset, higher
+    // specificity, so it wins over the 2px outside offset.
+    expect(decls(inset!)).toEqual({ "outline-offset": "var(--focus-ring-inset) !important" });
+  });
+
   it("Korean breaks between words; Japanese and Chinese keep per-character breaking (never keep-all)", () => {
     const ko = inBase((r) => selectors(r).includes(":lang(ko)"));
     expect(ko.map(decls)).toEqual([{ "word-break": "keep-all", "overflow-wrap": "break-word" }]);
