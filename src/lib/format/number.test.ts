@@ -9,9 +9,12 @@ import {
   formatPercent,
   formatTokens,
 } from "./number";
+import { localeFor } from "./locale";
 import { withOsLocale } from "@/test/osLocale";
 
 const LANGUAGES = ["en", "ko", "ja", "zh-CN", "zh-TW"] as const;
+/** U+2060 WORD JOINER: invisible, no width, no line break on either side. */
+const WJ = "\u2060";
 
 describe("formatNumber / formatTokens", () => {
   it("groups below 10K and compacts from 10K up", () => {
@@ -29,10 +32,10 @@ describe("formatNumber / formatTokens", () => {
 
   it.each([
     ["en", "59.4M", "51.4M", "1.2M", "9,999"],
-    ["ko", "5940만", "5140만", "123만", "9,999"],
-    ["ja", "5940万", "5140万", "123万", "9,999"],
-    ["zh-CN", "5940万", "5140万", "123万", "9,999"],
-    ["zh-TW", "5940萬", "5140萬", "123萬", "9,999"],
+    ["ko", `5940${WJ}만`, `5140${WJ}만`, `123${WJ}만`, "9,999"],
+    ["ja", `5940${WJ}万`, `5140${WJ}万`, `123${WJ}万`, "9,999"],
+    ["zh-CN", `5940${WJ}万`, `5140${WJ}万`, `123${WJ}万`, "9,999"],
+    ["zh-TW", `5940${WJ}萬`, `5140${WJ}萬`, `123${WJ}萬`, "9,999"],
   ])("uses the app language's compact units (%s)", (lang, a, b, c, small) => {
     expect(formatTokens(59_427_870, lang)).toBe(a);
     expect(formatTokens(51_400_000, lang)).toBe(b);
@@ -64,6 +67,63 @@ describe("formatNumber / formatTokens", () => {
   it("handles negative values symmetrically", () => {
     expect(formatTokens(-12_345, "en")).toBe("-12.3K");
     expect(formatCount(-1_234, "en")).toBe("-1,234");
+  });
+});
+
+describe("compact numbers are one unbreakable run (F3b review 6)", () => {
+  // CJK magnitude suffixes are ideographs or Hangul syllables, and Unicode
+  // line breaking (UAX #14) allows a break between a digit and those: at
+  // 390 px the overview footer wrapped `1120万` as `1120` / `万`. A word
+  // joiner between numeral and suffix (and inside a two-character suffix)
+  // removes that break opportunity wherever the text is rendered.
+  it.each([
+    ["ko", 11_200_000, `1120${WJ}만`],
+    ["ko", 120_000_000, `1.2${WJ}억`],
+    ["ko", 1.2e12, `1.2${WJ}조`],
+    ["ja", 11_200_000, `1120${WJ}万`],
+    ["ja", 120_000_000, `1.2${WJ}億`],
+    ["ja", 1.2e12, `1.2${WJ}兆`],
+    ["zh-CN", 11_200_000, `1120${WJ}万`],
+    ["zh-CN", 120_000_000, `1.2${WJ}亿`],
+    ["zh-CN", 1.2e12, `1.2${WJ}万${WJ}亿`],
+    ["zh-TW", 11_200_000, `1120${WJ}萬`],
+    ["zh-TW", 120_000_000, `1.2${WJ}億`],
+    ["zh-TW", 1.2e12, `1.2${WJ}兆`],
+  ])("%s %d: numeral and suffix joined by U+2060", (lang, value, expected) => {
+    expect(formatTokens(value, lang)).toBe(expected);
+  });
+
+  it("joins a Korean thousand (천) and a negative amount the same way", () => {
+    expect(formatNumber(1_500, "ko", { style: "compact" })).toBe(`1.5${WJ}천`);
+    expect(formatTokens(-11_200_000, "ko")).toBe(`-1120${WJ}만`);
+  });
+
+  it("adds nothing to Latin suffixes: a digit and a letter never break", () => {
+    for (const value of [12_345, 11_200_000, 120_000_000, 1.2e12, -12_345]) {
+      expect(formatTokens(value, "en")).not.toContain(WJ);
+    }
+    expect(formatTokens(11_200_000, "en")).toBe("11.2M");
+    expect(formatTokens(1.2e12, "en")).toBe("1.2T");
+  });
+
+  it.each(LANGUAGES)("%s: the joiner is the only change, and never at either end", (lang) => {
+    const intl = new Intl.NumberFormat(localeFor(lang), {
+      notation: "compact",
+      maximumFractionDigits: 1,
+      maximumSignificantDigits: 3,
+      roundingPriority: "lessPrecision",
+    } as Intl.NumberFormatOptions);
+    for (const value of [10_000, 12_345, 455_000, 11_200_000, 59_427_870, 120_000_000, 1.2e12, -11_200_000]) {
+      const text = formatTokens(value, lang);
+      expect(text.split(WJ).join(""), text).toBe(intl.format(value));
+      // A joiner at an end would also glue the number to the space beside it.
+      expect(text.startsWith(WJ) || text.endsWith(WJ), text).toBe(false);
+    }
+  });
+
+  it("leaves grouped values alone", () => {
+    for (const lang of LANGUAGES) expect(formatTokens(9_999, lang)).toBe("9,999");
+    expect(formatCount(59_427_870, "ko")).toBe("59,427,870");
   });
 });
 

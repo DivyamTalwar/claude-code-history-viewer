@@ -99,7 +99,7 @@ export const DailyTrendChart: React.FC<DailyTrendChartProps> = ({ dailyData }) =
       </div>
 
       {/* Summary row */}
-      <div className="flex items-center justify-between text-caption pt-2 border-t border-border/20">
+      <div data-daily-trend-summary className="flex items-center justify-between text-caption pt-2 border-t border-border/20">
         <div className="flex items-center gap-4">
           <div>
             <span className="text-muted-foreground">{t("analytics.dailyAvgTokens")}: </span>

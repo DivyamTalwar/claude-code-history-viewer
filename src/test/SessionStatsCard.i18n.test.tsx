@@ -44,12 +44,13 @@ describe("SessionStatsCard in Korean", () => {
     expect(text).not.toMatch(/Reasoning/i);
   });
 
-  it("keeps each compact numeral and its 만/억 suffix on one unbreakable line", () => {
-    render(<SessionStatsCard stats={stats} />);
-    for (const text of ["1.8만", "50.1만", "220만", "3980만"]) {
-      const span = screen.getByText(text);
-      expect((span as HTMLElement).style.whiteSpace).toBe("nowrap");
+  it("renders each compact numeral joined to its 만 suffix (U+2060, no break between them)", () => {
+    const { container } = render(<SessionStatsCard stats={stats} />);
+    const text = container.textContent ?? "";
+    for (const value of ["1.8", "50.1", "220", "3980"]) {
+      expect(text).toContain(`${value}\u2060만`);
     }
+    expect(text).not.toMatch(/\d만/);
   });
 });
 
@@ -61,11 +62,12 @@ describe("SessionStatsCard in Japanese", () => {
     await i18n.changeLanguage("en");
   });
 
-  it("keeps each compact numeral and its 万 suffix on one unbreakable line", () => {
-    render(<SessionStatsCard stats={stats} />);
-    for (const text of ["1.8万", "50.1万", "220万", "3980万"]) {
-      const span = screen.getByText(text);
-      expect((span as HTMLElement).style.whiteSpace).toBe("nowrap");
+  it("renders each compact numeral joined to its 万 suffix (U+2060, no break between them)", () => {
+    const { container } = render(<SessionStatsCard stats={stats} />);
+    const text = container.textContent ?? "";
+    for (const value of ["1.8", "50.1", "220", "3980"]) {
+      expect(text).toContain(`${value}\u2060万`);
     }
+    expect(text).not.toMatch(/\d万/);
   });
 });

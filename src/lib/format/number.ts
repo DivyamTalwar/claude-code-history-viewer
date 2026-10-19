@@ -6,7 +6,8 @@
  * - counts (messages, sessions, tool uses) — always grouped: `1,369`.
  * - token amounts — grouped below 10K, compact from 10K up: `9,999` · `12.3K`
  *   · `59.4M` (ko `5940만`). Compact keeps at most one decimal and three
- *   significant digits, whichever is shorter.
+ *   significant digits, whichever is shorter, and never breaks across lines
+ *   (a CJK suffix is joined to its numeral, see `WORD_JOINER`).
  * - cost — US dollars, always two decimals; a positive amount under a cent is
  *   `<$0.01`, never `$0.00`.
  * - percent — whole numbers; a non-zero share never rounds to `0%` (`<1%`) and
@@ -41,6 +42,36 @@ const COMPACT = {
   roundingPriority: "lessPrecision",
 } as Intl.NumberFormatOptions;
 
+/**
+ * U+2060 WORD JOINER: invisible, no width, and no line break on either side.
+ *
+ * A compact number is one atom wherever it is rendered. Latin suffixes (`K`,
+ * `M`, `B`, `T`) are letters, and Unicode line breaking (UAX #14) never breaks
+ * between a digit and a letter. CJK suffixes (`万` `億` `亿` `萬` `兆` `万亿`,
+ * `천` `만` `억` `조`) are ideographs and Hangul syllables, which may break from
+ * a digit and from each other: in a narrow box `1120万` wrapped as `1120` /
+ * `万`. So the formatter joins a CJK suffix to its numeral (and its own
+ * characters to each other), never at either end of the text, where a joiner
+ * would also glue the number to the space beside it.
+ *
+ * The joiner is copied with the text (invisible in most apps; a search for
+ * `1120万` in pasted text will not match it) and is a default-ignorable format
+ * character, which screen readers do not speak.
+ */
+const WORD_JOINER = "\u2060";
+const BREAKABLE_SUFFIX = /[\p{Script=Han}\p{Script=Hangul}]/u;
+
+function joinCompactParts(parts: Intl.NumberFormatPart[]): string {
+  return parts
+    .map((part, i) => {
+      if (part.type !== "compact" || !BREAKABLE_SUFFIX.test(part.value)) return part.value;
+      const before = i > 0 ? WORD_JOINER : "";
+      const after = i < parts.length - 1 ? WORD_JOINER : "";
+      return before + Array.from(part.value).join(WORD_JOINER) + after;
+    })
+    .join("");
+}
+
 /** A number in the app language. `auto` = grouped below 10K, compact above. */
 export function formatNumber(
   value: number,
@@ -50,7 +81,8 @@ export function formatNumber(
   if (!Number.isFinite(value)) return NO_VALUE;
   const locale = localeFor(language);
   const compact = style === "compact" || (style === "auto" && Math.abs(value) >= COMPACT_FROM);
-  return numberFormat(locale, compact ? COMPACT : GROUPED).format(value);
+  if (!compact) return numberFormat(locale, GROUPED).format(value);
+  return joinCompactParts(numberFormat(locale, COMPACT).formatToParts(value));
 }
 
 /** A count of things (messages, sessions, uses): always grouped. */
