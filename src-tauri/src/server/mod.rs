@@ -963,6 +963,120 @@ mod tests {
         assert!(!body.contains("do not leak"), "{body}");
     }
 
+    /// POST `body` to `/api/<route>` on a fresh read-only router, the mode a
+    /// shared `--serve` instance runs in. The body is `Null` when it is not
+    /// JSON.
+    async fn post_read_only(
+        route: &str,
+        body: serde_json::Value,
+    ) -> (StatusCode, serde_json::Value) {
+        let app = build_router(test_state_read_only(), "127.0.0.1", 3730, None, "/");
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method(Method::POST)
+                    .uri(format!("/api/{route}"))
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .body(Body::from(body.to_string()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let status = response.status();
+        let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let json = serde_json::from_slice(&bytes).unwrap_or(serde_json::Value::Null);
+        (status, json)
+    }
+
+    /// One Claude JSONL row: a user prompt, or an assistant reply that used
+    /// `tokens` input tokens.
+    fn history_row(session: &str, uuid: &str, user_text: Option<&str>, tokens: u64) -> String {
+        let row = match user_text {
+            Some(text) => serde_json::json!({
+                "type": "user", "sessionId": session, "uuid": uuid,
+                "timestamp": "2026-10-15T12:00:00Z",
+                "message": {"role": "user", "content": text}
+            }),
+            None => serde_json::json!({
+                "type": "assistant", "sessionId": session, "uuid": uuid,
+                "timestamp": "2026-10-15T12:00:01Z",
+                "message": {"id": format!("msg-{uuid}"), "role": "assistant",
+                            "model": "claude-sonnet-4-5-20250929", "content": [],
+                            "usage": {"input_tokens": tokens, "output_tokens": 0}}
+            }),
+        };
+        format!("{row}\n")
+    }
+
+    /// The old stats routes (#691, backported): the history-root guard checks
+    /// the requested directory or file, so the scans behind it must never
+    /// follow a symlink out of the root: not a session file, not a project
+    /// directory.
+    #[cfg(unix)]
+    #[tokio::test]
+    #[serial]
+    async fn test_old_stats_routes_never_follow_a_symlink_out_of_the_history_root() {
+        use std::os::unix::fs::symlink;
+        let home = crate::test_utils::SandboxHome::new();
+        let claude = home.path().join(".claude");
+        let project = claude.join("projects").join("p");
+        std::fs::create_dir_all(&project).unwrap();
+        std::fs::write(project.join("s1.jsonl"), history_row("s1", "a1", None, 100)).unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        let private = outside.path().join("private.jsonl");
+        std::fs::write(&private, history_row("private", "x1", None, 4_242)).unwrap();
+        symlink(&private, project.join("escaped.jsonl")).unwrap();
+        symlink(outside.path(), claude.join("projects").join("evil")).unwrap();
+
+        let project_path = project.to_string_lossy();
+        let session_path = project.join("s1.jsonl");
+        let routes = [
+            (
+                "get_project_stats_summary",
+                serde_json::json!({ "projectPath": project_path }),
+            ),
+            (
+                "get_project_token_stats",
+                serde_json::json!({ "projectPath": project_path, "limit": 100 }),
+            ),
+            (
+                "get_session_token_stats",
+                serde_json::json!({ "sessionPath": session_path.to_string_lossy() }),
+            ),
+            (
+                "get_global_stats_summary",
+                serde_json::json!({
+                    "claudePath": claude.to_string_lossy(), "activeProviders": ["claude"]
+                }),
+            ),
+        ];
+        let mut tokens_by_route = Vec::new();
+        for (route, body) in routes {
+            let (status, json) = post_read_only(route, body).await;
+            assert_eq!(status, StatusCode::OK, "{route}: {json}");
+            let tokens: u64 = match json.get("items") {
+                Some(items) => items
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .map(|item| item["total_tokens"].as_u64().unwrap())
+                    .sum(),
+                None => json["total_tokens"].as_u64().unwrap(),
+            };
+            tokens_by_route.push((route, tokens));
+        }
+        // Only the history inside the root, on every route at once.
+        assert_eq!(
+            tokens_by_route,
+            [
+                ("get_project_stats_summary", 100),
+                ("get_project_token_stats", 100),
+                ("get_session_token_stats", 100),
+                ("get_global_stats_summary", 100),
+            ]
+        );
+    }
+
     /// An `AppState` differing only in the two inputs the gate reads.
     fn state_with(loopback_bind: bool, auth_token: Option<&str>) -> Arc<AppState> {
         let state = test_state(auth_token);
