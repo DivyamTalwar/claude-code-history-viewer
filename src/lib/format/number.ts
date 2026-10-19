@@ -138,6 +138,15 @@ const SIGNED_PERCENT: Intl.NumberFormatOptions = {
 };
 
 /**
+ * The whole-percent change from `previous` to `current`, against
+ * `|previous|` (`100 → 125` is `25`), never `-0`. The number `formatChange`
+ * shows, for callers that compare it (trend chips); a zero `previous` is the
+ * caller's case (`new`).
+ */
+export const changePercent = (previous: number, current: number): number =>
+  Math.round(((current - previous) / Math.abs(previous)) * 100) + 0;
+
+/**
  * Change from `previous` to `current`: a direction and a signed whole
  * percentage. No good/bad judgement — the caller decides colour (none).
  * From zero to something is `new` with no percentage.
@@ -154,10 +163,9 @@ export function formatChange(
   if (previous === 0) {
     return current === 0 ? { direction: "flat", text: format.format(0) } : { direction: "new", text: "" };
   }
-  const ratio = (current - previous) / Math.abs(previous);
-  const rounded = Math.round(ratio * 100);
+  const rounded = changePercent(previous, current);
   const direction: ChangeDirection = rounded > 0 ? "up" : rounded < 0 ? "down" : "flat";
-  return { direction, text: format.format(rounded / 100 + 0) };
+  return { direction, text: format.format(rounded / 100) };
 }
 
 const BYTE_UNITS = ["B", "KB", "MB", "GB", "TB"] as const;

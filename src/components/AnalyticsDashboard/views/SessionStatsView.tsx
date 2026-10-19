@@ -42,7 +42,7 @@ export const SessionStatsView: React.FC<SessionStatsViewProps> = ({
   );
 
   // Memoized comparison metrics calculation
-  const { isAboveAverage, statusColor, percentile } = useMemo(
+  const { isAboveAverage, statusColor, percentileRatio } = useMemo(
     () => calculateSessionComparisonMetrics(sessionComparison, totalProjectSessions),
     [sessionComparison, totalProjectSessions]
   );
@@ -162,7 +162,7 @@ export const SessionStatsView: React.FC<SessionStatsViewProps> = ({
                 </span>
               </div>
               <div className="font-mono text-2xl font-bold text-foreground tabular-nums">
-                {percentile}%
+                {fmt.percent(percentileRatio)}
               </div>
               <div className="text-caption text-muted-foreground font-mono mt-0.5">
                 {t("analytics.sessionCount", "{{count}} sessions", {

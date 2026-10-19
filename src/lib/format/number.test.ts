@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   COMPACT_FROM,
+  changePercent,
   formatBytes,
   formatChange,
   formatCost,
@@ -197,6 +198,21 @@ describe("formatChange", () => {
   it("has no percentage when there is nothing to compare against", () => {
     expect(formatChange(0, 10, "en")).toEqual({ direction: "new", text: "" });
     expect(formatChange(0, 0, "en")).toEqual({ direction: "flat", text: "0%" });
+  });
+});
+
+describe("changePercent", () => {
+  it("is the whole-percent change formatChange shows, as a number (trend chips compare it)", () => {
+    expect(changePercent(100, 125)).toBe(25);
+    expect(changePercent(100, 80)).toBe(-20);
+    expect(changePercent(30, 200)).toBe(567);
+    expect(changePercent(-100, -50)).toBe(50); // against |previous|, like formatChange
+    expect(formatChange(30, 200, "en").text).toBe(`+${changePercent(30, 200)}%`);
+  });
+
+  it("never returns -0", () => {
+    expect(changePercent(300, 299)).toBe(0);
+    expect(Object.is(changePercent(300, 299), -0)).toBe(false);
   });
 });
 

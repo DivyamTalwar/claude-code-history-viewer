@@ -5,6 +5,7 @@
  */
 
 import pricingTable from "@/data/model-pricing.json";
+import { changePercent } from "@/lib/format/number";
 import type { GrowthTrend } from "../types";
 
 /**
@@ -25,8 +26,7 @@ export const calculateGrowthTrend = (
     if (current < previous) return { kind: "down-small-base" };
     return { kind: "flat" };
   }
-  // `+ 0` normalizes a rounded `-0` to `0`.
-  return { kind: "pct", value: Math.round(((current - previous) / previous) * 100) + 0 };
+  return { kind: "pct", value: changePercent(previous, current) };
 };
 
 /**
