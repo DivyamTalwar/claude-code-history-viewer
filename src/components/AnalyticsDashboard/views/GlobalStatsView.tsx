@@ -20,7 +20,7 @@ import {
   TriangleAlert,
 } from "lucide-react";
 import type { GlobalStatsSummary, MetricMode } from "../../../types";
-import { formatDurationCompact } from "../../../utils/time";
+import { useFormat } from "@/lib/format/useFormat";
 import { cn } from "@/lib/utils";
 import {
   MetricCard,
@@ -31,8 +31,6 @@ import {
   ProviderDistributionChart,
 } from "../components";
 import {
-  formatNumber,
-  formatCurrency,
   calculateModelMetrics,
   MODEL_PRICING_AUDITED_AT,
   calculateGlobalCostSummary,
@@ -58,6 +56,7 @@ export const GlobalStatsView: React.FC<GlobalStatsViewProps> = ({
   metricMode = "tokens",
 }) => {
   const { t } = useTranslation();
+  const fmt = useFormat();
   const totalSessionTime = globalSummary.total_session_duration_minutes;
   const modelDistribution = globalSummary.model_distribution ?? EMPTY_MODEL_DISTRIBUTION;
   const conversationModelDistribution =
@@ -102,14 +101,8 @@ export const GlobalStatsView: React.FC<GlobalStatsViewProps> = ({
     if (Number.isNaN(parsed.getTime())) {
       return t("analytics.lastUpdatedUnknown", "Unknown");
     }
-    return new Intl.DateTimeFormat(undefined, {
-      year: "numeric",
-      month: "short",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-    }).format(parsed);
-  }, [globalSummary.date_range.last_message, t]);
+    return fmt.dateTime(parsed, { year: "always" });
+  }, [globalSummary.date_range.last_message, t, fmt]);
 
   return (
     <div className="flex-1 p-3 md:p-6 overflow-auto bg-background space-y-4 md:space-y-6 animate-stagger">
@@ -125,12 +118,12 @@ export const GlobalStatsView: React.FC<GlobalStatsViewProps> = ({
         <MetricCard
           icon={Activity}
           label={t("analytics.totalTokens")}
-          value={formatNumber(globalSummary.total_tokens)}
+          value={fmt.tokens(globalSummary.total_tokens)}
           subValue={
             t("analytics.estimatedCostValue", "Estimated Cost: {{cost}}", {
               cost: billingCost == null
                 ? t("common.dash", "—")
-                : formatCurrency(totalEstimatedCost),
+                : fmt.cost(totalEstimatedCost),
             })
           }
           colorVariant="blue"
@@ -138,14 +131,14 @@ export const GlobalStatsView: React.FC<GlobalStatsViewProps> = ({
         <MetricCard
           icon={MessageCircle}
           label={t("analytics.totalMessages")}
-          value={formatNumber(globalSummary.total_messages)}
-          subValue={`${t("analytics.totalSessions")}: ${globalSummary.total_sessions}`}
+          value={fmt.count(globalSummary.total_messages)}
+          subValue={`${t("analytics.totalSessions")}: ${fmt.count(globalSummary.total_sessions)}`}
           colorVariant="purple"
         />
         <MetricCard
           icon={Clock}
           label={t("analytics.sessionTime")}
-          value={formatDurationCompact(totalSessionTime)}
+          value={fmt.minutes(totalSessionTime)}
           colorVariant="green"
         />
         <MetricCard
@@ -179,7 +172,7 @@ export const GlobalStatsView: React.FC<GlobalStatsViewProps> = ({
                 : t("analytics.estimatedLabel", "Estimated")}
         </span>
         <span className="px-2 py-1 rounded-md bg-muted/40 text-muted-foreground text-caption">
-          {t("analytics.pricingCoverage", "Pricing coverage")}: {costSummary.coveragePercent.toFixed(1)}%
+          {t("analytics.pricingCoverage", "Pricing coverage")}: {fmt.percent(costSummary.coveragePercent / 100)}
         </span>
         <span
           className="px-2 py-1 rounded-md bg-muted/40 text-muted-foreground text-caption"
@@ -213,7 +206,7 @@ export const GlobalStatsView: React.FC<GlobalStatsViewProps> = ({
           <SectionCard title={t("analytics.modelDistribution")} icon={Cpu} colorVariant="blue">
             <div className="space-y-3">
               {modelDistribution.map((model) => {
-                const { percentage, formattedPrice, formattedTokens, pricingStatus } = calculateModelMetrics(
+                const { percentage, price, pricingStatus } = calculateModelMetrics(
                   model.model_name,
                   model.token_count,
                   model.input_tokens,
@@ -230,6 +223,8 @@ export const GlobalStatsView: React.FC<GlobalStatsViewProps> = ({
                   },
                 );
                 const modelKey = `${model.provider_id ?? "unknown"}:${model.model_name}:${model.service_tier ?? "standard"}`;
+                const formattedPrice = price == null ? "—" : fmt.cost(price);
+                const formattedTokens = fmt.tokens(model.token_count);
 
                 return (
                   <div key={modelKey}>
@@ -343,10 +338,10 @@ export const GlobalStatsView: React.FC<GlobalStatsViewProps> = ({
                     <span className="truncate font-medium text-foreground" title={row.replacedBy}>{row.replacedBy}</span>
                   </span>
                   <span className="flex items-center gap-2 font-mono text-caption">
-                    <span className="text-muted-foreground">{formatNumber(row.tokenCount)}</span>
-                    <span className="text-muted-foreground">{formatCurrency(row.currentCost)}</span>
+                    <span className="text-muted-foreground">{fmt.tokens(row.tokenCount)}</span>
+                    <span className="text-muted-foreground">{fmt.cost(row.currentCost)}</span>
                     <span className="text-muted-foreground">→</span>
-                    <span className="font-semibold text-foreground">{formatCurrency(row.replacementCost)}</span>
+                    <span className="font-semibold text-foreground">{fmt.cost(row.replacementCost)}</span>
                     {deltaPercent != null && (
                       <span
                         className={cn(
@@ -358,7 +353,7 @@ export const GlobalStatsView: React.FC<GlobalStatsViewProps> = ({
                               : "text-muted-foreground",
                         )}
                       >
-                        {delta > 0 ? "+" : ""}{deltaPercent.toFixed(0)}%
+                        {fmt.change(row.currentCost, row.replacementCost).text}
                       </span>
                     )}
                   </span>
@@ -439,8 +434,8 @@ export const GlobalStatsView: React.FC<GlobalStatsViewProps> = ({
                             "analytics.topProjectMeta",
                             "{{sessions}} sessions • {{messages}} msgs",
                             {
-                              sessions: project.sessions,
-                              messages: project.messages,
+                              sessions: fmt.count(project.sessions),
+                              messages: fmt.count(project.messages),
                             }
                           )}
                         </p>
@@ -448,7 +443,7 @@ export const GlobalStatsView: React.FC<GlobalStatsViewProps> = ({
                     </div>
                     <div className="text-right">
                       <p className="font-mono text-caption font-bold text-foreground">
-                        {formatNumber(project.tokens)}
+                        {fmt.tokens(project.tokens)}
                       </p>
                       <p className="text-caption text-muted-foreground">{t("analytics.tokens")}</p>
                     </div>

@@ -5,6 +5,7 @@ import { getKindLabelKey } from "../kindLabels";
 import { KIND_STYLES } from "../kindStyles";
 import { OUTLINE_CHILD_INDENT_CLASS } from "./childRowStyles";
 import type { OutlineActivityChild } from "./types";
+import { useFormat } from "@/lib/format/useFormat";
 
 interface OutlineActivityRowProps {
   activity: OutlineActivityChild;
@@ -41,6 +42,7 @@ export const OutlineActivityRow = React.memo<OutlineActivityRowProps>(({
   ariaSetSize,
 }) => {
   const { t } = useTranslation();
+  const fmt = useFormat();
   const handleClick = useCallback(() => onActivate(), [onActivate]);
 
   // The same icon list mode uses for a reply row (Build: "a bot icon, the
@@ -57,7 +59,7 @@ export const OutlineActivityRow = React.memo<OutlineActivityRowProps>(({
   const subtitle = subtitleParts.join(" · ");
 
   const formattedTime = activity.timestamp
-    ? new Date(activity.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+    ? fmt.time(activity.timestamp)
     : "";
 
   return (

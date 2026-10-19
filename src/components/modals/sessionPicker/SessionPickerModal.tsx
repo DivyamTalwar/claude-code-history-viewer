@@ -11,6 +11,7 @@ import {
 import { useAppStore } from "@/store/useAppStore";
 import type { SessionPickerCandidate } from "@/store/slices/sessionPickerSlice";
 import { cn } from "@/lib/utils";
+import { appFormat } from "@/lib/format/useFormat";
 
 /**
  * Opened automatically by `preloadSessionFromCli` when a `--session-title`
@@ -126,7 +127,7 @@ export const SessionPickerModal: React.FC = () => {
                             ?? c.session.summary
                             ?? c.session.actual_session_id;
                         const lastMod = c.session.last_modified
-                            ? new Date(c.session.last_modified).toLocaleString()
+                            ? appFormat().dateTime(c.session.last_modified)
                             : "";
                         return (
                             <li

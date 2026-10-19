@@ -13,10 +13,10 @@ import {
     getToolUseBlock
 } from "../../utils/messageUtils";
 import { getCardSemantics } from "@/utils/cardSemantics";
-import { formatDuration, formatNumber } from "@/utils/formatters";
 import type { ActiveBrush } from "@/utils/brushMatchers";
 import type { ClaudeMessage } from "../../types";
 import { useTranslation } from "react-i18next";
+import { useFormat } from "@/lib/format/useFormat";
 
 
 
@@ -52,6 +52,7 @@ export const SessionLane = ({
     onHeightChange
 }: SessionLaneProps) => {
     const { t } = useTranslation();
+    const fmt = useFormat();
     const { session, messages, stats, depth } = data;
     const selectedMessageId = useAppStore(state => state.selectedMessageId);
 
@@ -259,10 +260,10 @@ export const SessionLane = ({
                             {stats?.commitCount > 0 && <span title={t("session.board.gitCommits")}><GitCommitHorizontal className="w-3.5 h-3.5 text-tool-git" /></span>}
                         </div>
                         <div className="text-caption font-bold text-muted-foreground">
-                            {new Date(session.last_modified).toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' })}
+                            {fmt.date(session.last_modified, "numeric")}
                         </div>
                         <div className="mt-auto text-caption font-mono text-muted-foreground">
-                            {Math.round((stats?.totalTokens || 0) / 1000)}k
+                            {fmt.tokens(stats?.totalTokens || 0)}
                         </div>
                     </div>
                 ) : (
@@ -270,7 +271,7 @@ export const SessionLane = ({
                         <div className="flex items-center justify-between">
                             <div className="flex items-center gap-1.5 overflow-hidden">
                                 <span className="text-caption font-mono text-muted-foreground/70 shrink-0">
-                                    {new Date(session.last_modified).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}  •  {new Date(session.last_modified).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                                    {fmt.time(session.last_modified)}  •  {fmt.date(session.last_modified, "short")}
                                 </span>
                             </div>
                             <div className="flex gap-3 items-center">
@@ -285,13 +286,13 @@ export const SessionLane = ({
 
                                 <div className="flex items-center gap-1 text-success" title={t("analytics.inputTokens")}>
                                     <TrendingUp className="w-3.5 h-3.5" />
-                                    <span className="text-caption font-mono">{formatNumber(stats.inputTokens || 0)}</span>
+                                    <span className="text-caption font-mono">{fmt.tokens(stats.inputTokens || 0)}</span>
                                     <span className="text-caption opacity-60">{t("analytics.in", "in")}</span>
                                 </div>
 
                                 <div className="flex items-center gap-1 text-tool-mcp" title={t("analytics.outputTokens")}>
                                     <Zap className="w-3.5 h-3.5" />
-                                    <span className="text-caption font-mono">{formatNumber(stats.outputTokens || 0)}</span>
+                                    <span className="text-caption font-mono">{fmt.tokens(stats.outputTokens || 0)}</span>
                                     <span className="text-caption opacity-60">{t("analytics.out", "out")}</span>
                                 </div>
 
@@ -301,7 +302,7 @@ export const SessionLane = ({
 
                         <div className="flex items-baseline gap-2 pb-1 border-b border-border/20">
                             <div className="text-xl font-bold font-mono text-foreground">
-                                {formatNumber(stats.totalTokens)}
+                                {fmt.tokens(stats.totalTokens)}
                                 <span className="text-caption text-muted-foreground font-normal ml-1">{t("analytics.tokens")}</span>
                             </div>
                             <div className="ml-auto text-caption text-muted-foreground flex items-center gap-3">
@@ -318,8 +319,8 @@ export const SessionLane = ({
                                         </div>
                                     </div>
                                 )}
-                                <span>{messages.length} {t("messageViewer.messagesShort")}</span>
-                                <span>{formatDuration(durationMinutes)}</span>
+                                <span>{fmt.count(messages.length)} {t("messageViewer.messagesShort")}</span>
+                                <span>{fmt.minutes(durationMinutes)}</span>
                             </div>
                         </div>
 

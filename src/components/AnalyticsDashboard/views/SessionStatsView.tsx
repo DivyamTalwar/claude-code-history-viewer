@@ -8,15 +8,14 @@ import React, { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { ChartColumn, Clock, TrendingUp, TrendingDown, Zap, MessageSquare, Timer } from "lucide-react";
 import type { SessionTokenStats, SessionComparison, ProviderId } from "../../../types";
-import { formatTime } from "../../../utils/time";
 import { SectionCard, TokenDistributionChart, BillingBreakdownCard } from "../components";
 import {
   calculateGlobalCostSummary,
-  formatNumber,
   calculateSessionMetrics,
   calculateSessionComparisonMetrics,
 } from "../utils";
 import { supportsConversationBreakdown } from "../../../utils/providers";
+import { useFormat } from "@/lib/format/useFormat";
 
 interface SessionStatsViewProps {
   sessionStats: SessionTokenStats;
@@ -34,6 +33,7 @@ export const SessionStatsView: React.FC<SessionStatsViewProps> = ({
   providerId = "claude",
 }) => {
   const { t } = useTranslation();
+  const fmt = useFormat();
 
   // Memoized session metrics calculation
   const { avgTokensPerMessage, durationMinutes, distribution } = useMemo(
@@ -42,7 +42,7 @@ export const SessionStatsView: React.FC<SessionStatsViewProps> = ({
   );
 
   // Memoized comparison metrics calculation
-  const { isAboveAverage, statusColor, percentile } = useMemo(
+  const { isAboveAverage, statusColor, percentileRatio } = useMemo(
     () => calculateSessionComparisonMetrics(sessionComparison, totalProjectSessions),
     [sessionComparison, totalProjectSessions]
   );
@@ -110,10 +110,10 @@ export const SessionStatsView: React.FC<SessionStatsViewProps> = ({
                 </span>
               </div>
               <div className="font-mono text-2xl font-bold text-foreground tabular-nums">
-                {sessionComparison.percentage_of_project_tokens.toFixed(1)}%
+                {fmt.percent(sessionComparison.percentage_of_project_tokens / 100)}
               </div>
               <div className="text-caption text-muted-foreground font-mono mt-0.5">
-                {formatNumber(sessionStats.total_tokens)} {t("analytics.tokens")}
+                {fmt.tokens(sessionStats.total_tokens)} {t("analytics.tokens")}
               </div>
             </div>
 
@@ -125,7 +125,7 @@ export const SessionStatsView: React.FC<SessionStatsViewProps> = ({
                 </span>
               </div>
               <div className="font-mono text-2xl font-bold text-foreground tabular-nums">
-                {avgTokensPerMessage.toLocaleString()}
+                {fmt.tokens(avgTokensPerMessage)}
               </div>
               <div className="text-caption text-muted-foreground font-mono mt-0.5">
                 {t("analytics.messageCountShort", "{{count}} msgs", {
@@ -162,7 +162,7 @@ export const SessionStatsView: React.FC<SessionStatsViewProps> = ({
                 </span>
               </div>
               <div className="font-mono text-2xl font-bold text-foreground tabular-nums">
-                {percentile}%
+                {fmt.percent(percentileRatio)}
               </div>
               <div className="text-caption text-muted-foreground font-mono mt-0.5">
                 {t("analytics.sessionCount", "{{count}} sessions", {
@@ -206,7 +206,7 @@ export const SessionStatsView: React.FC<SessionStatsViewProps> = ({
                 {t("analytics.startTime")}
               </div>
               <div className="font-mono text-caption text-foreground mt-0.5">
-                {formatTime(sessionStats.first_message_time)}
+                {fmt.dateTime(sessionStats.first_message_time)}
               </div>
             </div>
 
@@ -230,7 +230,7 @@ export const SessionStatsView: React.FC<SessionStatsViewProps> = ({
                 {t("analytics.endTime")}
               </div>
               <div className="font-mono text-caption text-foreground mt-0.5">
-                {formatTime(sessionStats.last_message_time)}
+                {fmt.dateTime(sessionStats.last_message_time)}
               </div>
             </div>
           </div>

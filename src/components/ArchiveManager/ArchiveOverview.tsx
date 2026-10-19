@@ -25,7 +25,6 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useAppStore } from '@/store/useAppStore';
-import { formatBytes } from '@/utils/formatters';
 import { api } from '@/services/api';
 import { archiveApi } from '@/services/archiveApi';
 import type { ClaudeSession } from '@/types';
@@ -36,6 +35,7 @@ import {
   isValidCleanupPeriod,
   parseCleanupPeriodInput,
 } from '@/utils/cleanupPeriod';
+import { appFormat } from "@/lib/format/useFormat";
 
 export const ArchiveOverview: React.FC = () => {
   const { t } = useTranslation();
@@ -237,7 +237,7 @@ export const ArchiveOverview: React.FC = () => {
   const handleArchiveAll = async (includeSubagents: boolean) => {
     if (!selectedProject || archive.expiringSessions.length === 0) return;
     const batchName = t('archive.create.expiringBatchName', {
-      date: new Date().toLocaleDateString(),
+      date: appFormat().date(Date.now()),
     });
     try {
       await createArchive({
@@ -267,7 +267,7 @@ export const ArchiveOverview: React.FC = () => {
     }
     if (claudeProjects.length === 0) return;
 
-    const date = new Date().toLocaleDateString();
+    const date = appFormat().date(Date.now());
     let okProjects = 0;
     let okSessions = 0;
     const failed: string[] = [];
@@ -447,7 +447,7 @@ export const ArchiveOverview: React.FC = () => {
               </div>
               <div className="flex items-center gap-1.5">
                 <Badge variant="secondary">
-                  {formatBytes(archive.diskUsage.totalBytes)}
+                  {appFormat().bytes(archive.diskUsage.totalBytes)}
                 </Badge>
                 <span className="text-list text-muted-foreground">
                   {t('archive.overview.diskUsage.totalSize')}
@@ -592,7 +592,7 @@ export const ArchiveOverview: React.FC = () => {
                               {t('archive.overview.expiring.daysRemaining', { days: expiring.daysRemaining })}
                             </Badge>
                             <span className="text-caption text-muted-foreground">
-                              {formatBytes(expiring.fileSizeBytes)}
+                              {appFormat().bytes(expiring.fileSizeBytes)}
                             </span>
                           </div>
                         </div>
@@ -634,7 +634,7 @@ export const ArchiveOverview: React.FC = () => {
                               {t('archive.overview.expiring.daysRemaining', { days: expiring.daysRemaining })}
                             </Badge>
                             <span className="text-caption text-muted-foreground">
-                              {formatBytes(expiring.fileSizeBytes)}
+                              {appFormat().bytes(expiring.fileSizeBytes)}
                             </span>
                             <span className="text-caption text-muted-foreground">
                               {t('archive.browse.sessions.subagents', { count: expiring.subagentCount })}

@@ -6,6 +6,7 @@ import { getKindLabelKey } from "../kindLabels";
 import { KIND_STYLES } from "../kindStyles";
 import { getTurnHeaderLabel } from "./turnHeaderLabel";
 import type { TurnGroup } from "./types";
+import { useFormat } from "@/lib/format/useFormat";
 
 interface CountChipProps {
   icon: LucideIcon;
@@ -61,6 +62,7 @@ export const OutlineTurnHeader = React.memo<OutlineTurnHeaderProps>(({
   ariaSetSize,
 }) => {
   const { t } = useTranslation();
+  const fmt = useFormat();
   const handleClick = useCallback(() => onActivate(), [onActivate]);
 
   const labelText = getTurnHeaderLabel(turn, hasMore, totalTurns, t);
@@ -68,7 +70,7 @@ export const OutlineTurnHeader = React.memo<OutlineTurnHeaderProps>(({
   const kindStyle = header ? (KIND_STYLES[header.kind] ?? KIND_STYLES.system) : null;
   const kindLabel = header ? t(getKindLabelKey(header.kind)) : "";
   const formattedTime = header?.timestamp
-    ? new Date(header.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+    ? fmt.time(header.timestamp)
     : "";
 
   const { counts } = turn;

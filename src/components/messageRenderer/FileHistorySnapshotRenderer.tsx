@@ -20,6 +20,7 @@ import { useTranslation } from "react-i18next";
 import { getVariantStyles, layout } from "@/components/renderers";
 import { cn } from "@/lib/utils";
 import type { FileHistorySnapshotData } from "../../types";
+import { useFormat } from "@/lib/format/useFormat";
 
 type Props = {
   messageId: string;
@@ -34,6 +35,7 @@ export const FileHistorySnapshotRenderer = memo(
     isSnapshotUpdate,
   }: Props) {
     const { t } = useTranslation();
+    const fmt = useFormat();
 
     const trackedFilesCount = Object.keys(snapshot.trackedFileBackups || {}).length;
     const trackedFiles = Object.entries(snapshot.trackedFileBackups || {});
@@ -77,7 +79,7 @@ export const FileHistorySnapshotRenderer = memo(
             <div className={cn("flex items-center", layout.iconSpacing, styles.icon)}>
               <Clock className={layout.iconSizeSmall} />
               <span>
-                {new Date(snapshot.timestamp).toLocaleString()}
+                {fmt.dateTime(snapshot.timestamp)}
               </span>
             </div>
           )}

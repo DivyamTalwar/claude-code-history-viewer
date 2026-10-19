@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { getVariantStyles, layout } from "@/components/renderers";
 import { ToolUseCard } from "./ToolUseCard";
+import { useFormat } from "@/lib/format/useFormat";
 
 interface TaskOutputToolInput {
   task_id?: string;
@@ -18,6 +19,7 @@ interface Props {
 
 export const TaskOutputToolRenderer = memo(function TaskOutputToolRenderer({ toolId, input }: Props) {
   const { t } = useTranslation();
+  const fmt = useFormat();
   const styles = getVariantStyles("task");
 
   return (
@@ -39,7 +41,7 @@ export const TaskOutputToolRenderer = memo(function TaskOutputToolRenderer({ too
             <span>{t("renderers.taskOutputToolRenderer.block")}: <code className="text-foreground">{String(input.block)}</code></span>
           )}
           {input.timeout != null && (
-            <span>{t("renderers.taskOutputToolRenderer.timeout")}: <code className="text-foreground">{(input.timeout / 1000).toFixed(0)}{t("time.secondShort")}</code></span>
+            <span>{t("renderers.taskOutputToolRenderer.timeout")}: <code className="text-foreground">{fmt.duration(input.timeout)}</code></span>
           )}
         </div>
     </ToolUseCard>
