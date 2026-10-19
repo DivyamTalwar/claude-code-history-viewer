@@ -14,7 +14,7 @@
  *   inside a fold, to the earlier occurrence.
  *
  * API-compatible with AN0a's `src/lib/usageBreakdown/localDayIntervals.ts`
- * (#685), which is meant to re-export from here once both land.
+ * (#685), which re-exports from here (ADR 0002 §2).
  */
 
 /** Local calendar date, `YYYY-MM-DD`. */
@@ -137,6 +137,25 @@ export function localTimeOfDay(value: number | string | Date): string | null {
   const local = new Date(ms);
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${pad(local.getHours())}:${pad(local.getMinutes())}:${pad(local.getSeconds())}`;
+}
+
+/** Local wall time as numeric fields. */
+export interface LocalWallTime {
+  hour: number;
+  minute: number;
+  second: number;
+  millisecond: number;
+}
+
+/** The local wall-clock fields of an instant in `timeZone`. */
+export function localWallTime(utcMs: number, timeZone: string): LocalWallTime {
+  const naive = new Date(naiveLocalMs(utcMs, timeZone));
+  return {
+    hour: naive.getUTCHours(),
+    minute: naive.getUTCMinutes(),
+    second: naive.getUTCSeconds(),
+    millisecond: naive.getUTCMilliseconds(),
+  };
 }
 
 /** `key` moved by whole calendar days. */
