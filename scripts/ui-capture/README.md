@@ -43,7 +43,7 @@ directory, and Windows resolves the home folder without `HOME`.
 | Source of drift | Pinned by |
 |---|---|
 | Data | Generated fixture home; byte-identical every run (`generate.mjs --verify`) |
-| Wall clock | `page.clock.install` + `pauseAt` at `2026-06-30T00:00:00Z` (09:00 KST); timers only run when the settle loop calls `clock.runFor` |
+| Wall clock | `clock.install` + `pauseAt` at `2026-06-30T00:00:00Z` (09:00 KST), on the context before its page exists (with a page open the two calls race that page's running clock: `test/frozenClock.test.mjs`); timers only run when the settle loop calls `clock.runFor` |
 | Locale / timezone | `--locale` (default `ko`) → browser locale; `Asia/Seoul` |
 | Pixel density | `deviceScaleFactor: 2` |
 | Motion | `reducedMotion: reduce` + injected CSS (`animation`/`transition: none`, no caret, no smooth scroll) + `animations: "disabled"` on the screenshot |
