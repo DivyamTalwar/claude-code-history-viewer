@@ -7,23 +7,29 @@
 // line. A unit after a space (1.4 MB) may move to the next line, as on
 // develop. Code, paths and ids are not numbers and are skipped.
 //
-// Three mechanisms split numbers in the Korean UI, all pinned here:
+// Four mechanisms split numbers in the Korean UI, all pinned here:
 //   - `overflow-wrap: anywhere` counts its break points in min-content, so a
 //     squeezed flex or grid item shrinks to one character: 69 -> 6/9 on the
 //     board, 1.4 MB -> 1/./4/M/B on the archive's expiry cards. The base layer
-//     uses `break-word`, which never lowers min-content, so no number needs a
-//     class to stay whole.
+//     uses `break-word`, which never lowers min-content.
 //   - WebKit breaks a keep-all text node that holds Hangul after every
 //     punctuation mark, so a date and time rendered as one text node
 //     ("… 오후 01:26:25", the message header's details popover) wraps after
-//     "01:". keepNumbersWhole() renders such numbers as their own text node.
+//     "01:".
+//   - WebKit's keep-all also lowers a squeezed flex item's min-content at the
+//     punctuation inside a number, ASCII included: 7,803 -> 7,/803 and
+//     1.8⁠만 -> 1./8⁠만 on the board, the token statistics and the global
+//     statistics, $270.29 in the cost rows, 1.3 MB in the archive (the shared
+//     formatters' F3b formats). Both are fixed by <Num> (src/lib/format/Num.tsx):
+//     every formatter result shown as text renders through it, and its numbers
+//     get `word-break: normal`, under which Unicode never breaks a number.
 //   - `break-word` still breaks a single word wider than its whole line. A
 //     number gets there only in a box forced narrower than itself, where
 //     every language overflows: the token KPI tiles on a phone at 130 %
 //     (526.5K -> 526.5/K). Such a value is `whitespace-nowrap`.
-// Before the fix (UI_TEST_DIST=<F1b 027986fb build>) the Korean archive and
-// transcript cases fail; with break-word alone (ad107289) the Korean KPI
-// case fails. Skipped without WebKit or a built server.
+// Before <Num> (UI_TEST_DIST=<b20eb16c build>) the Korean board, archive and
+// KPI cases fail; before the earlier fixes (027986fb, ad107289) the archive,
+// transcript and KPI cases did. Skipped without WebKit or a built server.
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { webkit } from "playwright";
@@ -74,7 +80,11 @@ const numbersOnPage = (page) =>
       if (!el || !el.checkVisibility() || el.closest(SKIP)) continue;
       // Paths and ids (a/b, 41ac2d22cac2…) may wrap anywhere; they are not numbers.
       if (/\w[\\/]\w/.test(text) || /[0-9a-f]{12,}/i.test(text)) continue;
-      const context = (el.textContent ?? text).trim().slice(0, 80);
+      // The text around the number: the nearest element that holds more than
+      // this text node (a number in its own span sits in a phrase).
+      let host = el;
+      while (host.parentElement && (host.textContent ?? "").trim() === text.trim()) host = host.parentElement;
+      const context = (host.textContent ?? text).trim().slice(0, 80);
       for (const m of text.matchAll(TOKEN)) {
         const { core, unit = "", spaced = "" } = m.groups;
         const coreLines = lines(n, m.index, m.index + core.length);
@@ -125,17 +135,29 @@ describe.skipIf(!ENABLED)("numbers never break inside themselves (real WebKit, 3
   }, 120_000);
 
   it.each(LOCALES)("%s UI, token statistics at 130% (the largest font size): KPI values stay whole in tiles narrower than the value", async (locale) => {
+    // The KPI values are whatever the formatter writes (17.6K, 52.7⁠만, 1.8万,
+    // 7,803): each tile's value element is measured whole, by its place in
+    // the tile, not by a number pattern.
+    let kpis = [];
     const numbers = await measure(
       "analytics-tokens--390x844--dark",
       locale,
       async (page) => {
         const tiles = page.locator("button[aria-label] > div.font-mono");
         await tiles.first().scrollIntoViewIfNeeded();
+        kpis = await tiles.evaluateAll((values) =>
+          values.map((value) => {
+            const range = document.createRange();
+            range.selectNodeContents(value);
+            const rects = [...range.getClientRects()].filter((r) => r.width > 0.3 && r.height > 0);
+            return { text: value.textContent ?? "", lines: new Set(rects.map((r) => Math.round(r.top))).size };
+          }),
+        );
       },
       1.3,
     );
-    const kpis = numbers.filter((n) => /^\d+(?:\.\d)?[KMBT]$/.test(n.core) && n.context === n.text);
-    expect(kpis.length, "no KPI values on the token statistics to measure").toBeGreaterThan(2);
+    expect(kpis.filter((kpi) => /\d/.test(kpi.text)).length, "no KPI values on the token statistics to measure").toBeGreaterThan(2);
+    expect(kpis.filter((kpi) => kpi.lines !== 1), JSON.stringify(kpis)).toEqual([]);
     expect(split(numbers), JSON.stringify(split(numbers))).toEqual([]);
   }, 120_000);
 });
