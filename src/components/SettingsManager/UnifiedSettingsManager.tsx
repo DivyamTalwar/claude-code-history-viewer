@@ -32,6 +32,7 @@ import { SettingsDiagnosticsPanel } from "./dialogs/SettingsDiagnosticsPanel";
 import { CustomDirectoriesSection } from "./sections/CustomDirectoriesSection";
 import { WslSection } from "./sections/WslSection";
 import { SessionResumeSection } from "./sections/SessionResumeSection";
+import { placeNameKey } from "@/navigation/placeNames";
 import {
   OPEN_SETTINGS_SECTION_EVENT,
   consumeRequestedSettingsSection,
@@ -310,7 +311,7 @@ export const UnifiedSettingsManager: React.FC<UnifiedSettingsManagerProps> = ({
             <Archive className="w-4 h-4 text-accent" />
           </div>
           <div className="min-w-0 flex-1">
-            <p className="text-body font-medium">{t("archive.settings.link")}</p>
+            <p className="text-body font-medium">{t(placeNameKey("archive"))}</p>
             <p className="text-list text-muted-foreground">{t("archive.settings.linkDescription")}</p>
           </div>
           <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />

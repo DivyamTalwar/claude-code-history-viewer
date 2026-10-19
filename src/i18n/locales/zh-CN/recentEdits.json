@@ -59,7 +59,6 @@
   "recentEdits.timeMinutesShort": "{{count}}分",
   "recentEdits.timeNowShort": "刚刚",
   "recentEdits.timestamp": "时间戳",
-  "recentEdits.title": "最近编辑",
   "recentEdits.unavailableForProvider": "{{provider}} 会话不支持最近编辑",
   "recentEdits.viewAdded": "新增",
   "recentEdits.viewContent": "内容",

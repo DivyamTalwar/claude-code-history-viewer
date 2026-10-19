@@ -12,6 +12,7 @@ import { openLegacyFavorite, openSessionRef } from "@/navigation/openSessionRef"
 import { openInNewTab } from "@/navigation/tabs";
 import { isActionModifier } from "@/utils/platform";
 import type { LibraryItem } from "@/navigation/place";
+import { placeNameKey } from "@/navigation/placeNames";
 import { formatTimeAgo } from "@/utils/time";
 
 export interface LibrarySectionProps {
@@ -111,7 +112,7 @@ export const LibrarySection: React.FC<LibrarySectionProps> = ({
         <li>
           <ScreenRow
             icon={SCREEN_ICONS.globalStats}
-            label={t("project.globalStats")}
+            label={t(placeNameKey("globalStats"))}
             active={activeItem === "globalStats"}
             onClick={() => {
               onGlobalStatsClick();
@@ -128,8 +129,8 @@ export const LibrarySection: React.FC<LibrarySectionProps> = ({
               icon={SCREEN_ICONS.archive}
               label={
                 isArchiveDisabled
-                  ? t("common.settings.claudeOnly", { name: t("project.library.archive") })
-                  : t("project.library.archive")
+                  ? t("common.settings.claudeOnly", { name: t(placeNameKey("archive")) })
+                  : t(placeNameKey("archive"))
               }
               active={activeItem === "archive"}
               disabled={isArchiveDisabled}
@@ -145,7 +146,7 @@ export const LibrarySection: React.FC<LibrarySectionProps> = ({
           <li>
             <ScreenRow
               icon={SCREEN_ICONS.settings}
-              label={t("project.library.claudeSettings")}
+              label={t(placeNameKey("settingsManager"))}
               active={activeItem === "settingsManager"}
               onClick={() => {
                 onOpenSettingsManager();

@@ -326,7 +326,7 @@ const VIEWS: ViewCase[] = [
     // Token stats are analytics' "tokens" sub-tab (T9b): the analytics title,
     // once, above the sub-tabs and the token statistics.
     label: "analytics (tokens sub-tab)",
-    titleKey: "analytics.dashboard",
+    titleKey: "common.place.analytics",
     arrange: () => {
       Object.assign(computedMock, { isAnalyticsView: true, isAnalyticsTokens: true });
       appStoreState.analyticsTab = "tokens";
@@ -334,12 +334,12 @@ const VIEWS: ViewCase[] = [
   },
   {
     label: "analytics (project)",
-    titleKey: "analytics.dashboard",
+    titleKey: "common.place.analytics",
     arrange: () => Object.assign(computedMock, { isAnalyticsView: true }),
   },
   {
     label: "analytics (no project selected)",
-    titleKey: "analytics.dashboard",
+    titleKey: "common.place.analytics",
     arrange: () => {
       Object.assign(computedMock, { isAnalyticsView: true });
       appStoreState.selectedProject = null;
@@ -347,27 +347,27 @@ const VIEWS: ViewCase[] = [
   },
   {
     label: "global stats",
-    titleKey: "analytics.globalOverview",
+    titleKey: "common.place.analyticsAllProjects",
     arrange: () => Object.assign(computedMock, { isGlobalStatsView: true }),
   },
   {
     label: "recent edits",
-    titleKey: "recentEdits.title",
+    titleKey: "common.place.edits",
     arrange: () => Object.assign(computedMock, { isRecentEditsView: true }),
   },
   {
     label: "settings",
-    titleKey: "settingsManager.title",
+    titleKey: "common.place.claudeCodeSettings",
     arrange: () => Object.assign(computedMock, { isSettingsView: true }),
   },
   {
     label: "board",
-    titleKey: "session.board.title",
+    titleKey: "common.place.board",
     arrange: () => Object.assign(computedMock, { isBoardView: true }),
   },
   {
     label: "archive",
-    titleKey: "archive.title",
+    titleKey: "common.place.archive",
     arrange: () => Object.assign(computedMock, { isArchiveView: true }),
   },
 ];

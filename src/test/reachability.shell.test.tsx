@@ -413,7 +413,7 @@ describe("§6 reachability through the real shell", () => {
       expect(main.querySelectorAll(".segmented")).toHaveLength(1);
       expect(main.querySelectorAll("[data-analytics-tab]")).toHaveLength(0);
     };
-    const bottomTab = () => screen.getByRole("button", { name: t("common.mobile.tab.analytics"), exact: true } as never);
+    const bottomTab = () => screen.getByRole("button", { name: t("common.place.analytics"), exact: true } as never);
 
     beforeEach(() => {
       platformState.isMobile = true;
@@ -426,7 +426,7 @@ describe("§6 reachability through the real shell", () => {
       expect(items().map((b) => b.textContent)).toEqual([
         t("analytics.subTab.overview"),
         t("analytics.subTab.tokens"),
-        t("recentEdits.title"),
+        t("common.place.edits"),
       ]);
       expect(state().view).toBe("analytics");
       expect(state().analyticsTab).toBe("overview");
@@ -446,10 +446,10 @@ describe("§6 reachability through the real shell", () => {
       expect(current()).toEqual([t("analytics.subTab.tokens")]);
       expectOneRow();
 
-      await activate(item("recentEdits.title"));
+      await activate(item("common.place.edits"));
       await waitFor(() => expect(state().view).toBe("edits"));
       expect(screenShown()).toBe("RecentEditsViewer");
-      expect(current()).toEqual([t("recentEdits.title")]);
+      expect(current()).toEqual([t("common.place.edits")]);
       expectOneRow();
 
       // Straight from Edits to Tokens: one step, not via Overview.

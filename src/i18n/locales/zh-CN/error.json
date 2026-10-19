@@ -23,7 +23,7 @@
   "error.emailTemplate.thanks": "谢谢。",
   "error.emailTemplate.whatWereDoing": "- 发生错误时您在进行什么操作？",
   "error.errorInfo": "错误信息",
-  "error.loadBoard": "加载面板失败",
+  "error.loadBoard": "加载会话面板失败",
   "error.refreshFailed": "无法刷新：{{detail}}",
   "error.reportDescription": "如果此错误重复发生，请发送邮件至以下地址报告：",
   "error.reportError": "报告错误",

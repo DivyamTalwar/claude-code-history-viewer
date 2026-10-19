@@ -8,7 +8,7 @@ exports[`header view tabs characterization > claude project, analytics selected 
 >
   <button
     aria-controls="view-panel"
-    aria-label="message.view"
+    aria-label="common.place.messages"
     aria-selected="false"
     class="flex h-7 items-center gap-1.5 px-2 rounded-md text-list transition-colors whitespace-nowrap text-muted-foreground hover:text-foreground"
     data-slot="tooltip-trigger"
@@ -47,12 +47,12 @@ exports[`header view tabs characterization > claude project, analytics selected 
     <span
       class="hidden lg:inline"
     >
-      message.view
+      common.place.messages
     </span>
   </button>
   <button
     aria-controls="view-panel"
-    aria-label="analytics.dashboard"
+    aria-label="common.place.analytics"
     aria-selected="true"
     class="flex h-7 items-center gap-1.5 px-2 rounded-md text-list transition-colors whitespace-nowrap bg-background text-foreground shadow-sm"
     data-slot="tooltip-trigger"
@@ -91,12 +91,12 @@ exports[`header view tabs characterization > claude project, analytics selected 
     <span
       class="hidden lg:inline"
     >
-      analytics.dashboard
+      common.place.analytics
     </span>
   </button>
   <button
     aria-controls="view-panel"
-    aria-label="recentEdits.title"
+    aria-label="common.place.edits"
     aria-selected="false"
     class="flex h-7 items-center gap-1.5 px-2 rounded-md text-list transition-colors whitespace-nowrap text-muted-foreground hover:text-foreground"
     data-slot="tooltip-trigger"
@@ -135,12 +135,12 @@ exports[`header view tabs characterization > claude project, analytics selected 
     <span
       class="hidden lg:inline"
     >
-      recentEdits.title
+      common.place.edits
     </span>
   </button>
   <button
     aria-controls="view-panel"
-    aria-label="session.board.title"
+    aria-label="common.place.board"
     aria-selected="false"
     class="flex h-7 items-center gap-1.5 px-2 rounded-md text-list transition-colors whitespace-nowrap text-muted-foreground hover:text-foreground"
     data-slot="tooltip-trigger"
@@ -183,7 +183,7 @@ exports[`header view tabs characterization > claude project, analytics selected 
     <span
       class="hidden lg:inline"
     >
-      session.board.title
+      common.place.board
     </span>
   </button>
 </div>
@@ -197,7 +197,7 @@ exports[`header view tabs characterization > loading analytics, token stats and 
 >
   <button
     aria-controls="view-panel"
-    aria-label="message.view"
+    aria-label="common.place.messages"
     aria-selected="true"
     class="flex h-7 items-center gap-1.5 px-2 rounded-md text-list transition-colors whitespace-nowrap bg-background text-foreground shadow-sm"
     data-slot="tooltip-trigger"
@@ -236,12 +236,12 @@ exports[`header view tabs characterization > loading analytics, token stats and 
     <span
       class="hidden lg:inline"
     >
-      message.view
+      common.place.messages
     </span>
   </button>
   <button
     aria-controls="view-panel"
-    aria-label="analytics.dashboard"
+    aria-label="common.place.analytics"
     aria-selected="false"
     class="flex h-7 items-center gap-1.5 px-2 rounded-md text-list transition-colors whitespace-nowrap text-muted-foreground hover:text-foreground opacity-50 cursor-not-allowed"
     data-slot="tooltip-trigger"
@@ -272,12 +272,12 @@ exports[`header view tabs characterization > loading analytics, token stats and 
     <span
       class="hidden lg:inline"
     >
-      analytics.dashboard
+      common.place.analytics
     </span>
   </button>
   <button
     aria-controls="view-panel"
-    aria-label="recentEdits.title"
+    aria-label="common.place.edits"
     aria-selected="false"
     class="flex h-7 items-center gap-1.5 px-2 rounded-md text-list transition-colors whitespace-nowrap text-muted-foreground hover:text-foreground opacity-50 cursor-not-allowed"
     data-slot="tooltip-trigger"
@@ -308,12 +308,12 @@ exports[`header view tabs characterization > loading analytics, token stats and 
     <span
       class="hidden lg:inline"
     >
-      recentEdits.title
+      common.place.edits
     </span>
   </button>
   <button
     aria-controls="view-panel"
-    aria-label="session.board.title"
+    aria-label="common.place.board"
     aria-selected="false"
     class="flex h-7 items-center gap-1.5 px-2 rounded-md text-list transition-colors whitespace-nowrap text-muted-foreground hover:text-foreground"
     data-slot="tooltip-trigger"
@@ -356,7 +356,7 @@ exports[`header view tabs characterization > loading analytics, token stats and 
     <span
       class="hidden lg:inline"
     >
-      session.board.title
+      common.place.board
     </span>
   </button>
 </div>
@@ -370,7 +370,7 @@ exports[`header view tabs characterization > non-claude project: board is disabl
 >
   <button
     aria-controls="view-panel"
-    aria-label="message.view"
+    aria-label="common.place.messages"
     aria-selected="true"
     class="flex h-7 items-center gap-1.5 px-2 rounded-md text-list transition-colors whitespace-nowrap bg-background text-foreground shadow-sm"
     data-slot="tooltip-trigger"
@@ -409,12 +409,12 @@ exports[`header view tabs characterization > non-claude project: board is disabl
     <span
       class="hidden lg:inline"
     >
-      message.view
+      common.place.messages
     </span>
   </button>
   <button
     aria-controls="view-panel"
-    aria-label="analytics.dashboard"
+    aria-label="common.place.analytics"
     aria-selected="false"
     class="flex h-7 items-center gap-1.5 px-2 rounded-md text-list transition-colors whitespace-nowrap text-muted-foreground hover:text-foreground"
     data-slot="tooltip-trigger"
@@ -453,12 +453,12 @@ exports[`header view tabs characterization > non-claude project: board is disabl
     <span
       class="hidden lg:inline"
     >
-      analytics.dashboard
+      common.place.analytics
     </span>
   </button>
   <button
     aria-controls="view-panel"
-    aria-label="recentEdits.title"
+    aria-label="common.place.edits"
     aria-selected="false"
     class="flex h-7 items-center gap-1.5 px-2 rounded-md text-list transition-colors whitespace-nowrap text-muted-foreground hover:text-foreground"
     data-slot="tooltip-trigger"
@@ -497,12 +497,12 @@ exports[`header view tabs characterization > non-claude project: board is disabl
     <span
       class="hidden lg:inline"
     >
-      recentEdits.title
+      common.place.edits
     </span>
   </button>
   <button
     aria-controls="view-panel"
-    aria-label="common.settings.claudeOnly(session.board.title)"
+    aria-label="common.settings.claudeOnly(common.place.board)"
     aria-selected="false"
     class="flex h-7 items-center gap-1.5 px-2 rounded-md text-list transition-colors whitespace-nowrap text-muted-foreground hover:text-foreground opacity-50 cursor-not-allowed"
     data-slot="tooltip-trigger"
@@ -546,7 +546,7 @@ exports[`header view tabs characterization > non-claude project: board is disabl
     <span
       class="hidden lg:inline"
     >
-      common.settings.claudeOnly(session.board.title)
+      common.settings.claudeOnly(common.place.board)
     </span>
   </button>
 </div>

@@ -23,6 +23,7 @@ import { getProjectDisplayName } from "@/utils/pathUtils";
 import { SessionCopyMenu } from "./SessionCopyMenu";
 import { INSPECTOR_ID, INSPECTOR_TOGGLE_ID } from "@/components/Inspector/inspectorFocus";
 import { isInspectorPlace } from "@/components/Inspector/inspectorAvailability";
+import { placeNameKey } from "@/navigation/placeNames";
 
 interface HeaderProps {
   analyticsActions: UseAnalyticsReturn["actions"];
@@ -167,7 +168,7 @@ export const Header = ({ analyticsActions, analyticsComputed, updater }: HeaderP
     board: {
       // The board reads Claude Code data only; elsewhere the tab says why it is off.
       label: hasProject && !isClaudeProject
-        ? t("common.settings.claudeOnly", { name: t("session.board.title") })
+        ? t("common.settings.claudeOnly", { name: t(placeNameKey("board")) })
         : undefined,
       onClick: () => {
         if (!computed.isBoardView) handleLoadBoard();

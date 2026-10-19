@@ -117,7 +117,7 @@ describe.skipIf(!ENABLED)("app layout in WebKit", () => {
       const summary = page.getByText(t("settingsManager.unified.banner.whatsActive")).first();
       const tabBar = page
         .getByRole("navigation")
-        .filter({ has: page.getByRole("button", { name: t("common.mobile.tab.settings"), exact: true }) });
+        .filter({ has: page.getByRole("button", { name: t("common.place.claudeCodeSettings"), exact: true }) });
 
       const summaryBox = await rectOf(summary);
       for (const control of [save, reset, visual]) {

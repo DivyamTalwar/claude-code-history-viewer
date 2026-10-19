@@ -5,13 +5,16 @@
 
 import { actionModifier, parkPointer, settle } from "./browser.mjs";
 
+// Label keys: the place-name key first (F4a, `src/navigation/placeNames.ts`),
+// then the key a base build before it used. `label()` takes the first key the
+// captured build's locale has.
 const VIEW_LABEL_KEYS = {
-  messages: "message.view",
-  analytics: "analytics.dashboard",
+  messages: ["common.place.messages", "message.view"],
+  analytics: ["common.place.analytics", "analytics.dashboard"],
   // Analytics' "Tokens" sub-tab (T9b), reached through the analytics tab.
-  analyticsTokens: "analytics.dashboard",
-  recentEdits: "recentEdits.title",
-  board: "session.board.title",
+  analyticsTokens: ["common.place.analytics", "analytics.dashboard"],
+  recentEdits: ["common.place.edits", "recentEdits.title"],
+  board: ["common.place.board", "session.board.title"],
 };
 
 /** The token stats tab of a base build before T7. */
@@ -19,15 +22,15 @@ const LEGACY_TOKEN_STATS_TAB_KEY = "messages.tokenStats.existing";
 
 const MOBILE_TAB_KEYS = {
   projects: "common.mobile.tab.projects",
-  messages: "common.mobile.tab.messages",
-  board: "common.mobile.tab.board",
-  analytics: "common.mobile.tab.analytics",
-  settings: "common.mobile.tab.settings",
+  messages: ["common.place.messages", "common.mobile.tab.messages"],
+  board: ["common.place.board", "common.mobile.tab.board"],
+  analytics: ["common.place.analytics", "common.mobile.tab.analytics"],
+  settings: ["common.place.claudeCodeSettings", "common.mobile.tab.settings"],
 };
 
 const MENU_LABEL_KEYS = {
-  settingsManager: "settingsManager.title",
-  archive: "archive.title",
+  settingsManager: ["common.place.claudeCodeSettings", "settingsManager.title"],
+  archive: ["common.place.archive", "archive.title"],
 };
 
 /** Library sections that expand in place (T7 sidebar). */
@@ -61,6 +64,18 @@ export function createActions({ session, scenario, manifest, t }) {
   };
 
   const settled = (label) => settle(session, { label });
+  /** The first of `keys` the captured build's locale defines. */
+  const label = (keys) => {
+    const list = [keys].flat();
+    for (const key of list) {
+      try {
+        return t(key);
+      } catch {
+        // Not in this build's locale (an older or newer base); try the next.
+      }
+    }
+    throw new Error(`none of the i18n keys ${list.join(", ")} exist in the captured build`);
+  };
   /**
    * Analytics' "Tokens" sub-tab (T9b). On phones since the one analytics nav
    * row it is that row's Tokens item. A base build before it has token stats
@@ -100,13 +115,13 @@ export function createActions({ session, scenario, manifest, t }) {
   // The tab bar is the navigation landmark that holds the tabs. Found by its
   // tabs, not by its own label: that label is translated, and a base build
   // older than the translation has no key for it.
-  const tabButton = (key) => page.getByRole("button", { name: t(MOBILE_TAB_KEYS[key]), exact: true });
+  const tabButton = (key) => page.getByRole("button", { name: label(MOBILE_TAB_KEYS[key]), exact: true });
   const mobileTab = (key) =>
     page
       .getByRole("navigation")
       .filter({ has: tabButton("projects") })
       .filter({ has: tabButton("settings") })
-      .getByRole("button", { name: t(MOBILE_TAB_KEYS[key]), exact: true });
+      .getByRole("button", { name: label(MOBILE_TAB_KEYS[key]), exact: true });
 
   const drawerOpen = async () => (await page.getByRole("dialog").count()) > 0;
 
@@ -265,11 +280,11 @@ export function createActions({ session, scenario, manifest, t }) {
             await click(legacyTab, "view tokenStats");
             return;
           }
-          await click(tabNamed(t(VIEW_LABEL_KEYS.analytics)), "view analytics");
+          await click(tabNamed(label(VIEW_LABEL_KEYS.analytics)), "view analytics");
           await openAnalyticsTokens();
           return;
         }
-        await click(tabNamed(t(VIEW_LABEL_KEYS[view])), `view ${view}`);
+        await click(tabNamed(label(VIEW_LABEL_KEYS[view])), `view ${view}`);
         return;
       }
       if (view === "analyticsTokens") {
@@ -283,8 +298,8 @@ export function createActions({ session, scenario, manifest, t }) {
         // capture markers, so base builds without data-slot="main" are
         // driven the same way).
         await click(mobileTab("analytics"), "view analytics");
-        const label = t("recentEdits.title");
-        await click(page.locator("#main-content").getByRole("button", { name: label, exact: true }), `view ${view}`);
+        const editsLabel = label(VIEW_LABEL_KEYS.recentEdits);
+        await click(page.locator("#main-content").getByRole("button", { name: editsLabel, exact: true }), `view ${view}`);
         return;
       }
       await click(mobileTab(view), `view ${view}`);
@@ -306,7 +321,7 @@ export function createActions({ session, scenario, manifest, t }) {
       }
       await closeDrawer();
       await click(page.locator("#app-settings-button"), "open app menu");
-      await click(page.getByRole("menuitem", { name: t(MENU_LABEL_KEYS[item]) }), `menu ${item}`);
+      await click(page.getByRole("menuitem", { name: label(MENU_LABEL_KEYS[item]) }), `menu ${item}`);
     },
 
     /** Expand a library list in the sidebar ("recent" | "favorites"). T7 and later. */
@@ -388,7 +403,7 @@ export function createActions({ session, scenario, manifest, t }) {
     /** ⌘+click on a toolbar screen tab: that screen in a new tab (desktop). */
     async viewInNewTab({ view }) {
       if (!(view in VIEW_LABEL_KEYS)) throw new Error(`unknown view "${view}"`);
-      const tab = page.locator("#app-header [role=tablist]").getByRole("tab", { name: t(VIEW_LABEL_KEYS[view]), exact: true });
+      const tab = page.locator("#app-header [role=tablist]").getByRole("tab", { name: label(VIEW_LABEL_KEYS[view]), exact: true });
       await click(tab, `view ${view} in a new tab`, { modifiers: [await actionModifier(page)] });
     },
 

@@ -157,10 +157,10 @@ describe("header view tabs follow the place", () => {
   );
 
   it.each([
-    ["conversation", "message.view"],
-    ["analytics", "analytics.dashboard"],
-    ["edits", "recentEdits.title"],
-    ["board", "session.board.title"],
+    ["conversation", "common.place.messages"],
+    ["analytics", "common.place.analytics"],
+    ["edits", "common.place.edits"],
+    ["board", "common.place.board"],
   ] as const)("%s selects exactly the %s tab", (view, label) => {
     at(view, true);
     renderHeader(view);
@@ -171,7 +171,7 @@ describe("header view tabs follow the place", () => {
     at("analytics", true);
     useAppStore.setState({ analyticsTab: "tokens" });
     renderHeader("analytics");
-    expect(selectedTabs()).toEqual(["analytics.dashboard"]);
+    expect(selectedTabs()).toEqual(["common.place.analytics"]);
   });
 });
 
@@ -299,10 +299,10 @@ describe("mobile tab bar follows the place", () => {
       .map((b) => b.getAttribute("aria-label"));
 
   it.each([
-    ["conversation", ["common.mobile.tab.messages"]],
-    ["analytics", ["common.mobile.tab.analytics"]],
-    ["board", ["common.mobile.tab.board"]],
-    ["settingsManager", ["common.mobile.tab.settings"]],
+    ["conversation", ["common.place.messages"]],
+    ["analytics", ["common.place.analytics"]],
+    ["board", ["common.place.board"]],
+    ["settingsManager", ["common.place.claudeCodeSettings"]],
     ["globalStats", []],
     ["archive", []],
   ] as const)("%s → %j", (view, expected) => {

@@ -2,6 +2,10 @@
  * Skip links: one per landmark the current screen actually renders. Each link
  * is gated on its target's real render condition, not on a proxy for it, so
  * no link in the tab order points at an id that is not in the document.
+ *
+ * The pane offsets (`24rem`, `35rem`) apply from `md` up: on a phone a link
+ * that far right widened the page past the viewport, and WebKit drew a
+ * horizontal scrollbar over the bottom tab bar.
  */
 import { useTranslation } from "react-i18next";
 
@@ -42,7 +46,7 @@ export const SkipLinks = ({
       )}
       <a
         href="#main-content"
-        className="absolute left-[24rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
+        className="absolute left-2 md:left-[24rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
       >
         {t("common.a11y.skipToMain", {
           defaultValue: "Skip to main content",
@@ -51,7 +55,7 @@ export const SkipLinks = ({
       {hasInspector && (
         <a
           href="#inspector"
-          className="absolute left-[35rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
+          className="absolute left-2 md:left-[35rem] top-2 -translate-y-[calc(100%+1rem)] focus:translate-y-0 z-[700] rounded-md border border-border bg-card px-3 py-2 text-body font-medium text-foreground transition-transform"
         >
           {t("common.a11y.skipToInspector", {
             defaultValue: "Skip to inspector",

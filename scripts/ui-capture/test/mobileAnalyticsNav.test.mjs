@@ -177,7 +177,7 @@ describe.skipIf(!ENABLED)("phone analytics nav row in WebKit", () => {
             expect(nav.items.map((i) => i.label), where).toEqual([
               t("analytics.subTab.overview"),
               t("analytics.subTab.tokens"),
-              t("recentEdits.title"),
+              t("common.place.edits"),
             ]);
             expect(nav.items.filter((i) => i.current === "page").map((i) => i.place), where).toEqual([place]);
             for (const item of nav.items) {
