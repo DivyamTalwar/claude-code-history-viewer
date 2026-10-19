@@ -1,12 +1,13 @@
 // Numbers never break inside themselves (inner-UI plan F1b, CJK wrapping).
 //
-// Real WebKit, 390x844 with root font scale 125 %, in every CJK UI language.
+// Real WebKit, 390x844 with root font scale 125 % (130 %, the largest app
+// setting, where noted), in every CJK UI language.
 // Every number in UI text is measured with a DOM Range: its sign, digits,
 // separators and what is glued to it (17.6K, 3.5%, 62×) must render on one
 // line. A unit after a space (1.4 MB) may move to the next line, as on
 // develop. Code, paths and ids are not numbers and are skipped.
 //
-// Two mechanisms split numbers in the Korean UI, both pinned here:
+// Three mechanisms split numbers in the Korean UI, all pinned here:
 //   - `overflow-wrap: anywhere` counts its break points in min-content, so a
 //     squeezed flex or grid item shrinks to one character: 69 -> 6/9 on the
 //     board, 1.4 MB -> 1/./4/M/B on the archive's expiry cards. The base layer
@@ -16,8 +17,13 @@
 //     punctuation mark, so a date and time rendered as one text node
 //     ("… 오후 01:26:25", the message header's details popover) wraps after
 //     "01:". keepNumbersWhole() renders such numbers as their own text node.
+//   - `break-word` still breaks a single word wider than its whole line. A
+//     number gets there only in a box forced narrower than itself, where
+//     every language overflows: the token KPI tiles on a phone at 130 %
+//     (526.5K -> 526.5/K). Such a value is `whitespace-nowrap`.
 // Before the fix (UI_TEST_DIST=<F1b 027986fb build>) the Korean archive and
-// transcript cases fail. Skipped without WebKit or a built server.
+// transcript cases fail; with break-word alone (ad107289) the Korean KPI
+// case fails. Skipped without WebKit or a built server.
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { webkit } from "playwright";
@@ -80,8 +86,8 @@ const numbersOnPage = (page) =>
   });
 
 /** Open `id`, run `prepare` (scrolling, expanding), and measure every number on the page. */
-async function measure(id, locale, prepare = async () => {}) {
-  const session = await openScenario(browser, app, id, { locale, variant: { fontScale: 1.25 } });
+async function measure(id, locale, prepare = async () => {}, fontScale = 1.25) {
+  const session = await openScenario(browser, app, id, { locale, variant: { fontScale } });
   try {
     await prepare(session.page);
     return await numbersOnPage(session.page);
@@ -93,14 +99,14 @@ async function measure(id, locale, prepare = async () => {}) {
 const split = (numbers) => numbers.filter((n) => n.lines > 1);
 const LOCALES = ["ko", "ja", "zh-CN"];
 
-describe.skipIf(!ENABLED)("numbers never break inside themselves (real WebKit, 390x844, font scale 125%)", () => {
-  it.each(LOCALES)("%s UI, board: every metric renders on one line", async (locale) => {
+describe.skipIf(!ENABLED)("numbers never break inside themselves (real WebKit, 390x844)", () => {
+  it.each(LOCALES)("%s UI, board at 125%: every metric renders on one line", async (locale) => {
     const numbers = await measure("board--390x844--dark", locale);
     expect(numbers.length, "no numbers visible on the board to measure").toBeGreaterThan(10);
     expect(split(numbers), JSON.stringify(split(numbers))).toEqual([]);
   }, 120_000);
 
-  it.each(LOCALES)("%s UI, archive: file sizes in the expiry cards keep their number on one line (UI font, no class)", async (locale) => {
+  it.each(LOCALES)("%s UI, archive at 125%: file sizes in the expiry cards keep their number on one line (UI font, no class)", async (locale) => {
     const numbers = await measure("archive--390x844--dark", locale, async (page) => {
       // The expiry cards sit below the fold: bring each size into view as a user would.
       const sizes = page.getByText(/^\d[\d,.]*\s?(?:B|KB|MB|GB|TB)$/);
@@ -111,10 +117,25 @@ describe.skipIf(!ENABLED)("numbers never break inside themselves (real WebKit, 3
     expect(split(numbers), JSON.stringify(split(numbers))).toEqual([]);
   }, 120_000);
 
-  it.each(LOCALES)("%s UI, transcript: message times, also inside a localized date in the details popover, stay whole", async (locale) => {
+  it.each(LOCALES)("%s UI, transcript at 125%: message times, also inside a localized date in the details popover, stay whole", async (locale) => {
     const numbers = await measure("transcript-mixed-turn--390x844--dark", locale);
     const times = numbers.filter((n) => /^\d{1,2}:\d{2}(?::\d{2})?$/.test(n.core) && /[\u3040-\u30ff\u4e00-\u9fff\uac00-\ud7af]/.test(n.context));
     expect(times.length, "no localized message times to measure").toBeGreaterThan(0);
+    expect(split(numbers), JSON.stringify(split(numbers))).toEqual([]);
+  }, 120_000);
+
+  it.each(LOCALES)("%s UI, token statistics at 130% (the largest font size): KPI values stay whole in tiles narrower than the value", async (locale) => {
+    const numbers = await measure(
+      "analytics-tokens--390x844--dark",
+      locale,
+      async (page) => {
+        const tiles = page.locator("button[aria-label] > div.font-mono");
+        await tiles.first().scrollIntoViewIfNeeded();
+      },
+      1.3,
+    );
+    const kpis = numbers.filter((n) => /^\d+(?:\.\d)?[KMBT]$/.test(n.core) && n.context === n.text);
+    expect(kpis.length, "no KPI values on the token statistics to measure").toBeGreaterThan(2);
     expect(split(numbers), JSON.stringify(split(numbers))).toEqual([]);
   }, 120_000);
 });

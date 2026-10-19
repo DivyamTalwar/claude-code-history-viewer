@@ -1002,7 +1002,11 @@
      item keeps its longest word, so Korean words and numbers (69, 17.6K,
      1.4 MB) never fall apart into one-character columns. Never `anywhere`
      here. A token that must shrink inside a flex row (a hash, path or glob
-     pattern) opts in with `wrap-anywhere` where it is rendered.
+     pattern) opts in with `wrap-anywhere` where it is rendered; a value
+     whose box can be narrower than the value itself (a KPI tile) is
+     `whitespace-nowrap` there. break-word is needed at all because WebKit's
+     keep-all leaves a Latin-only text node no break but its spaces, so a
+     path would otherwise run past its card.
      Japanese and Chinese keep their normal per-character breaking - keep-all
      there would glue whole sentences - with strict kinsoku rules. */
   :lang(ko) {
