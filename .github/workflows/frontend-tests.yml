@@ -55,9 +55,10 @@ permissions:
 
 # One run per PR: a body edit (`edited`, e.g. CodeRabbit's summary) or a new
 # push cancels that PR's run still in progress instead of stacking a second
-# full run. Pushes to main/develop are never cancelled.
+# full run. Pushes and manual runs get a group of their own (run_id), so none
+# of them is ever cancelled or replaced while pending.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
