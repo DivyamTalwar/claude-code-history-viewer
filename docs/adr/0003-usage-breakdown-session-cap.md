@@ -196,6 +196,13 @@ symlink. A symlinked project directory under `projects/` is not walked either.
   root it was found under, through its canonical path, and the opened handle must be the file
   that was checked (same device and inode on Unix). A file swapped for a symlink after the walk
   is not read. The contribution cache never answers a symlink with its target's entry.
+- **Hardlinks are read.** A hardlink is not a link entry but another name of the file itself: a
+  regular file whose canonical path lies inside the root. A hardlink under a project directory to
+  a file kept elsewhere on the same filesystem is therefore read like any other session file, by
+  the old stats commands and this command alike. The containment above covers symlinks and paths
+  that leave the root (`..`, an absolute path outside it), not hardlinks. This is inherent to
+  reading history by path: making one needs write access inside the history root, and nothing in
+  its path tells it apart from a session file.
 
 **What a walk cannot read is reported.** An entry the Claude walk cannot read — a subdirectory
 or project directory it may not list, an I/O error while listing `projects/` — counts as a
@@ -213,6 +220,14 @@ held no usage) nor `unreadable` (a store that exists but cannot be read).
   before a scanner runs (`usage_breakdown/availability.rs`). Presence is the provider's own
   detection — `detect()`, the one the provider list uses — so no store layout is copied; the
   store root it names must also open, or the provider is `unreadable`.
+- **Known limitation, until a follow-up lands:** for a provider other than Claude only that store
+  root is opened before its scanner runs. A read failure inside a present store, below the root —
+  a `sessions/` directory or a session database that cannot be opened — is dropped by some
+  scanners, so the provider can still be `scanned` with zero usage. The AN0b re-review reproduced
+  it for Codex, OpenCode and Kilo (Gemini reports `unreadable`); the other token-reporting
+  providers were not probed. A missing store (`not_found`) and an unreadable store root
+  (`unreadable`) are reported for every provider. The follow-up has the scanners report what
+  they could not read.
 - Claude: none of the request's `projects/` folders exists → `not_found`; a root without one adds
   nothing. A custom root that fails validation is still a failed source.
 - Wire: `ProviderScanStatus` in Rust and TypeScript, and the contract fixture's
