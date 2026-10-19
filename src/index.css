@@ -1004,6 +1004,16 @@
     overflow-wrap: anywhere;
   }
 
+  /* Numeric tokens are atomic in every locale. `anywhere` also shrinks an
+     element's min-content width to a single character, so a squeezed flex
+     item could split 69 into 6/9 or 17.6K into 17.6/K. Metrics, counts and
+     compact magnitudes use the mono / tabular figure styling, so restore
+     normal wrapping there; long paths and CJK prose keep `anywhere` (path
+     elements set word-break: break-all themselves, which still wraps). */
+  :lang(ko) :is(.font-mono, .tabular-nums) {
+    overflow-wrap: normal;
+  }
+
   :lang(ja),
   :lang(zh) {
     line-break: strict;
