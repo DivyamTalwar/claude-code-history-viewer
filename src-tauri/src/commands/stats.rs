@@ -4412,7 +4412,8 @@ impl SessionTokenAccum {
 
 /// Token stats for one Claude session. Under `billing_total` the session's
 /// subagent transcripts (`<session>/subagents/**`, found the same way the
-/// `SubAgent Sessions` panel finds them) are folded in, since their usage is
+/// `SubAgent Sessions` panel finds them, never through a symlinked folder:
+/// `session_files::subagent_files`) are folded in, since their usage is
 /// billed sidechain usage; under `conversation_only` only the session's own
 /// transcript counts (#577).
 fn extract_session_token_stats_sync(
@@ -4423,7 +4424,7 @@ fn extract_session_token_stats_sync(
 ) -> Option<SessionTokenStats> {
     let mut accum = extract_session_token_accum_sync(session_path, mode, s_limit, e_limit);
     if mode.include_sidechain() {
-        for subagent_path in crate::utils::find_subagent_files(session_path) {
+        for subagent_path in session_files::subagent_files(session_path) {
             let Some(subagent) =
                 extract_session_token_accum_sync(&subagent_path, mode, s_limit, e_limit)
             else {
@@ -4980,7 +4981,8 @@ fn log_skipped_history(dir: &Path, links: &[PathBuf], errors: &[String]) {
 }
 
 /// Comparison stats for one Claude session, with its subagent transcripts'
-/// tokens and messages folded in under `billing_total` (#577).
+/// tokens and messages folded in under `billing_total` (#577), never through
+/// a symlinked folder (`session_files::subagent_files`).
 fn session_comparison_with_subagents(
     session_path: &PathBuf,
     mode: StatsMode,
@@ -4989,7 +4991,7 @@ fn session_comparison_with_subagents(
 ) -> Option<SessionComparisonStats> {
     let mut stats = process_session_file_for_comparison(session_path, mode, s_limit, e_limit);
     if mode.include_sidechain() {
-        for subagent_path in crate::utils::find_subagent_files(session_path) {
+        for subagent_path in session_files::subagent_files(session_path) {
             let Some(subagent) =
                 process_session_file_for_comparison(&subagent_path, mode, s_limit, e_limit)
             else {

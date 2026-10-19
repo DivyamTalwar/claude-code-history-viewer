@@ -10,7 +10,7 @@
 
 use std::fs;
 use std::io;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 use walkdir::WalkDir;
 
 fn has_session_extension(path: &Path) -> bool {
@@ -90,6 +90,40 @@ pub(crate) fn claude_project_dirs(projects_dir: &Path) -> io::Result<ProjectDirs
     Ok(listing)
 }
 
+/// The subagent transcripts folded into `session` (#577), as
+/// `utils::find_subagent_files` finds them, keeping only those reached
+/// without a symlink below the session's folder. That lookup refuses a
+/// symlinked `subagents` folder and a symlinked transcript, but resolves a
+/// symlinked folder on the way to them (`<session>/` in the native layout,
+/// `subagents/` in the archive layout), which can lead out of the root just
+/// as a symlinked session file does.
+pub(crate) fn subagent_files(session: &Path) -> Vec<PathBuf> {
+    let Some(dir) = session.parent() else {
+        return Vec::new();
+    };
+    crate::utils::find_subagent_files(session)
+        .into_iter()
+        .filter(|file| reached_without_a_symlink(dir, file))
+        .collect()
+}
+
+/// Whether `path` lies below `dir` through real entries only: every component
+/// after `dir` is a plain name and none of them is a symlink. `dir` itself may
+/// be reached through one, as the walk root may.
+fn reached_without_a_symlink(dir: &Path, path: &Path) -> bool {
+    let Ok(below) = path.strip_prefix(dir) else {
+        return false;
+    };
+    let mut current = dir.to_path_buf();
+    below.components().all(|component| match component {
+        Component::Normal(name) => {
+            current.push(name);
+            fs::symlink_metadata(&current).is_ok_and(|meta| !meta.file_type().is_symlink())
+        }
+        _ => false,
+    })
+}
+
 #[cfg(all(test, unix))]
 mod tests {
     use super::*;
@@ -142,5 +176,86 @@ mod tests {
         assert_eq!(listing.dirs, [projects.join("a"), projects.join("b")]);
         assert_eq!(listing.links, [projects.join("evil")]);
         assert_eq!(listing.errors, Vec::<String>::new());
+    }
+
+    #[test]
+    fn subagent_files_keep_real_folders_and_refuse_a_symlinked_one() {
+        let dir = TempDir::new().unwrap();
+        let outside = TempDir::new().unwrap();
+        let project = dir.path().join("p");
+        // s1: both layouts, real folders.
+        touch(&project.join("s1.jsonl"));
+        touch(&project.join("s1/subagents/agent-1.jsonl"));
+        touch(&project.join("subagents/s1/agent-2.jsonl"));
+        // s2: the native `<session>/` folder is a link out of the root.
+        touch(&project.join("s2.jsonl"));
+        touch(&outside.path().join("native/subagents/agent-3.jsonl"));
+        symlink(outside.path().join("native"), project.join("s2")).unwrap();
+        // s3 in q: the archive `subagents/` folder is a link out of the root.
+        let other = dir.path().join("q");
+        touch(&other.join("s3.jsonl"));
+        touch(&outside.path().join("archive/s3/agent-4.jsonl"));
+        symlink(outside.path().join("archive"), other.join("subagents")).unwrap();
+
+        assert_eq!(
+            subagent_files(&project.join("s1.jsonl")),
+            [
+                project.join("s1/subagents/agent-1.jsonl"),
+                project.join("subagents/s1/agent-2.jsonl")
+            ]
+        );
+        for (session, found_by_lookup) in
+            [(project.join("s2.jsonl"), 1), (other.join("s3.jsonl"), 1)]
+        {
+            // The lookup alone resolves the folder link; the stats never do.
+            assert_eq!(
+                crate::utils::find_subagent_files(&session).len(),
+                found_by_lookup,
+                "{}",
+                session.display()
+            );
+            assert_eq!(
+                subagent_files(&session),
+                Vec::<PathBuf>::new(),
+                "{}",
+                session.display()
+            );
+        }
+    }
+
+    /// The project directory itself may be reached through a symlink (the walk
+    /// root): its subagent folders are still read.
+    #[test]
+    fn subagent_files_of_a_project_reached_through_a_symlink() {
+        let dir = TempDir::new().unwrap();
+        let project = dir.path().join("p");
+        touch(&project.join("s1.jsonl"));
+        touch(&project.join("s1/subagents/agent-1.jsonl"));
+        let linked = dir.path().join("linked");
+        symlink(&project, &linked).unwrap();
+
+        assert_eq!(
+            subagent_files(&linked.join("s1.jsonl")),
+            [linked.join("s1/subagents/agent-1.jsonl")]
+        );
+    }
+
+    /// A session file named `...jsonl` has the stem `..`: the lookup then
+    /// names folders beside the project, which are not the session's.
+    #[test]
+    fn subagent_files_never_leave_the_session_folder_by_name() {
+        let dir = TempDir::new().unwrap();
+        let project = dir.path().join("projects/p");
+        touch(&project.join("...jsonl"));
+        touch(&dir.path().join("projects/subagents/agent-1.jsonl"));
+
+        assert_eq!(
+            crate::utils::find_subagent_files(&project.join("...jsonl")).len(),
+            1
+        );
+        assert_eq!(
+            subagent_files(&project.join("...jsonl")),
+            Vec::<PathBuf>::new()
+        );
     }
 }
