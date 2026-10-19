@@ -82,7 +82,7 @@ const USD: Intl.NumberFormatOptions = {
 export function formatCost(usd: number, language: string): string {
   if (!Number.isFinite(usd)) return NO_VALUE;
   const format = numberFormat(localeFor(language), USD);
-  if (usd > 0 && usd < 0.005) return `<${format.format(0.01)}`;
+  if (usd > 0 && usd < 0.01) return `<${format.format(0.01)}`;
   return format.format(usd);
 }
 
@@ -93,7 +93,7 @@ export function formatPercent(ratio: number, language: string): string {
   if (!Number.isFinite(ratio)) return NO_VALUE;
   const format = numberFormat(localeFor(language), PERCENT);
   if (ratio > 0 && ratio < 0.005) return `<${format.format(0.01)}`;
-  if (ratio > 0.995 && ratio < 1) return `>${format.format(0.99)}`;
+  if (ratio >= 0.995 && ratio < 1) return `>${format.format(0.99)}`;
   return format.format(ratio);
 }
 

@@ -76,15 +76,22 @@ describe("formatCost", () => {
     expect(formatCost(0, "en")).toBe("$0.00");
   });
 
-  it("says '<$0.01' for a positive cost that rounds to zero", () => {
-    expect(formatCost(0.004, "en")).toBe("<$0.01");
+  it("says '<$0.01' for every positive cost under a cent, on both sides of half a cent", () => {
     expect(formatCost(0.0000001, "en")).toBe("<$0.01");
-    expect(formatCost(0.005, "en")).toBe("$0.01");
+    expect(formatCost(0.004, "en")).toBe("<$0.01");
+    expect(formatCost(0.0049, "en")).toBe("<$0.01");
+    expect(formatCost(0.005, "en")).toBe("<$0.01");
+    expect(formatCost(0.006, "en")).toBe("<$0.01");
+    expect(formatCost(0.00999, "en")).toBe("<$0.01");
+    // One cent and above keeps the normal two decimals.
+    expect(formatCost(0.01, "en")).toBe("$0.01");
+    expect(formatCost(0.0101, "en")).toBe("$0.01");
   });
 
   it.each(LANGUAGES)("uses a plain $ (not US$) in %s", (lang) => {
     expect(formatCost(1234.5, lang)).toBe("$1,234.50");
-    expect(formatCost(0.001, lang)).toBe("<$0.01");
+    expect(formatCost(0.006, lang)).toBe("<$0.01");
+    expect(formatCost(0.01, lang)).toBe("$0.01");
   });
 });
 
@@ -101,8 +108,22 @@ describe("formatPercent", () => {
     expect(formatPercent(0.998, "en")).toBe(">99%");
   });
 
+  it("sends 99.5% and above to '>99%' — a partial share is never 100%", () => {
+    expect(formatPercent(0.9949, "en")).toBe("99%");
+    expect(formatPercent(0.995, "en")).toBe(">99%");
+    expect(formatPercent(0.9951, "en")).toBe(">99%");
+    expect(formatPercent(0.9999, "en")).toBe(">99%");
+    expect(formatPercent(1, "en")).toBe("100%");
+  });
+
+  it("rounds exactly half a percent up to a real 1%", () => {
+    expect(formatPercent(0.005, "en")).toBe("1%");
+    expect(formatPercent(0.0049, "en")).toBe("<1%");
+  });
+
   it.each(LANGUAGES)("formats in %s", (lang) => {
     expect(formatPercent(0.453, lang)).toBe("45%");
+    expect(formatPercent(0.995, lang)).toBe(">99%");
   });
 });
 
