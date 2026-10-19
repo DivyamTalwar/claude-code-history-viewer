@@ -31,6 +31,13 @@ on:
   pull_request:
     branches: [main, develop]
     paths: *frontend_paths
+    # `edited`: a PR body edit must re-run the ui-harness capture gate, which
+    # reads the body's `ui-expected-changes:` line (see that job). The trigger
+    # is per workflow, so an edit re-runs the `frontend` job as well; a
+    # job-level skip would instead report the skipped job as passed and hide
+    # an earlier failure of the same commit. The other three are the default
+    # activity types, which an explicit `types` list replaces.
+    types: [opened, synchronize, reopened, edited]
 
   workflow_dispatch:
     inputs:
@@ -45,6 +52,14 @@ on:
 
 permissions:
   contents: read
+
+# One run per PR: a body edit (`edited`, e.g. CodeRabbit's summary) or a new
+# push cancels that PR's run still in progress instead of stacking a second
+# full run. Pushes and manual runs get a group of their own (run_id), so none
+# of them is ever cancelled or replaced while pending.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   frontend:
@@ -117,6 +132,30 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # Intended visual changes (scripts/ui-capture/README.md, "Gates"): a PR
+      # names the scenarios it changes on purpose with a body line
+      #   ui-expected-changes: <id>, <id-prefix>*
+      # The body is untrusted input: it reaches a script only as $PR_BODY
+      # (never as ${{ }} inside `run`), and only expected-changes.mjs reads
+      # it; what that prints is scenario ids, `*` and commas. Read here, right
+      # after install, with `--list` checking the gate's own arguments, so a
+      # malformed or unknown id fails in a minute instead of after the builds.
+      - name: Expected visual changes (PR body)
+        id: expected
+        if: github.event_name == 'pull_request'
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          ids="$(node scripts/ui-capture/expected-changes.mjs)"
+          if [ -n "$ids" ]; then
+            echo "ui-expected-changes: $ids"
+            pnpm -s ui:capture --base "$BASE_SHA" --gate unchanged --scenarios scripts/ui-capture/ci-scenarios.mjs --expect-changed "$ids" --list > /dev/null
+          else
+            echo "No ui-expected-changes line: every scenario must stay within 0.1%."
+          fi
+          echo "ids=$ids" >> "$GITHUB_OUTPUT"
+
       # 2. Rust stable + the same Linux packages as rust-tests.yml
       - name: Install system dependencies
         run: |
@@ -158,12 +197,18 @@ jobs:
       # artifacts on a clean runner, so run.mjs builds it into
       # .ui-capture/build-base/<sha> (sharing src-tauri/target).
       # Exact ids (not --only's substring match); test/ciScenarios.test.mjs
-      # pins the set.
+      # pins the set. The PR body's declared ids (step "Expected visual
+      # changes") may exceed 0.1% and are listed as expected-change; every
+      # other scenario keeps the 0.1% rule.
       - name: Capture gate (unchanged vs. base, CI subset)
         if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.event.before != '0000000000000000000000000000000000000000') || (github.event_name == 'workflow_dispatch' && !inputs.full_matrix)
         env:
           BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event_name == 'workflow_dispatch' && inputs.base_ref || github.event.before }}
-        run: pnpm ui:capture --no-build --base "$BASE_SHA" --gate unchanged --scenarios scripts/ui-capture/ci-scenarios.mjs
+          EXPECTED_CHANGES: ${{ steps.expected.outputs.ids }}
+        run: |
+          args=(--no-build --base "$BASE_SHA" --gate unchanged --scenarios scripts/ui-capture/ci-scenarios.mjs)
+          if [ -n "$EXPECTED_CHANGES" ]; then args+=(--expect-changed "$EXPECTED_CHANGES"); fi
+          pnpm ui:capture "${args[@]}"
 
       - name: Capture gate (unchanged vs. base, full matrix)
         if: github.event_name == 'workflow_dispatch' && inputs.full_matrix
