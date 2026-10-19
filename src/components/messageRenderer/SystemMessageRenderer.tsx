@@ -21,6 +21,7 @@ import { layout } from "@/components/renderers";
 import { cn } from "@/lib/utils";
 import type { CompactMetadata } from "@/types";
 import { useFormat } from "@/lib/format/useFormat";
+import { numberCopyBoundary } from "@/lib/format/copyNumbers";
 
 // Hook info structure
 interface HookInfo {
@@ -346,7 +347,7 @@ export const SystemMessageRenderer = memo(function SystemMessageRenderer({
           titleClassName={config.color}
           rightContent={
             tokenLabel ? (
-              <span className="text-muted-foreground font-mono">
+              <span {...numberCopyBoundary} className="text-muted-foreground font-mono">
                 {tokenLabel}
               </span>
             ) : undefined
@@ -422,7 +423,7 @@ export const SystemMessageRenderer = memo(function SystemMessageRenderer({
             </span>
           </div>
           {microcompactMetadata?.preTokens && (
-            <span className="text-muted-foreground font-mono">
+            <span {...numberCopyBoundary} className="text-muted-foreground font-mono">
               {fmt.tokens(microcompactMetadata.preTokens)} tokens
             </span>
           )}

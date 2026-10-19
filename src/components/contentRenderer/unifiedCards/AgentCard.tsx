@@ -22,6 +22,7 @@ import { StatusBadge } from "./StatusBadge";
 import { ResultBlock } from "./ResultBlock";
 import { ToolIdBadge } from "./ToolIdBadge";
 import { useFormat } from "@/lib/format/useFormat";
+import { numberCopyBoundary } from "@/lib/format/copyNumbers";
 
 function extractAgentResultText(results: ToolResultLike[]): string | null {
   for (const r of results) {
@@ -132,7 +133,7 @@ export const AgentCard = memo(function AgentCard({ toolUse, toolResults, onViewS
               <span className={cn(layout.smallText, "font-medium text-foreground/80")}>{t("renderers.agentTool.result", { defaultValue: "Result" })}</span>
               <div className={cn("flex items-center gap-2 ml-auto", layout.smallText)}>
                 {totalDurationMs != null && <span className="inline-flex items-center gap-1 text-muted-foreground"><Timer className="w-3.5 h-3.5" />{fmt.duration(totalDurationMs)}</span>}
-                {totalTokens != null && <span className="inline-flex items-center gap-1 text-muted-foreground"><Cpu className="w-3.5 h-3.5" />{fmt.tokens(totalTokens)}</span>}
+                {totalTokens != null && <span {...numberCopyBoundary} className="inline-flex items-center gap-1 text-muted-foreground"><Cpu className="w-3.5 h-3.5" />{fmt.tokens(totalTokens)}</span>}
                 {totalToolUseCount != null && <span className="inline-flex items-center gap-1 text-muted-foreground"><Hammer className="w-3.5 h-3.5" />{totalToolUseCount}</span>}
               </div>
             </button>

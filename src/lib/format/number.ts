@@ -54,9 +54,9 @@ const COMPACT = {
  * characters to each other), never at either end of the text, where a joiner
  * would also glue the number to the space beside it.
  *
- * The joiner is copied with the text (invisible in most apps; a search for
- * `1120万` in pasted text will not match it) and is a default-ignorable format
- * character, which screen readers do not speak.
+ * A numeric display copies the number without it (`copyNumbersPlain`), so
+ * pasted text reads `1120万` and matches a search. It is a default-ignorable
+ * format character, which screen readers do not speak.
  */
 const WORD_JOINER = "\u2060";
 const BREAKABLE_SUFFIX = /[\p{Script=Han}\p{Script=Hangul}]/u;
@@ -71,6 +71,18 @@ function joinCompactParts(parts: Intl.NumberFormatPart[]): string {
     })
     .join("");
 }
+
+/** A compact number as `joinCompactParts` writes it: a numeral, joiner + suffix character once or more, and a joiner before any part after it. */
+const JOINED_COMPACT = /\d(?:\u2060[\p{Script=Han}\p{Script=Hangul}])+\u2060?/gu;
+
+/**
+ * `text` without the word joiners `formatNumber` puts into compact numbers,
+ * i.e. the text `Intl` writes (`1120⁠万` → `1120万`, `1.2⁠万⁠亿` → `1.2万亿`).
+ * Only a joiner inside such a number goes; any other U+2060 stays. For
+ * copying a numeric display (`copyNumbersPlain`), never for recorded text.
+ */
+export const withoutNumberJoiners = (text: string): string =>
+  text.replace(JOINED_COMPACT, (number) => number.split(WORD_JOINER).join(""));
 
 /** A number in the app language. `auto` = grouped below 10K, compact above. */
 export function formatNumber(

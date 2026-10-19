@@ -24,6 +24,7 @@ import { supportsConversationBreakdown } from "@/utils/providers";
 import type { SessionTokenStats } from "@/types";
 import { useSessionTokenStats } from "./useSessionTokenStats";
 import { useFormat } from "@/lib/format/useFormat";
+import { numberCopyBoundary } from "@/lib/format/copyNumbers";
 
 const estimatedCost = (stats: SessionTokenStats | null): number | null => {
   if (!stats) return null;
@@ -105,7 +106,7 @@ export const InspectorTokensTab = () => {
     const costText = (cost: number | null) => (cost === null ? undefined : fmt.cost(cost));
 
     return (
-      <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-4">
+      <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-4" {...numberCopyBoundary}>
         <section aria-label={t("analytics.totalTokens")}>
           <p className="whitespace-nowrap font-mono text-title font-semibold tabular-nums text-foreground">
             {fmt.tokens(total)}
