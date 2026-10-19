@@ -4,8 +4,9 @@
  * `formatNumber` keeps a CJK compact number on one line by joining numeral
  * and suffix with U+2060 WORD JOINER (`1120⁠万`). On screen it is invisible;
  * copied as is, the pasted `1120万` would miss a plain-text search or a
- * parser. A display of formatted numbers (dashboards, token cards, the
- * board's token counts) passes `copyNumbersPlain` as its `onCopy`.
+ * parser. A display of formatted numbers (the analytics screens, the
+ * Inspector's Tokens tab, the transcript's token counts) spreads
+ * `numberCopyBoundary`, whose `onCopy` is `copyNumbersPlain`.
  *
  * Scoped on purpose, never global: a transcript, code or a path copies exactly
  * as recorded, a literal U+2060 included. So the handler changes a copy only
