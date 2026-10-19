@@ -30,6 +30,8 @@ pub struct FixtureRow {
     pub input: u64,
     pub output: u64,
     pub cache_creation: u64,
+    /// 1-hour share of `cache_creation` (`usage.cache_creation`); 0 omits it.
+    pub cache_creation_1h: u64,
     pub cache_read: u64,
     pub cost_usd: Option<f64>,
     pub sidechain: bool,
@@ -48,6 +50,7 @@ pub fn row(file: &str, uuid: &str, timestamp: &str) -> FixtureRow {
         input: 0,
         output: 0,
         cache_creation: 0,
+        cache_creation_1h: 0,
         cache_read: 0,
         cost_usd: None,
         sidechain: false,
@@ -56,6 +59,7 @@ pub fn row(file: &str, uuid: &str, timestamp: &str) -> FixtureRow {
 
 pub const SONNET: &str = "claude-sonnet-4-5-20250929";
 pub const HAIKU: &str = "claude-haiku-5-5";
+pub const OPUS: &str = "claude-opus-5-5";
 
 impl FixtureRow {
     pub fn tokens(mut self, input: u64, output: u64, cache_creation: u64, cache_read: u64) -> Self {
@@ -63,6 +67,11 @@ impl FixtureRow {
         self.output = output;
         self.cache_creation = cache_creation;
         self.cache_read = cache_read;
+        self
+    }
+    /// The 1-hour part of the row's cache writes (the rest are 5-minute).
+    pub fn cache_1h(mut self, tokens: u64) -> Self {
+        self.cache_creation_1h = tokens;
         self
     }
     pub fn model(mut self, model: &str) -> Self {
@@ -107,7 +116,7 @@ impl FixtureRow {
         self
     }
 
-    fn to_json(&self) -> Value {
+    pub fn to_json(&self) -> Value {
         let mut usage = json!({
             "input_tokens": self.input,
             "output_tokens": self.output,
@@ -116,6 +125,12 @@ impl FixtureRow {
         });
         if let Some(tier) = &self.service_tier {
             usage["service_tier"] = json!(tier);
+        }
+        if self.cache_creation_1h > 0 {
+            usage["cache_creation"] = json!({
+                "ephemeral_5m_input_tokens": self.cache_creation - self.cache_creation_1h,
+                "ephemeral_1h_input_tokens": self.cache_creation_1h,
+            });
         }
         let mut message = json!({
             "role": "assistant",
@@ -191,6 +206,35 @@ impl UsageFixture {
 
     pub fn project_path(&self) -> String {
         self.project_dir.to_string_lossy().to_string()
+    }
+}
+
+/// Makes a directory unreadable (mode 000) and restores it when dropped —
+/// declare it after the fixture so it drops first.
+#[cfg(unix)]
+pub struct Unreadable(PathBuf);
+
+#[cfg(unix)]
+impl Unreadable {
+    /// `None` when the process reads the directory anyway (running as
+    /// root): there is nothing to test then.
+    pub fn new(dir: &Path) -> Option<Self> {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(dir, fs::Permissions::from_mode(0o000)).expect("chmod 000");
+        let guard = Self(dir.to_path_buf());
+        if fs::read_dir(dir).is_ok() {
+            eprintln!("skipped: {} stays readable at mode 000", dir.display());
+            return None;
+        }
+        Some(guard)
+    }
+}
+
+#[cfg(unix)]
+impl Drop for Unreadable {
+    fn drop(&mut self) {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = fs::set_permissions(&self.0, fs::Permissions::from_mode(0o755));
     }
 }
 

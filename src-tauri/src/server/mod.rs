@@ -79,6 +79,7 @@ const READ_ONLY_ALLOWED_API_PATHS: &[&str] = &[
     "/get_settings_by_scope",
     "/get_system_info",
     "/get_unified_preset",
+    "/get_usage_breakdown",
     "/is_project_hidden",
     "/list_archives",
     "/load_archive_session_messages",
@@ -245,6 +246,7 @@ pub fn build_router(
             "/get_global_stats_summary",
             post(h::get_global_stats_summary),
         )
+        .route("/get_usage_breakdown", post(h::get_usage_breakdown))
         // Feedback commands
         .route("/send_feedback", post(h::send_feedback))
         .route("/get_system_info", post(h::get_system_info))
@@ -870,6 +872,139 @@ mod tests {
         let status = response.status();
         let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
         (status, String::from_utf8_lossy(&bytes).to_string())
+    }
+
+    async fn post_usage_breakdown(
+        state: Arc<AppState>,
+        body: serde_json::Value,
+    ) -> (StatusCode, serde_json::Value) {
+        let response = build_router(state, "127.0.0.1", 3731, None, "/")
+            .oneshot(
+                Request::builder()
+                    .method(Method::POST)
+                    .uri("/api/get_usage_breakdown")
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .body(Body::from(body.to_string()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let status = response.status();
+        let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let value = serde_json::from_slice(&bytes)
+            .unwrap_or_else(|_| serde_json::Value::String(String::from_utf8_lossy(&bytes).into()));
+        (status, value)
+    }
+
+    /// ADR 0002: the Axum route serves the same function as the Tauri
+    /// command, also in read-only mode, behind the same history-root guard as
+    /// the old stats routes.
+    #[tokio::test]
+    #[serial]
+    async fn test_usage_breakdown_route_matches_the_command_and_guards_history_roots() {
+        let home = crate::test_utils::SandboxHome::new();
+        let project = home.path().join(".claude").join("projects").join("p1");
+        std::fs::create_dir_all(&project).unwrap();
+        let row = serde_json::json!({
+            "type": "assistant", "sessionId": "s1", "uuid": "u1",
+            "timestamp": "2026-10-15T12:00:00Z",
+            "message": {"id": "m1", "role": "assistant", "model": "claude-sonnet-4-5-20250929",
+                        "content": [], "usage": {"input_tokens": 100, "output_tokens": 10}}
+        });
+        std::fs::write(project.join("s1.jsonl"), format!("{row}\n")).unwrap();
+        let request = |project_path: &std::path::Path| {
+            serde_json::json!({
+                "scope": {"kind": "project", "project_path": project_path.to_string_lossy(), "provider": "claude"},
+                "stats_mode": "billing_total",
+                "intervals": [{"key": "2026-10-15", "start_utc": 1_792_022_400_000_i64, "end_utc": 1_792_108_800_000_i64}],
+            })
+        };
+
+        let (status, body) = post_usage_breakdown(
+            test_state_read_only(),
+            serde_json::json!({ "request": request(&project) }),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK, "{body}");
+        let direct = crate::commands::stats::usage_breakdown::get_usage_breakdown(
+            serde_json::from_value(request(&project)).unwrap(),
+        )
+        .await
+        .unwrap();
+        assert_eq!(body, serde_json::to_value(direct).unwrap());
+        assert_eq!(
+            body["intervals"][0]["models"][0]["stats"]["token_count"],
+            110
+        );
+
+        let outside = tempfile::tempdir().unwrap();
+        let (status, _) = post_usage_breakdown(
+            test_state_read_only(),
+            serde_json::json!({ "request": request(outside.path()) }),
+        )
+        .await;
+        assert_ne!(status, StatusCode::OK);
+    }
+
+    /// The review probe of `AN0b`, through the route: the root guard checks
+    /// the requested directory, so the scan itself must never follow a
+    /// symlink out of it — neither a session file nor a project directory.
+    #[cfg(unix)]
+    #[tokio::test]
+    #[serial]
+    async fn test_usage_breakdown_route_never_follows_a_symlink_out_of_the_history_root() {
+        let home = crate::test_utils::SandboxHome::new();
+        let claude = home.path().join(".claude");
+        let project = claude.join("projects").join("p");
+        std::fs::create_dir_all(&project).unwrap();
+        let row = |input: u64| {
+            let row = serde_json::json!({
+                "type": "assistant", "sessionId": "s", "uuid": "a",
+                "timestamp": "2026-10-16T12:00:00Z",
+                "message": {"id": "a", "role": "assistant", "model": "claude-sonnet-4-5-20250929",
+                            "content": [], "usage": {"input_tokens": input, "output_tokens": 0}}
+            });
+            format!("{row}\n")
+        };
+        std::fs::write(project.join("s.jsonl"), row(100)).unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        std::fs::write(outside.path().join("private.jsonl"), row(4_242)).unwrap();
+        std::os::unix::fs::symlink(
+            outside.path().join("private.jsonl"),
+            project.join("escaped.jsonl"),
+        )
+        .unwrap();
+        std::os::unix::fs::symlink(outside.path(), claude.join("projects").join("evil")).unwrap();
+
+        let intervals = serde_json::json!([
+            {"key": "2026-10-16", "start_utc": 1_792_108_800_000_i64, "end_utc": 1_792_195_200_000_i64}
+        ]);
+        let scopes = [
+            serde_json::json!({"kind": "project", "project_path": project.to_string_lossy(), "provider": "claude"}),
+            serde_json::json!({"kind": "all", "providers": ["claude"],
+                               "claude_path": claude.to_string_lossy(), "custom_claude_paths": []}),
+        ];
+        for scope in scopes {
+            let (status, body) = post_usage_breakdown(
+                test_state_read_only(),
+                serde_json::json!({ "request": {
+                    "scope": scope, "stats_mode": "billing_total", "intervals": intervals
+                }}),
+            )
+            .await;
+            assert_eq!(status, StatusCode::OK, "{body}");
+            let tokens: u64 = body["intervals"][0]["models"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|m| m["stats"]["token_count"].as_u64().unwrap())
+                .sum();
+            assert_eq!(tokens, 100, "{scope}: only the history inside the root");
+            assert_eq!(
+                body["coverage"]["providers"][0]["status"], "partial",
+                "{scope}: a refused link is a source that was not read"
+            );
+        }
     }
 
     /// #640. The restore preview reads a project file the export allowlist
