@@ -280,9 +280,9 @@ export const ArchiveBrowser: React.FC = () => {
                   <p className="text-body font-medium truncate">{entry.name}</p>
                   <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                     <span className="text-caption text-muted-foreground">
-                      {t('archive.browse.card.created', {
+                      <Num>{t('archive.browse.card.created', {
                         date: appFormat().date(entry.createdAt),
-                      })}
+                      })}</Num>
                     </span>
                     <span className="text-muted-foreground/40">·</span>
                     <span className="text-caption text-muted-foreground">

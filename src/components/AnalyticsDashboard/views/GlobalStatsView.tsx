@@ -431,14 +431,14 @@ export const GlobalStatsView: React.FC<GlobalStatsViewProps> = ({
                           </TooltipContent>
                         </Tooltip>
                         <p className="text-caption text-muted-foreground">
-                          {t(
+                          <Num>{t(
                             "analytics.topProjectMeta",
                             "{{sessions}} sessions • {{messages}} msgs",
                             {
                               sessions: fmt.count(project.sessions),
                               messages: fmt.count(project.messages),
                             }
-                          )}
+                          )}</Num>
                         </p>
                       </div>
                     </div>

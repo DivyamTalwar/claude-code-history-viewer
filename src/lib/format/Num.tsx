@@ -3,10 +3,12 @@
  *
  * Every number, cost, size, share, duration, date and time from the shared
  * formatters (`useFormat()` / `appFormat()`) that a component renders as
- * text goes through it: `<Num>{fmt.tokens(n)}</Num>`. Attributes (`title`,
- * `aria-label`) and messages that put a value into a sentence
- * (`t("key", { count: fmt.count(n) })`) take the formatter's string as is.
- * The guard in Num.test.tsx fails on a formatter result rendered bare.
+ * text goes through it: `<Num>{fmt.tokens(n)}</Num>`, and so does a message
+ * that interpolates one, once rendered: `<Num>{t("key", { n: fmt.count(x) })}</Num>`
+ * (its words keep the language's breaking; only its numbers are shielded).
+ * The value handed to `t()`, attributes (`title`, `aria-label`) and data
+ * stay plain strings. The guard in num.invariant.test.ts fails on a
+ * formatter result rendered bare.
  *
  * Why: the Korean UI breaks text between words (`word-break: keep-all`,
  * base layer in src/index.css), and WebKit's keep-all also breaks after the

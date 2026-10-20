@@ -348,7 +348,7 @@ export const InteractionCard = memo(({
                                 </span>
                                 {totalMessagesCount > 1 && (
                                     <span className="text-caption text-muted-foreground">
-                                        {t("session.interaction.messagesAndTokens", { messages: totalMessagesCount, tokens: fmt.tokens(totalTokens) })}
+                                        <Num>{t("session.interaction.messagesAndTokens", { messages: totalMessagesCount, tokens: fmt.tokens(totalTokens) })}</Num>
                                     </span>
                                 )}
                             </div>

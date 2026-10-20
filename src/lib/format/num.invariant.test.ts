@@ -8,16 +8,16 @@
  * `const { count } = …`), and the module functions (`formatBytes(…)`). The
  * methods are read from `formatterFor()` itself, so a new one is covered.
  * Its text flows on through `?:`, `&&`, `||`, `??`, `+`, a template, `.text`
- * (of `change`), a `const`, `useMemo`, `.map`, and a function that returns it,
- * in the same file or imported from another.
+ * (of `change`), a `const`, `useMemo`, `.map`, a function that returns it (in
+ * the same file or imported from another), and a message that interpolates
+ * it (`t("key", { n: fmt.count(x) })`).
  *
  * Reported: such text rendered as a bare JSX child (or as a component's whole
  * output). Allowed: inside `<Num>`; inside SVG `<text>` / `<tspan>`, which
- * never wraps; in an attribute of a DOM element (`title`, `aria-label`), a
- * message (`t("key", { count: fmt.count(n) })`) or any other call. Handed to
- * a component prop or an object field, it is listed in HANDOFFS below: each
- * receiver renders it through <Num>, and a new handoff is a reviewed change
- * here.
+ * never wraps; in an attribute of a DOM element (`title`, `aria-label`) or
+ * any call other than `t()` (data, a toast). Handed to a component prop or an
+ * object field, it is listed in HANDOFFS below: each receiver renders it
+ * through <Num>, and a new handoff is a reviewed change here.
  */
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, relative, resolve, sep } from "node:path";
@@ -210,8 +210,12 @@ export function scanNum(files: readonly SourceFile[]): NumScan {
   };
 
   const seen = new Set<ts.Node>();
-  /** Follow formatter text from `source` to where it ends. */
-  const follow = (state: FileState, source: ts.Node): void => {
+  /**
+   * Follow formatter text from `source` to where it ends. `inMessage`: the
+   * text is a message that holds a formatter result (`t("key", { n: … })`);
+   * it must render through <Num> as text, and is no handoff elsewhere.
+   */
+  const follow = (state: FileState, source: ts.Node, inMessage = false): void => {
     if (seen.has(source)) return;
     seen.add(source);
     let { child, parent } = valueEnd(source);
@@ -229,7 +233,7 @@ export function scanNum(files: readonly SourceFile[]): NumScan {
         }
         return;
       }
-      if (ts.isJsxAttribute(host)) {
+      if (ts.isJsxAttribute(host) && !inMessage) {
         const element = host.parent.parent;
         const tag = tagName(element);
         if (isComponentTag(tag)) handoffs.add(`${state.file.path}: ${tag}.${host.name.getText(state.sf)}`);
@@ -240,15 +244,22 @@ export function scanNum(files: readonly SourceFile[]): NumScan {
       const list = parent.parent;
       if (ts.isVariableDeclarationList(list) && list.flags & ts.NodeFlags.Const) {
         const scope = list.parent.parent;
-        for (const ref of references(scope, parent.name.text, parent.name)) follow(state, ref);
+        for (const ref of references(scope, parent.name.text, parent.name)) follow(state, ref, inMessage);
         if (isFunctionLike(unwrap(parent.initializer))) return;
       }
       return;
     }
     if (ts.isPropertyAssignment(parent) || ts.isShorthandPropertyAssignment(parent)) {
       const call = parent.parent.parent;
-      // A message's values (`t("key", { n: fmt.count(x) })`) are text in a sentence.
-      if (ts.isCallExpression(call)) return;
+      if (ts.isCallExpression(call)) {
+        // A message that interpolates it (`t("key", { n: fmt.count(x) })`) is
+        // text holding the number; any other call takes it as data.
+        const callee = unwrap(call.expression);
+        const name = ts.isIdentifier(callee) ? callee.text : ts.isPropertyAccessExpression(callee) ? callee.name.text : "";
+        if (name === "t") follow(state, call, true);
+        return;
+      }
+      if (inMessage) return;
       let holder: ts.Node = parent.parent;
       while (ts.isArrayLiteralExpression(holder.parent) || isWrapper(holder.parent)) holder = holder.parent;
       const field = parent.name.getText(state.sf);
@@ -273,7 +284,7 @@ export function scanNum(files: readonly SourceFile[]): NumScan {
       const callee = unwrap(call.expression);
       const name = ts.isIdentifier(callee) ? callee.text : ts.isPropertyAccessExpression(callee) ? callee.name.text : "";
       // useMemo(() => text) is text; items.map((i) => text) renders as text nodes.
-      if (["useMemo", "map", "flatMap"].includes(name)) return follow(state, call);
+      if (["useMemo", "map", "flatMap"].includes(name)) return follow(state, call, inMessage);
       if (name !== "useCallback") return;
       holder = call;
     }
@@ -441,6 +452,9 @@ describe("<Num> guard: a formatter result rendered bare is found", () => {
     ["a function", "function stamp(ts: string) {\n  return fmt.time(ts);\n}\nconst A = () => <p>{stamp(ts)}</p>;"],
     ["map", "const A = () => <p>{items.map((i) => fmt.count(i))}</p>;"],
     ["a component that renders only the text", "const Total = () => fmt.count(n);"],
+    ["a message that interpolates it", 'const A = () => <p>{t("k", { count: fmt.count(n) })}</p>;'],
+    ["a message with a default text", 'const A = () => <p>{t("k", "{{n}} msgs", { n: fmt.count(n) })}</p>;'],
+    ["a message held in a const", 'function A() {\n  const meta = i18n.t("k", { date: fmt.dateTime(ts) });\n  return <p>{meta}</p>;\n}'],
   ])("%s", (_, code) => {
     expect(bareLines(code).length, code).toBeGreaterThan(0);
   });
@@ -465,7 +479,8 @@ describe("<Num> guard: not reported", () => {
     ["a const inside <Num>", "function A() {\n  const label = fmt.count(n);\n  return <Num>{label}</Num>;\n}"],
     ["attributes of a DOM element", "const A = () => <span title={fmt.dateTimeFull(ts)} aria-label={fmt.time(ts)}>x</span>;"],
     ["a const used as an attribute", "function A() {\n  const label = fmt.count(n);\n  return <p title={label}>x</p>;\n}"],
-    ["a message value", 'const A = () => <p>{t("k", { count: fmt.count(n) })}</p>;'],
+    ["a message as an attribute", 'const A = () => <p title={t("k", { count: fmt.count(n) })}>x</p>;'],
+    ["a message as data", 'const preset = { name: t("k", { date: appFormat().date(now) }) };\nsave(t("k", { size: fmt.bytes(b) }));'],
     ["another call", "toast(fmt.bytes(b));"],
     ["SVG text, which never wraps", "const A = () => <svg><text>{fmt.dayKey(d)}</text><tspan>{fmt.count(n)}</tspan></svg>;"],
     ["not a formatter", "const A = () => <p>{timer.time(ts)}{fmt.language}</p>;"],
