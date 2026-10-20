@@ -52,6 +52,11 @@ fn uri_parts(path: &std::path::Path) -> Option<(String, String)> {
 #[cfg(feature = "webui-server")]
 pub(crate) const OUTSIDE_HISTORY_ROOTS: &str = "Path is outside the configured history directories";
 
+/// The message for a path inside the history roots that is neither a
+/// directory nor a regular file.
+#[cfg(feature = "webui-server")]
+const NOT_A_FILE_OR_DIRECTORY: &str = "Path is not a regular file or directory";
+
 /// Like [`is_safe_history_file_path`], but also accepts a provider URI
 /// (`scheme://…`). Use only where the receiving command resolves such ids
 /// itself; anything that opens the value as a path must use the
@@ -88,7 +93,8 @@ pub(crate) fn is_safe_session_path(path: &std::path::Path) -> Result<(), String>
 /// user has configured (`~/.claude`, `CLAUDE_CONFIG_DIR`, Settings → Custom
 /// Claude Directories), and the app's own archive directory. Defends `WebUI`
 /// handlers (which accept untrusted HTTP input) against being pointed at
-/// arbitrary directories or `.jsonl` files on the host.
+/// arbitrary directories or `.jsonl` files on the host. Inside the roots,
+/// only a directory or a regular file passes.
 ///
 /// Filesystem paths only: a URI-shaped value is judged as the path it would
 /// open, so it passes only if that path is inside a root.
@@ -213,11 +219,16 @@ pub(crate) fn is_safe_history_file_path(path: &std::path::Path) -> Result<(), St
     .ok_or_else(|| OUTSIDE_HISTORY_ROOTS.to_string())?;
     let canonical = rename::normalize_path_for_comparison(&canonical);
 
-    if allowed.iter().any(|d| canonical.starts_with(d)) {
-        Ok(())
-    } else {
-        Err(OUTSIDE_HISTORY_ROOTS.to_string())
+    if !allowed.iter().any(|d| canonical.starts_with(d)) {
+        return Err(OUTSIDE_HISTORY_ROOTS.to_string());
     }
+    // Inside a root, history is directories and regular files. Anything else
+    // is refused here, for every route at once: a FIFO named like a session
+    // blocks the reader that opens it.
+    if std::fs::metadata(path).is_ok_and(|meta| !meta.is_dir() && !meta.is_file()) {
+        return Err(NOT_A_FILE_OR_DIRECTORY.to_string());
+    }
+    Ok(())
 }
 
 #[cfg(all(test, feature = "webui-server", unix))]
