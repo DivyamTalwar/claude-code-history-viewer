@@ -58,7 +58,7 @@ afterAll(async () => {
 
 async function withGallery(browser, { theme, forcedColors }, fn) {
   const context = await browser.newContext({
-    viewport: { width: 1200, height: 1400 },
+    viewport: { width: 1200, height: 2400 },
     colorScheme: theme,
     reducedMotion: "reduce",
     ...(forcedColors ? { forcedColors: "active" } : {}),

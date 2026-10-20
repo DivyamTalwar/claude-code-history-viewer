@@ -113,7 +113,7 @@ async function measureRun(run, origin, runDir) {
   fs.mkdirSync(cropsDir, { recursive: true });
   try {
     const context = await browser.newContext({
-      viewport: { width: 1200, height: 1400 }, // the whole gallery (and the open menu) in view
+      viewport: { width: 1200, height: 2400 }, // the whole gallery (and the open menu) in view
       deviceScaleFactor: 2,
       colorScheme: run.theme,
       reducedMotion: "reduce",
@@ -121,6 +121,8 @@ async function measureRun(run, origin, runDir) {
     });
     const page = await openGalleryPage(context, origin, run.theme);
     await page.waitForTimeout(100);
+    const height = await page.evaluate(() => document.documentElement.scrollHeight);
+    if (height > 2400) throw new Error(`gallery is ${height}px tall: raise the viewport so every control is in view`);
     await page.screenshot({ path: path.join(runDir, "gallery.png"), fullPage: true });
     const handles = await page.$$("[data-ctl]");
     const rows = [];

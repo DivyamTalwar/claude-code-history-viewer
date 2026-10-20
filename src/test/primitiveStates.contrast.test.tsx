@@ -134,6 +134,8 @@ describe("Field control states (Input, Textarea, Select)", () => {
   const classes = inputVariants({ variant: "default" }).split(/\s+/);
   const rest = paint(classes, "", "border");
   const hover = paint(classes, "hover:", "border");
+  const invalid = paint(classes, "aria-invalid:", "border");
+  const invalidHover = paint(classes, "aria-invalid:hover:", "border");
 
   for (const theme of THEME_NAMES) {
     for (const backdrop of BACKDROPS) {
@@ -141,9 +143,18 @@ describe("Field control states (Input, Textarea, Select)", () => {
         const back = px(theme, backdrop);
         expect(rest?.token).toBe("line-input");
         const restLine = paintOver(theme, rest, back);
-        const hoverLine = paintOver(theme, hover, back);
+        const hoverLine = paintOver(theme, hover ?? rest, back);
         expect(contrastSrgb8(restLine, back)).toBeGreaterThanOrEqual(NON_TEXT);
         expect(channelDelta(restLine, hoverLine)).toBeGreaterThanOrEqual(STEP);
+      });
+
+      it(`${theme} · on ${backdrop}: invalid — the danger line stands out (3:1) and hover is a visible step`, () => {
+        const back = px(theme, backdrop);
+        expect(invalid?.token).toBe("status-danger-line");
+        const line = paintOver(theme, invalid, back);
+        const hoverLine = paintOver(theme, invalidHover ?? invalid, back);
+        expect(contrastSrgb8(line, back)).toBeGreaterThanOrEqual(NON_TEXT);
+        expect(channelDelta(line, hoverLine)).toBeGreaterThanOrEqual(STEP);
       });
     }
   }
@@ -159,10 +170,11 @@ describe("Switch state colours", () => {
     for (const backdrop of BACKDROPS) {
       it(`${theme} · on ${backdrop}: off — outlined track, readable thumb, visible hover and pressed steps`, () => {
         const back = px(theme, backdrop);
+        // A state without its own class keeps the rest look.
         const border = paintOver(theme, paint(track, "", "border"), back);
-        const hoverBorder = paintOver(theme, paint(track, "enabled:hover:", "border"), back);
+        const hoverBorder = paintOver(theme, paint(track, "enabled:hover:", "border") ?? paint(track, "", "border"), back);
         const fill = paintOver(theme, paint(track, "", "bg"), back);
-        const pressedFill = paintOver(theme, paint(track, "enabled:active:", "bg"), back);
+        const pressedFill = paintOver(theme, paint(track, "enabled:active:", "bg") ?? paint(track, "", "bg"), back);
         const knob = paintOver(theme, paint(thumb, "", "bg"), back);
         expect(contrastSrgb8(border, back), "track border vs surface").toBeGreaterThanOrEqual(NON_TEXT);
         expect(contrastSrgb8(knob, fill), "thumb vs track").toBeGreaterThanOrEqual(NON_TEXT);
@@ -173,9 +185,11 @@ describe("Switch state colours", () => {
 
       it(`${theme} · on ${backdrop}: on — filled track, readable thumb, visible hover and pressed steps`, () => {
         const back = px(theme, backdrop);
-        const fill = paintOver(theme, paint(track, on, "bg"), back);
-        const hoverFill = paintOver(theme, paint(track, `${on}enabled:hover:`, "bg"), back);
-        const pressedFill = paintOver(theme, paint(track, `${on}enabled:active:`, "bg"), back);
+        const onFill = paint(track, on, "bg");
+        const onHover = paint(track, `${on}enabled:hover:`, "bg") ?? onFill;
+        const fill = paintOver(theme, onFill, back);
+        const hoverFill = paintOver(theme, onHover, back);
+        const pressedFill = paintOver(theme, paint(track, `${on}enabled:active:`, "bg") ?? onHover, back);
         const knob = paintOver(theme, paint(thumb, on, "bg"), back);
         expect(contrastSrgb8(fill, back), "track vs surface").toBeGreaterThanOrEqual(NON_TEXT);
         for (const [state, f] of [
@@ -192,9 +206,9 @@ describe("Switch state colours", () => {
       it(`${theme} · on ${backdrop}: disabled is told apart from enabled, off and on`, () => {
         const back = px(theme, backdrop);
         const knobOff = paintOver(theme, paint(thumb, "", "bg"), back);
-        const knobOffDisabled = paintOver(theme, paint(thumb, "data-disabled:", "bg"), back);
+        const knobOffDisabled = paintOver(theme, paint(thumb, "data-disabled:", "bg") ?? paint(thumb, "", "bg"), back);
         const fillOn = paintOver(theme, paint(track, on, "bg"), back);
-        const fillOnDisabled = paintOver(theme, paint(track, `data-disabled:${on}`, "bg"), back);
+        const fillOnDisabled = paintOver(theme, paint(track, `data-disabled:${on}`, "bg") ?? paint(track, on, "bg"), back);
         expect(channelDelta(knobOff, knobOffDisabled), "off: thumb").toBeGreaterThanOrEqual(STEP);
         expect(channelDelta(fillOn, fillOnDisabled), "on: track").toBeGreaterThanOrEqual(STEP);
       });

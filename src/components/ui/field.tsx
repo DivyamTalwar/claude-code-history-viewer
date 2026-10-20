@@ -34,11 +34,13 @@ const FieldContext = React.createContext<FieldContextValue | null>(null);
 
 /**
  * The border and states every field control shares: a --line-input border
- * (≥ 3:1 on its surface), full --fg on hover, the danger line when invalid,
+ * (≥ 3:1 on its surface), the danger line when invalid, full --fg on hover
+ * (valid or invalid: the danger line and --status-danger-fg are too close
+ * in the high-contrast themes to show a hover step; the error text stays),
  * and the disabled tokens instead of fading. Focus is the base ring.
  */
 export const fieldControlClasses =
-  "border-line-input hover:border-fg aria-invalid:border-status-danger-line disabled:cursor-not-allowed disabled:border-line-faint disabled:bg-muted disabled:text-fg-disabled disabled:placeholder:text-fg-disabled";
+  "border-line-input hover:border-fg aria-invalid:border-status-danger-line aria-invalid:hover:border-fg disabled:cursor-not-allowed disabled:border-line-faint disabled:bg-muted disabled:text-fg-disabled disabled:placeholder:text-fg-disabled";
 
 export interface FieldProps extends Omit<React.HTMLAttributes<HTMLDivElement>, "children"> {
   /** The control's visible name. */
