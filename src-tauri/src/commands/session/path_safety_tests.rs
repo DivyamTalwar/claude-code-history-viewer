@@ -10,8 +10,10 @@
 //! failure was retried, and a FIFO blocks the reader that opens it.
 
 use super::{
-    find_project_session_by_path, get_recent_edits, get_session_subagents, load_project_sessions,
-    load_project_sessions_page, search_messages,
+    find_project_session_by_path, get_recent_edits, get_session_message_count,
+    get_session_message_offset, get_session_subagents, load_project_sessions,
+    load_project_sessions_page, load_session_messages, load_session_messages_paginated,
+    search_messages,
 };
 use crate::commands::{archive, multi_provider, project, stats};
 use crate::models::ClaudeSession;
@@ -490,7 +492,7 @@ fn the_session_lists_skip_entries_that_are_not_regular_files() {
 
 /// The subagent readers answer, and read only the regular transcripts, with
 /// a directory and a FIFO named like a transcript in the subagent folder. An
-/// archive refuses them without opening either.
+/// archive leaves them out, as it does a link, instead of failing.
 #[test]
 #[serial]
 fn the_subagent_readers_skip_entries_that_are_not_regular_files() {
@@ -543,8 +545,6 @@ fn the_subagent_readers_skip_entries_that_are_not_regular_files() {
         ),
     ]);
 
-    let refused: Result<Vec<String>, String> =
-        Err(format!("Subagent path is not a file: {}", fifo.display()));
     assert_eq!(
         read,
         [
@@ -556,7 +556,10 @@ fn the_subagent_readers_skip_entries_that_are_not_regular_files() {
                 "get_expiring_sessions",
                 r#"Ok(["s9.jsonl: 1"])"#.to_string()
             ),
-            ("create_archive", format!("{refused:?}")),
+            (
+                "create_archive",
+                r#"Ok(["sessions/s9.jsonl", "subagents/s9/agent-r.jsonl"])"#.to_string()
+            ),
             ("get_session_token_stats", "Ok(200)".to_string()),
             ("get_project_token_stats", "Ok([200])".to_string()),
         ]
@@ -618,4 +621,71 @@ fn the_single_session_readers_refuse_entries_that_are_not_regular_files() {
             ("create_archive(fifo.jsonl)", format!("{not_archived:?}")),
         ]
     );
+}
+
+/// A reader of one session, given its path.
+type ReadSession = fn(String) -> String;
+
+/// `refused` when a reader refused its session as not a regular file,
+/// otherwise what it returned.
+fn refusal<T: std::fmt::Debug>(result: Result<T, String>) -> String {
+    match result {
+        Err(error) if error.contains("not a regular file") => "refused".to_string(),
+        other => format!("{other:?}").chars().take(160).collect(),
+    }
+}
+
+/// The readers of one session's messages refuse a directory and a FIFO named
+/// like a session before opening either: opening a FIFO blocks until
+/// something writes to it. The desktop app is the only caller that can hand
+/// them such a path; over the `WebUI` the history-root guard refuses it first
+/// (`server::tests::test_session_routes_answer_with_entries_that_are_not_regular_files`).
+#[test]
+#[serial]
+fn the_message_readers_refuse_entries_that_are_not_regular_files() {
+    let home = SandboxHome::new();
+    let (project, _) = project_q(&home);
+    fs::create_dir_all(project.join("folder.jsonl")).unwrap();
+    mkfifo(&project.join("fifo.jsonl"));
+
+    let readers: [(&'static str, ReadSession); 6] = [
+        ("load_session_messages", |path| {
+            refusal(block_on(load_session_messages(path)))
+        }),
+        ("load_session_messages_paginated", |path| {
+            refusal(block_on(load_session_messages_paginated(path, 0, 20, None)))
+        }),
+        ("get_session_message_count", |path| {
+            refusal(block_on(get_session_message_count(path, None)))
+        }),
+        ("get_session_message_offset", |path| {
+            refusal(get_session_message_offset(path, "u1".to_string(), None))
+        }),
+        ("export_session", |path| {
+            refusal(block_on(archive::export_session(path, "json".to_string())))
+        }),
+        ("load_provider_messages", |path| {
+            refusal(block_on(multi_provider::load_provider_messages(
+                "claude".to_string(),
+                path,
+            )))
+        }),
+    ];
+    let mut read = Vec::new();
+    let mut expected = Vec::new();
+    for entry in ["folder.jsonl", "fifo.jsonl"] {
+        let path = text(&project.join(entry));
+        let reads = readers
+            .iter()
+            .map(|&(reader, read)| {
+                let path = path.clone();
+                (reader, Box::new(move || read(path)) as Read)
+            })
+            .collect();
+        for (reader, result) in within_deadline(reads) {
+            read.push((entry, reader, result));
+            expected.push((entry, reader, "refused".to_string()));
+        }
+    }
+    assert_eq!(read, expected);
 }

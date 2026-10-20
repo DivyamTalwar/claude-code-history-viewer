@@ -1450,7 +1450,9 @@ mod tests {
     /// The routes answer with a directory and a FIFO named like a session in
     /// the project: the lists skip both, and a route given either as the
     /// session refuses it instead of reading it forever (a directory) or
-    /// blocking on it (a FIFO).
+    /// blocking on it (a FIFO). Every route that reads one Claude session by
+    /// its path is refused by the history-root guard before a reader runs, so
+    /// none of the single-session readers is reachable with a FIFO here.
     #[cfg(unix)]
     #[test]
     #[serial]
@@ -1501,6 +1503,26 @@ mod tests {
                 "export_session",
                 serde_json::json!({ "sessionFilePath": fifo_path, "format": "json" }),
             ),
+            (
+                "load_provider_messages",
+                serde_json::json!({ "provider": "claude", "sessionPath": fifo_path }),
+            ),
+            (
+                "load_provider_messages_paginated",
+                serde_json::json!({
+                    "provider": "claude", "sessionPath": fifo_path, "offset": 0, "limit": 10
+                }),
+            ),
+            (
+                "get_provider_message_offset",
+                serde_json::json!({
+                    "provider": "claude", "sessionPath": fifo_path, "messageUuid": "u9"
+                }),
+            ),
+            (
+                "get_session_token_stats",
+                serde_json::json!({ "sessionPath": fifo_path }),
+            ),
         ];
         let answers: Vec<(&str, String)> = routes
             .into_iter()
@@ -1529,7 +1551,11 @@ mod tests {
                 ("load_session_messages", refused.clone()),
                 ("load_session_messages_paginated", refused.clone()),
                 ("get_session_message_count", refused.clone()),
-                ("export_session", refused),
+                ("export_session", refused.clone()),
+                ("load_provider_messages", refused.clone()),
+                ("load_provider_messages_paginated", refused.clone()),
+                ("get_provider_message_offset", refused.clone()),
+                ("get_session_token_stats", refused),
             ]
         );
     }

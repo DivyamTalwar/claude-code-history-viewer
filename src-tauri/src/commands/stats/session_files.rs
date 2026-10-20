@@ -56,6 +56,27 @@ pub(crate) fn is_regular_file(path: &Path) -> bool {
     fs::symlink_metadata(path).is_ok_and(|meta| meta.is_file())
 }
 
+/// Opens a history file for reading if it is a regular file.
+///
+/// Anything else named like a session is refused before it is opened:
+/// opening a FIFO blocks until something writes to it, and every read of a
+/// directory fails. The path itself may be reached through a symlink (a
+/// direct reader is handed a path from the lists above, which yield none, or
+/// over HTTP one the root guard judged by its canonical path); what it names
+/// must be a regular file.
+pub(crate) fn open_regular_file(path: &Path) -> io::Result<fs::File> {
+    let not_regular = || io::Error::new(io::ErrorKind::InvalidInput, "not a regular file");
+    if !fs::metadata(path)?.is_file() {
+        return Err(not_regular());
+    }
+    let file = fs::File::open(path)?;
+    // Swapped for a directory since the check: still refused.
+    if !file.metadata()?.is_file() {
+        return Err(not_regular());
+    }
+    Ok(file)
+}
+
 /// The session files a history reader opens under `project_dir`: the walk's
 /// files that are regular files. The walk keeps a directory named like a
 /// session, so that a scan can report it; a reader never opens one.
@@ -396,5 +417,36 @@ mod tests {
             subagent_files(&project.join("...jsonl")),
             Vec::<PathBuf>::new()
         );
+    }
+
+    /// A direct reader opens a regular file, also through a link, and refuses
+    /// a directory and a FIFO named like a session without blocking.
+    #[test]
+    fn open_regular_file_refuses_what_is_not_a_regular_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let session = dir.path().join("s1.jsonl");
+        fs::write(&session, "{}\n").unwrap();
+        let folder = dir.path().join("folder.jsonl");
+        fs::create_dir(&folder).unwrap();
+
+        assert!(open_regular_file(&session).is_ok());
+        let refused = open_regular_file(&folder).unwrap_err();
+        assert_eq!(refused.to_string(), "not a regular file");
+        assert!(open_regular_file(&dir.path().join("gone.jsonl")).is_err());
+
+        #[cfg(unix)]
+        {
+            let link = dir.path().join("link.jsonl");
+            std::os::unix::fs::symlink(&session, &link).unwrap();
+            assert!(open_regular_file(&link).is_ok());
+            let fifo = dir.path().join("fifo.jsonl");
+            let made = std::process::Command::new("mkfifo")
+                .arg(&fifo)
+                .status()
+                .unwrap();
+            assert!(made.success());
+            let refused = open_regular_file(&fifo).unwrap_err();
+            assert_eq!(refused.to_string(), "not a regular file");
+        }
     }
 }
