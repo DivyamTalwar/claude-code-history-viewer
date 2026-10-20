@@ -1,5 +1,6 @@
 //! Session loading functions
 
+use crate::commands::stats::session_files;
 use crate::models::{ClaudeMessage, ClaudeSession, MessagePage, RawLogEntry};
 use crate::utils::{extract_project_name, find_line_ranges, find_line_starts};
 use chrono::{DateTime, Utc};
@@ -12,7 +13,6 @@ use std::io::{BufRead, BufReader, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 use uuid::Uuid;
-use walkdir::WalkDir;
 
 /// Cache entry for a single session file (supports incremental parsing)
 #[derive(serde::Serialize, serde::Deserialize, Clone)]
@@ -1157,24 +1157,16 @@ fn load_project_sessions_page_blocking(
     let mut candidates: Vec<SessionPageCandidate> = Vec::new();
     let mut known_dropped_candidates = 0usize;
 
-    for entry in WalkDir::new(project_root)
-        .follow_links(false)
-        .into_iter()
-        .filter_map(std::result::Result::ok)
-        .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("jsonl"))
-    {
-        if entry.file_type().is_symlink() {
-            continue;
-        }
-
-        let Ok(canonical_path) = entry.path().canonicalize() else {
+    // Regular files only, no symlink below the project followed
+    // (`session_files`).
+    for path in session_files::regular_session_files(project_root) {
+        let Ok(canonical_path) = path.canonicalize() else {
             continue;
         };
         if !canonical_path.starts_with(&canonical_project_root) {
             continue;
         }
 
-        let path = entry.path().to_path_buf();
         let path_str = path.to_string_lossy().to_string();
         let (current_mtime, current_size, modified_sort_key) = metadata_sort_snapshot(&path);
 
@@ -1514,13 +1506,11 @@ fn load_project_sessions_blocking(
     let mut cache = load_cache(&project_path);
     let mut cache_updated = false;
 
-    // 2. Collect all JSONL file paths
-    let file_paths: Vec<PathBuf> = WalkDir::new(&project_path)
-        .into_iter()
-        .filter_map(std::result::Result::ok)
-        .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("jsonl"))
-        .map(|e| e.path().to_path_buf())
-        .collect();
+    // 2. Collect the session files: regular files only, no symlink below the
+    // project followed (`session_files`). A linked file would be read
+    // wherever it points; a directory named like a session used to stall
+    // this load, and a FIFO would block it.
+    let file_paths: Vec<PathBuf> = session_files::regular_session_files(Path::new(&project_path));
 
     #[cfg(debug_assertions)]
     eprintln!(

@@ -11,6 +11,8 @@ mod chain;
 mod delete;
 mod edits;
 mod load;
+#[cfg(all(test, unix))]
+mod path_safety_tests;
 mod rename;
 mod resume;
 mod search;
