@@ -1,5 +1,6 @@
 //! Session search functions
 
+use crate::commands::stats::session_files;
 use crate::models::{ClaudeMessage, RawLogEntry};
 use crate::utils::find_line_ranges;
 use aho_corasick::AhoCorasick;
@@ -16,7 +17,6 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::SystemTime;
 use uuid::Uuid;
-use walkdir::WalkDir;
 
 /// Initial buffer capacity for JSON parsing (4KB covers most messages)
 const PARSE_BUFFER_INITIAL_CAPACITY: usize = 4096;
@@ -484,17 +484,10 @@ fn search_messages_blocking(
         return Ok(vec![]);
     }
 
-    // Symlinks are never followed: not a linked directory (WalkDir's
-    // default), and not a linked `*.jsonl` entry either, which the walk
-    // still yields and opening it would read wherever it points.
-    let file_paths: Vec<PathBuf> = WalkDir::new(&projects_path)
-        .follow_links(false)
-        .into_iter()
-        .filter_map(std::result::Result::ok)
-        .filter(|e| !e.path_is_symlink())
-        .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("jsonl"))
-        .map(|e| e.path().to_path_buf())
-        .collect();
+    // Regular files only, no symlink followed (`session_files`): a linked
+    // `*.jsonl` entry would be read wherever it points, and a FIFO named
+    // like a session would block the search.
+    let file_paths: Vec<PathBuf> = session_files::regular_session_files(&projects_path);
 
     let key = cache_key(&claude_path, &query);
     let cached_files: HashMap<PathBuf, FileMatches> = SEARCH_CACHE

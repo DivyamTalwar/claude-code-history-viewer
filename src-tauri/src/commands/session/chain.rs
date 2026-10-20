@@ -22,12 +22,15 @@ use std::time::SystemTime;
 use once_cell::sync::Lazy;
 use rayon::prelude::*;
 
-use crate::utils::is_symlink;
+use crate::commands::stats::session_files;
 
-/// A regular `.jsonl` file in the project directory. Symlinks are skipped so a
-/// planted link can't pull a file outside the project root into chain scans.
+/// A regular `.jsonl` file in the project directory: never a symlink, so a
+/// planted link can't pull a file outside the project root into chain scans,
+/// and never anything else named like a session (a FIFO would block the scan
+/// that opens it).
 fn is_regular_jsonl(path: &Path) -> bool {
-    path.extension().and_then(|s| s.to_str()) == Some("jsonl") && !is_symlink(path)
+    path.extension().and_then(|s| s.to_str()) == Some("jsonl")
+        && session_files::is_regular_file(path)
 }
 
 /// Hard cap on how many hops `resolve_session_chain` will follow. Guards

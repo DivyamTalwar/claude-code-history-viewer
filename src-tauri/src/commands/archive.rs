@@ -3,6 +3,7 @@
 //! This module provides commands for creating, listing, and managing
 //! archived sessions stored in ~/.claude-history-viewer/archives/
 
+use crate::commands::stats::session_files;
 use crate::models::ClaudeSession;
 use crate::utils::find_subagent_files;
 use chrono::Utc;
@@ -1402,6 +1403,12 @@ pub async fn get_expiring_sessions(
         for entry in rd.flatten() {
             let path = entry.path();
             if path.extension().and_then(|e| e.to_str()) != Some("jsonl") {
+                continue;
+            }
+            // A regular file only, never through a symlink (`session_files`):
+            // a linked file would be read wherever it points, and a FIFO
+            // would block the read below.
+            if !session_files::is_regular_file(&path) {
                 continue;
             }
 
