@@ -11,6 +11,7 @@ import { HighlightedText } from "../common/HighlightedText";
 import { safeStringify } from "@/utils/jsonUtils";
 import { TruncatedPre } from "@/components/common/TruncatedPre";
 import { useFormat } from "@/lib/format/useFormat";
+import { Num } from "@/lib/format/Num";
 
 type Props = {
   searchData: Record<string, unknown>;
@@ -43,7 +44,7 @@ export const WebSearchRenderer = ({
         rightContent={
           durationSeconds && (
             <span className={`${layout.smallText} text-tool-web`}>
-              {fmt.duration(durationSeconds * 1000)}
+              <Num>{fmt.duration(durationSeconds * 1000)}</Num>
             </span>
           )
         }

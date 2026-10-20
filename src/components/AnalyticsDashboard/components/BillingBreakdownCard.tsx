@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Activity } from "lucide-react";
 import { SectionCard } from "./SectionCard";
 import { useFormat } from "@/lib/format/useFormat";
+import { Num } from "@/lib/format/Num";
 
 interface BillingBreakdownCardProps {
   billingTokens: number;
@@ -78,11 +79,11 @@ export const BillingBreakdownCard: React.FC<BillingBreakdownCardProps> = ({
           <div className="p-3 rounded-lg bg-muted/30">
             <p className="text-caption text-muted-foreground">{t("analytics.billingTotal", "Billing Total")}</p>
             <p className="font-mono text-body font-semibold text-foreground">
-              {fmt.tokens(billingTokens)}
+              <Num>{fmt.tokens(billingTokens)}</Num>
             </p>
             {hasCostData && (
               <p className="font-mono text-caption text-muted-foreground">
-                {fmt.cost(safeBillingCost)}
+                <Num>{fmt.cost(safeBillingCost)}</Num>
               </p>
             )}
             <p className="text-caption text-muted-foreground">
@@ -92,41 +93,41 @@ export const BillingBreakdownCard: React.FC<BillingBreakdownCardProps> = ({
           <div className="p-3 rounded-lg bg-muted/30">
             <p className="text-caption text-muted-foreground">{t("analytics.conversationOnly", "Conversation Only")}</p>
             <p className="font-mono text-body font-semibold text-foreground">
-              {hasConversationTokenData
+              <Num>{hasConversationTokenData
                 ? fmt.tokens(conversationTokenValue)
-                : t("common.dash", "—")}
+                : t("common.dash", "—")}</Num>
             </p>
             {hasCostData && (
               <p className="font-mono text-caption text-muted-foreground">
-                {hasConversationCostData
+                <Num>{hasConversationCostData
                   ? fmt.cost(conversationCostValue)
-                  : t("common.dash", "—")}
+                  : t("common.dash", "—")}</Num>
               </p>
             )}
             <p className="text-caption text-muted-foreground">
-              {hasConversationTokenData
+              <Num>{hasConversationTokenData
                 ? fmt.percent(conversationTokenRatio / 100)
-                : t("analytics.calculating", "Calculating")}
+                : t("analytics.calculating", "Calculating")}</Num>
             </p>
           </div>
           <div className="p-3 rounded-lg bg-muted/30">
             <p className="text-caption text-muted-foreground">{t("analytics.nonConversation", "Non-conversation")}</p>
             <p className="font-mono text-body font-semibold text-foreground">
-              {hasConversationTokenData
+              <Num>{hasConversationTokenData
                 ? fmt.tokens(nonConversationTokenValue)
-                : t("common.dash", "—")}
+                : t("common.dash", "—")}</Num>
             </p>
             {hasCostData && (
               <p className="font-mono text-caption text-muted-foreground">
-                {hasConversationCostData
+                <Num>{hasConversationCostData
                   ? fmt.cost(nonConversationCostValue)
-                  : t("common.dash", "—")}
+                  : t("common.dash", "—")}</Num>
               </p>
             )}
             <p className="text-caption text-muted-foreground">
-              {hasConversationTokenData
+              <Num>{hasConversationTokenData
                 ? fmt.percent(nonConversationTokenRatio / 100)
-                : t("analytics.calculating", "Calculating")}
+                : t("analytics.calculating", "Calculating")}</Num>
             </p>
           </div>
         </div>

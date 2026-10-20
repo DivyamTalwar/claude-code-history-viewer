@@ -16,6 +16,7 @@ import { hasSystemCommandContent } from "../helpers/messageHelpers";
 import type { MessageHeaderProps } from "../types";
 import type { ClaudeAssistantMessage } from "../../../types";
 import { useFormat } from "@/lib/format/useFormat";
+import { Num } from "@/lib/format/Num";
 
 export const MessageHeader: React.FC<MessageHeaderProps> = ({ message }) => {
   const { t } = useTranslation();
@@ -73,11 +74,11 @@ export const MessageHeader: React.FC<MessageHeaderProps> = ({ message }) => {
         <Tooltip>
           <TooltipTrigger asChild>
             <button type="button" className="cursor-default">
-              {fmt.time(message.timestamp)}
+              <Num>{fmt.time(message.timestamp)}</Num>
             </button>
           </TooltipTrigger>
           <TooltipContent side="top" sideOffset={4}>
-            {fmt.dateTimeFull(message.timestamp)}
+            <Num>{fmt.dateTimeFull(message.timestamp)}</Num>
           </TooltipContent>
         </Tooltip>
         {message.isSidechain && (
@@ -108,12 +109,12 @@ export const MessageHeader: React.FC<MessageHeaderProps> = ({ message }) => {
                 isTooltipOpen ? "opacity-100 pointer-events-auto" : "opacity-0 group-hover:opacity-100 pointer-events-none"
               )}>
                 <p className="mb-1"><strong>{t("assistantMessageDetails.model")}:</strong> {message.model}</p>
-                <p className="mb-1"><strong>{t("messageViewer.time")}:</strong> {fmt.dateTimeFull(message.timestamp)}</p>
-                {message.usage.input_tokens && <p>{t("assistantMessageDetails.input")}: {fmt.count(message.usage.input_tokens)}</p>}
-                {message.usage.output_tokens && <p>{t("assistantMessageDetails.output")}: {fmt.count(message.usage.output_tokens)}</p>}
-                {message.usage.cache_creation_input_tokens ? <p>{t("assistantMessageDetails.cacheCreation")}: {fmt.count(message.usage.cache_creation_input_tokens)}</p> : null}
-                {message.usage.cache_read_input_tokens ? <p>{t("assistantMessageDetails.cacheRead")}: {fmt.count(message.usage.cache_read_input_tokens)}</p> : null}
-                {typeof message.usage.reasoning_tokens === "number" ? <p>{t("analytics.reasoning", "Reasoning")}: {fmt.count(message.usage.reasoning_tokens)}</p> : null}
+                <p className="mb-1"><strong>{t("messageViewer.time")}:</strong> <Num>{fmt.dateTimeFull(message.timestamp)}</Num></p>
+                {message.usage.input_tokens && <p>{t("assistantMessageDetails.input")}: <Num>{fmt.count(message.usage.input_tokens)}</Num></p>}
+                {message.usage.output_tokens && <p>{t("assistantMessageDetails.output")}: <Num>{fmt.count(message.usage.output_tokens)}</Num></p>}
+                {message.usage.cache_creation_input_tokens ? <p>{t("assistantMessageDetails.cacheCreation")}: <Num>{fmt.count(message.usage.cache_creation_input_tokens)}</Num></p> : null}
+                {message.usage.cache_read_input_tokens ? <p>{t("assistantMessageDetails.cacheRead")}: <Num>{fmt.count(message.usage.cache_read_input_tokens)}</Num></p> : null}
+                {typeof message.usage.reasoning_tokens === "number" ? <p>{t("analytics.reasoning", "Reasoning")}: <Num>{fmt.count(message.usage.reasoning_tokens)}</Num></p> : null}
                 <div className="absolute right-4 top-full w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-popover"></div>
               </div>
             </>

@@ -14,6 +14,7 @@ import { ClaudeToolResultItem } from "./ClaudeToolResultItem";
 import { cn } from "@/lib/utils";
 import { getVariantStyles, layout, safeStringify } from "../renderers";
 import { useFormat } from "@/lib/format/useFormat";
+import { Num } from "@/lib/format/Num";
 
 interface ContentArrayRendererProps {
   toolResult: Record<string, unknown>;
@@ -55,14 +56,14 @@ export const ContentArrayRenderer = ({ toolResult, searchQuery }: ContentArrayRe
           <div className={cn("bg-card border border-border", layout.containerPadding, layout.rounded)}>
             <div className="text-muted-foreground">{t("contentArray.executionTime")}</div>
             <div className="font-medium text-foreground">
-              {fmt.duration(totalDurationMs)}
+              <Num>{fmt.duration(totalDurationMs)}</Num>
             </div>
           </div>
         )}
         {totalTokens && (
           <div className={cn("bg-card border border-border", layout.containerPadding, layout.rounded)}>
             <div className="text-muted-foreground">{t("contentArray.totalTokens")}</div>
-            <div className="font-medium text-foreground">{fmt.count(totalTokens)}</div>
+            <div className="font-medium text-foreground"><Num>{fmt.count(totalTokens)}</Num></div>
           </div>
         )}
         {totalToolUseCount && (
@@ -93,7 +94,7 @@ export const ContentArrayRenderer = ({ toolResult, searchQuery }: ContentArrayRe
                 <div>
                   <span className="text-muted-foreground">{t("contentArray.input")}</span>
                   <span className="font-medium text-foreground ml-1">
-                    {fmt.count(usage.input_tokens)}
+                    <Num>{fmt.count(usage.input_tokens)}</Num>
                   </span>
                 </div>
               )}
@@ -101,7 +102,7 @@ export const ContentArrayRenderer = ({ toolResult, searchQuery }: ContentArrayRe
                 <div>
                   <span className="text-muted-foreground">{t("contentArray.output")}</span>
                   <span className="font-medium text-foreground ml-1">
-                    {fmt.count(usage.output_tokens)}
+                    <Num>{fmt.count(usage.output_tokens)}</Num>
                   </span>
                 </div>
               )}
@@ -109,7 +110,7 @@ export const ContentArrayRenderer = ({ toolResult, searchQuery }: ContentArrayRe
                 <div>
                   <span className="text-muted-foreground">{t("contentArray.cacheCreation")}</span>
                   <span className="font-medium text-foreground ml-1">
-                    {fmt.count(usage.cache_creation_input_tokens)}
+                    <Num>{fmt.count(usage.cache_creation_input_tokens)}</Num>
                   </span>
                 </div>
               )}
@@ -117,7 +118,7 @@ export const ContentArrayRenderer = ({ toolResult, searchQuery }: ContentArrayRe
                 <div>
                   <span className="text-muted-foreground">{t("contentArray.cacheRead")}</span>
                   <span className="font-medium text-foreground ml-1">
-                    {fmt.count(usage.cache_read_input_tokens)}
+                    <Num>{fmt.count(usage.cache_read_input_tokens)}</Num>
                   </span>
                 </div>
               )}
@@ -125,7 +126,7 @@ export const ContentArrayRenderer = ({ toolResult, searchQuery }: ContentArrayRe
                 <div>
                   <span className="text-muted-foreground">{t("analytics.reasoning", "Reasoning")}</span>
                   <span className="font-medium text-foreground ml-1">
-                    {fmt.count(usage.reasoning_tokens)}
+                    <Num>{fmt.count(usage.reasoning_tokens)}</Num>
                   </span>
                 </div>
               )}

@@ -14,6 +14,7 @@ import { isActionModifier } from "@/utils/platform";
 import type { LibraryItem } from "@/navigation/place";
 import { placeNameKey } from "@/navigation/placeNames";
 import { useFormat } from "@/lib/format/useFormat";
+import { Num } from "@/lib/format/Num";
 
 export interface LibrarySectionProps {
   /** The library row the open screen is (plan C3), or null. */
@@ -314,7 +315,9 @@ const EntryList = ({ entries, emptyLabel }: { entries: Entry[]; emptyLabel: stri
                 </span>
               ) : (
                 entry.caption && (
-                  <span className="shrink-0 text-caption tabular-nums text-muted-foreground">{entry.caption}</span>
+                  <span className="shrink-0 text-caption tabular-nums text-muted-foreground">
+                    <Num>{entry.caption}</Num>
+                  </span>
                 )
               )}
             </button>

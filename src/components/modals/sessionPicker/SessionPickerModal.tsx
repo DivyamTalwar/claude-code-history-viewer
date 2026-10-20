@@ -12,6 +12,7 @@ import { useAppStore } from "@/store/useAppStore";
 import type { SessionPickerCandidate } from "@/store/slices/sessionPickerSlice";
 import { cn } from "@/lib/utils";
 import { appFormat } from "@/lib/format/useFormat";
+import { Num } from "@/lib/format/Num";
 
 /**
  * Opened automatically by `preloadSessionFromCli` when a `--session-title`
@@ -152,7 +153,7 @@ export const SessionPickerModal: React.FC = () => {
                                     {lastMod && (
                                         <>
                                             <span aria-hidden>·</span>
-                                            <span>{lastMod}</span>
+                                            <span><Num>{lastMod}</Num></span>
                                         </>
                                     )}
                                 </div>

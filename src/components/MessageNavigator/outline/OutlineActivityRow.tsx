@@ -6,6 +6,7 @@ import { KIND_STYLES } from "../kindStyles";
 import { OUTLINE_CHILD_INDENT_CLASS } from "./childRowStyles";
 import type { OutlineActivityChild } from "./types";
 import { useFormat } from "@/lib/format/useFormat";
+import { Num } from "@/lib/format/Num";
 
 interface OutlineActivityRowProps {
   activity: OutlineActivityChild;
@@ -92,7 +93,7 @@ export const OutlineActivityRow = React.memo<OutlineActivityRowProps>(({
           {activity.preview || t(getKindLabelKey(activity.previewKind))}
         </span>
         {formattedTime && (
-          <span className="shrink-0 text-caption text-muted-foreground/60">{formattedTime}</span>
+          <span className="shrink-0 text-caption text-muted-foreground/60"><Num>{formattedTime}</Num></span>
         )}
       </div>
       <p className="text-list text-muted-foreground truncate">{subtitle}</p>

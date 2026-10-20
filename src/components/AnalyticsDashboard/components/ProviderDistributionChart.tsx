@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import type { ProviderUsageStats } from "../../../types";
 import { getProviderId, getProviderLabel } from "../../../utils/providers";
 import { useFormat } from "@/lib/format/useFormat";
+import { Num } from "@/lib/format/Num";
 
 interface ProviderDistributionChartProps {
   providers: ProviderUsageStats[];
@@ -74,9 +75,9 @@ export const ProviderDistributionChart: React.FC<ProviderDistributionChartProps>
                   {getProviderLabel((key, fallback) => t(key, fallback), provider.provider_id)}
                 </span>
                 <span className="font-mono text-caption font-semibold tabular-nums shrink-0 text-foreground">
-                  {useSessionBars
+                  <Num>{useSessionBars
                     ? fmt.count(provider.sessions)
-                    : fmt.tokens(provider.tokens)}
+                    : fmt.tokens(provider.tokens)}</Num>
                 </span>
               </div>
 
@@ -94,7 +95,7 @@ export const ProviderDistributionChart: React.FC<ProviderDistributionChartProps>
 
             <div className="w-28 text-right shrink-0">
               <div className="font-mono text-caption text-muted-foreground tabular-nums">
-                {fmt.percent(percentage / 100)}
+                <Num>{fmt.percent(percentage / 100)}</Num>
               </div>
               <div className="text-caption text-muted-foreground">
                 {t(

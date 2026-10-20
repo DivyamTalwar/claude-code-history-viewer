@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import type { ToolUsageStats } from "../../../types";
 import { getToolDisplayName } from "../utils";
 import { useFormat } from "@/lib/format/useFormat";
+import { Num } from "@/lib/format/Num";
 
 interface ToolUsageChartProps {
   tools: ToolUsageStats[];
@@ -77,7 +78,7 @@ export const ToolUsageChart: React.FC<ToolUsageChartProps> = ({ tools }) => {
                   className="font-mono text-caption font-semibold tabular-nums shrink-0"
                   style={{ color }}
                 >
-                  {fmt.count(tool.usage_count)}
+                  <Num>{fmt.count(tool.usage_count)}</Num>
                 </span>
               </div>
 
@@ -97,7 +98,7 @@ export const ToolUsageChart: React.FC<ToolUsageChartProps> = ({ tools }) => {
             {/* Percentage */}
             <div className="w-12 text-right shrink-0">
               <span className="font-mono text-caption text-muted-foreground tabular-nums">
-                {fmt.percent(percentage / 100)}
+                <Num>{fmt.percent(percentage / 100)}</Num>
               </span>
             </div>
           </div>
@@ -110,7 +111,7 @@ export const ToolUsageChart: React.FC<ToolUsageChartProps> = ({ tools }) => {
           Total Usage
         </span>
         <span className="font-mono text-body font-semibold text-foreground tabular-nums">
-          {fmt.count(totalUsage)}
+          <Num>{fmt.count(totalUsage)}</Num>
         </span>
       </div>
     </div>

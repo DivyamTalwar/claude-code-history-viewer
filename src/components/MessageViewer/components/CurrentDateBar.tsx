@@ -17,6 +17,7 @@ import type { VirtualItem } from "@tanstack/react-virtual";
 import { formatDateDivider } from "@/lib/format/date";
 import { findFirstVisibleRowIndex } from "../helpers/visibleMessage";
 import type { FlattenedMessage } from "../types";
+import { Num } from "@/lib/format/Num";
 
 type CurrentDateBarProps = {
   virtualRows: VirtualItem[];
@@ -73,7 +74,7 @@ export const CurrentDateBar: React.FC<CurrentDateBarProps> = React.memo(
         aria-atomic="true"
       >
         <span className="truncate text-caption font-medium text-muted-foreground">
-          {dateLabel ?? ""}
+          <Num>{dateLabel ?? ""}</Num>
         </span>
       </div>
     );

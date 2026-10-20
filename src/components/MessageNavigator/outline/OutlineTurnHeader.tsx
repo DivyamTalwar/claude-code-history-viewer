@@ -7,6 +7,7 @@ import { KIND_STYLES } from "../kindStyles";
 import { getTurnHeaderLabel } from "./turnHeaderLabel";
 import type { TurnGroup } from "./types";
 import { useFormat } from "@/lib/format/useFormat";
+import { Num } from "@/lib/format/Num";
 
 interface CountChipProps {
   icon: LucideIcon;
@@ -111,7 +112,7 @@ export const OutlineTurnHeader = React.memo<OutlineTurnHeaderProps>(({
         />
         <span className="text-list font-medium text-foreground truncate flex-1">{labelText}</span>
         {formattedTime && (
-          <span className="shrink-0 text-caption text-muted-foreground/60">{formattedTime}</span>
+          <span className="shrink-0 text-caption text-muted-foreground/60"><Num>{formattedTime}</Num></span>
         )}
       </div>
       {header && (

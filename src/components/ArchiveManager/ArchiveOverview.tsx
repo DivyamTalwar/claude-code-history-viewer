@@ -36,6 +36,7 @@ import {
   parseCleanupPeriodInput,
 } from '@/utils/cleanupPeriod';
 import { appFormat } from "@/lib/format/useFormat";
+import { Num } from "@/lib/format/Num";
 
 export const ArchiveOverview: React.FC = () => {
   const { t } = useTranslation();
@@ -394,7 +395,7 @@ export const ArchiveOverview: React.FC = () => {
               {t('archive.overview.fullBackup.noProjects')}
             </div>
           ) : (
-            <div className="flex items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <Switch
                   id={backupSubagentsId}
@@ -447,7 +448,7 @@ export const ArchiveOverview: React.FC = () => {
               </div>
               <div className="flex items-center gap-1.5">
                 <Badge variant="secondary">
-                  {appFormat().bytes(archive.diskUsage.totalBytes)}
+                  <Num>{appFormat().bytes(archive.diskUsage.totalBytes)}</Num>
                 </Badge>
                 <span className="text-list text-muted-foreground">
                   {t('archive.overview.diskUsage.totalSize')}
@@ -587,12 +588,12 @@ export const ArchiveOverview: React.FC = () => {
                           <p className="text-body truncate">
                             {expiring.session.summary || `Session ${expiring.session.session_id.slice(-8)}`}
                           </p>
-                          <div className="flex items-center gap-2 mt-1">
+                          <div className="flex flex-wrap items-center gap-2 mt-1">
                             <Badge variant="destructive" className="text-caption">
                               {t('archive.overview.expiring.daysRemaining', { days: expiring.daysRemaining })}
                             </Badge>
                             <span className="text-caption text-muted-foreground">
-                              {appFormat().bytes(expiring.fileSizeBytes)}
+                              <Num>{appFormat().bytes(expiring.fileSizeBytes)}</Num>
                             </span>
                           </div>
                         </div>
@@ -629,12 +630,12 @@ export const ArchiveOverview: React.FC = () => {
                           <p className="text-body truncate">
                             {expiring.session.summary || `Session ${expiring.session.session_id.slice(-8)}`}
                           </p>
-                          <div className="flex items-center gap-2 mt-1">
+                          <div className="flex flex-wrap items-center gap-2 mt-1">
                             <Badge variant="destructive" className="text-caption">
                               {t('archive.overview.expiring.daysRemaining', { days: expiring.daysRemaining })}
                             </Badge>
                             <span className="text-caption text-muted-foreground">
-                              {appFormat().bytes(expiring.fileSizeBytes)}
+                              <Num>{appFormat().bytes(expiring.fileSizeBytes)}</Num>
                             </span>
                             <span className="text-caption text-muted-foreground">
                               {t('archive.browse.sessions.subagents', { count: expiring.subagentCount })}

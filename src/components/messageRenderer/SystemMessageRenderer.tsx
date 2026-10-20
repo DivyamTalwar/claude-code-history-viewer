@@ -22,6 +22,7 @@ import { cn } from "@/lib/utils";
 import type { CompactMetadata } from "@/types";
 import { useFormat } from "@/lib/format/useFormat";
 import { numberCopyBoundary } from "@/lib/format/copyNumbers";
+import { Num } from "@/lib/format/Num";
 
 // Hook info structure
 interface HookInfo {
@@ -306,7 +307,7 @@ export const SystemMessageRenderer = memo(function SystemMessageRenderer({
           </div>
           {durationMs !== undefined && (
             <span className={`font-mono font-bold ${config.color}`}>
-              {fmt.duration(durationMs)}
+              <Num>{fmt.duration(durationMs)}</Num>
             </span>
           )}
         </div>
@@ -348,7 +349,7 @@ export const SystemMessageRenderer = memo(function SystemMessageRenderer({
           rightContent={
             tokenLabel ? (
               <span {...numberCopyBoundary} className="text-muted-foreground font-mono">
-                {tokenLabel}
+                <Num>{tokenLabel}</Num>
               </span>
             ) : undefined
           }
@@ -424,7 +425,7 @@ export const SystemMessageRenderer = memo(function SystemMessageRenderer({
           </div>
           {microcompactMetadata?.preTokens && (
             <span {...numberCopyBoundary} className="text-muted-foreground font-mono">
-              {fmt.tokens(microcompactMetadata.preTokens)} tokens
+              <Num>{fmt.tokens(microcompactMetadata.preTokens)}</Num> tokens
             </span>
           )}
         </div>

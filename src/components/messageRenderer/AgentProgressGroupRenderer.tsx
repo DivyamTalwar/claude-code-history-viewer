@@ -22,6 +22,7 @@ import { getVariantStyles, layout } from "@/components/renderers";
 import { useCaptureExpandState } from "@/contexts/CaptureExpandContext";
 import type { ProgressData } from "@/types";
 import { useFormat } from "@/lib/format/useFormat";
+import { Num } from "@/lib/format/Num";
 
 interface AgentProgressEntry {
   data: ProgressData;
@@ -111,7 +112,7 @@ const ProgressEntry = memo(function ProgressEntry({
         <span className="text-foreground/80 break-words">{summary || "Processing..."}</span>
       </div>
       <span className="text-muted-foreground/70 shrink-0 tabular-nums">
-        {timestamp}
+        <Num>{timestamp}</Num>
       </span>
     </div>
   );

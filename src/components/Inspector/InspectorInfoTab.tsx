@@ -19,6 +19,7 @@ import type { PathContext } from "@/lib/format/path";
 import { PathText } from "@/lib/format/PathText";
 import { useSessionTokenStats } from "./useSessionTokenStats";
 import { useFormat } from "@/lib/format/useFormat";
+import { Num } from "@/lib/format/Num";
 
 /**
  * A moment as date and time, each kept on one line: in a narrow column the
@@ -37,8 +38,8 @@ const Moment = ({ timestamp }: { timestamp: string }) => {
   }
   return (
     <time dateTime={timestamp} title={fmt.dateTimeFull(date)} className="flex flex-wrap gap-x-1.5">
-      <span className="whitespace-nowrap">{fmt.date(date, "long")}</span>
-      <span className="whitespace-nowrap">{fmt.time(date)}</span>
+      <span className="whitespace-nowrap"><Num>{fmt.date(date, "long")}</Num></span>
+      <span className="whitespace-nowrap"><Num>{fmt.time(date)}</Num></span>
     </time>
   );
 };
@@ -151,7 +152,7 @@ export const InspectorInfoTab = () => {
         </Row>
         <Row label={t("common.inspector.info.models")}>{models}</Row>
         <Row label={t("common.inspector.info.messages")}>
-          <span className="tabular-nums">{fmt.count(session.message_count)}</span>
+          <span className="tabular-nums"><Num>{fmt.count(session.message_count)}</Num></span>
         </Row>
         <Row label={t("common.inspector.info.created")}>
           <Moment timestamp={session.first_message_time} />

@@ -29,6 +29,7 @@ import type { ClaudeCodeSettings, SettingsScope, AllSettingsResponse } from "@/t
 import { isSensitiveKey, analyzeSensitiveData } from "@/utils/securityUtils";
 import { appFormat } from "@/lib/format/useFormat";
 import { localDayKey } from "@/lib/format/localDay";
+import { Num } from "@/lib/format/Num";
 
 // Backup file format for Export All / Import All
 interface SettingsBackup {
@@ -529,9 +530,9 @@ export const ExportImport: React.FC<ExportImportProps> = ({
             <DialogDescription>
               {importedBackup?.exportedAt && (
                 <span className="text-list">
-                  {t("settingsManager.exportImport.exportedAt", {
+                  <Num>{t("settingsManager.exportImport.exportedAt", {
                     date: appFormat().dateTime(importedBackup.exportedAt),
-                  })}
+                  })}</Num>
                 </span>
               )}
             </DialogDescription>

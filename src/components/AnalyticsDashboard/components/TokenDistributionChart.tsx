@@ -12,6 +12,7 @@ import { ChartTooltip } from "../../ui/chart-tooltip";
 import type { TokenDistribution } from "../types";
 import { cn } from "@/lib/utils";
 import { useFormat } from "@/lib/format/useFormat";
+import { Num } from "@/lib/format/Num";
 
 interface TokenDistributionChartProps {
   distribution: TokenDistribution;
@@ -115,7 +116,7 @@ export const TokenDistributionChart: React.FC<TokenDistributionChartProps> = ({
         {/* Center content */}
         <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
           <div className="font-mono text-2xl font-bold text-foreground tabular-nums">
-            {fmt.tokens(total)}
+            <Num>{fmt.tokens(total)}</Num>
           </div>
           <div className="text-caption font-medium text-muted-foreground uppercase tracking-wider mt-1">
             {t("analytics.totalTokenUsage")}
@@ -154,7 +155,7 @@ export const TokenDistributionChart: React.FC<TokenDistributionChartProps> = ({
                     {item.label}
                   </span>
                   <span className="font-mono text-caption text-muted-foreground ml-2 tabular-nums">
-                    {fmt.percent(percentage / 100)}
+                    <Num>{fmt.percent(percentage / 100)}</Num>
                   </span>
                 </div>
                 <div className="h-1 bg-muted/30 rounded-full overflow-hidden">
@@ -174,7 +175,7 @@ export const TokenDistributionChart: React.FC<TokenDistributionChartProps> = ({
                 className="font-mono text-body font-semibold text-right shrink-0 tabular-nums"
                 style={{ color: item.color }}
               >
-                {fmt.tokens(item.value)}
+                <Num>{fmt.tokens(item.value)}</Num>
               </div>
             </div>
           );

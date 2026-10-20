@@ -8,6 +8,7 @@
 import React from "react";
 import { cn } from "@/lib/utils";
 import { useFormat } from "@/lib/format/useFormat";
+import { Num } from "@/lib/format/Num";
 
 type DateDividerProps = {
   timestamp: string;
@@ -34,7 +35,7 @@ export const DateDivider: React.FC<DateDividerProps> = React.memo(
             "text-muted-foreground/70"
           )}
         >
-          {label}
+          <Num>{label}</Num>
         </span>
         <div className="flex-1 h-px bg-border/40" />
       </div>

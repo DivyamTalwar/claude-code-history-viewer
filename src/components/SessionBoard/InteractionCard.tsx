@@ -22,6 +22,8 @@ import { getCardSemantics } from "@/utils/cardSemantics";
 import { ExpandedCard } from "./ExpandedCard";
 import { formatCommandMessageText } from "@/utils/commandMessage";
 import { useFormat } from "@/lib/format/useFormat";
+import { scrollBehavior } from "@/utils/motion";
+import { Num } from "@/lib/format/Num";
 interface InteractionCardProps {
     message: ClaudeMessage;
     zoomLevel: ZoomLevel;
@@ -99,7 +101,7 @@ export const InteractionCard = memo(({
         if (isExpanded && cardRef.current) {
             setTriggerRect(cardRef.current.getBoundingClientRect());
             // Scroll card into view if expanded
-            cardRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            cardRef.current.scrollIntoView({ behavior: scrollBehavior(), block: 'nearest' });
         }
     }, [isExpanded]);
 
@@ -334,7 +336,7 @@ export const InteractionCard = memo(({
                                 {agentName} {totalMessagesCount > 1 && `(x${totalMessagesCount})`}
                             </span>
                             <span className="text-caption text-muted-foreground font-mono">
-                                {fmt.time(message.timestamp)}
+                                <Num>{fmt.time(message.timestamp)}</Num>
                             </span>
                         </div>
 
@@ -346,7 +348,7 @@ export const InteractionCard = memo(({
                                 </span>
                                 {totalMessagesCount > 1 && (
                                     <span className="text-caption text-muted-foreground">
-                                        {t("session.interaction.messagesAndTokens", { messages: totalMessagesCount, tokens: fmt.tokens(totalTokens) })}
+                                        <Num>{t("session.interaction.messagesAndTokens", { messages: totalMessagesCount, tokens: fmt.tokens(totalTokens) })}</Num>
                                     </span>
                                 )}
                             </div>
@@ -550,7 +552,7 @@ export const InteractionCard = memo(({
                         )}
                     </div>
                     <span className="text-caption text-muted-foreground font-mono">
-                        {fmt.time(message.timestamp)}
+                        <Num>{fmt.time(message.timestamp)}</Num>
                     </span>
                 </div>
 
@@ -563,17 +565,17 @@ export const InteractionCard = memo(({
 
                 {(message.type === 'assistant' && message.usage) && (
                     <div className="mt-auto pt-1 flex gap-2 text-caption text-muted-foreground opacity-60 font-mono items-center">
-                        <span>{t("session.interaction.inputTokens")} {message.usage.input_tokens != null ? fmt.tokens(message.usage.input_tokens) : null}</span>
-                        <span>{t("session.interaction.outputTokens")} {message.usage.output_tokens != null ? fmt.tokens(message.usage.output_tokens) : null}</span>
+                        <span>{t("session.interaction.inputTokens")} <Num>{message.usage.input_tokens != null ? fmt.tokens(message.usage.input_tokens) : null}</Num></span>
+                        <span>{t("session.interaction.outputTokens")} <Num>{message.usage.output_tokens != null ? fmt.tokens(message.usage.output_tokens) : null}</Num></span>
                         {message.usage.reasoning_tokens ? (
-                            <span>{t("analytics.reasoning", "Reasoning")} {fmt.tokens(message.usage.reasoning_tokens)}</span>
+                            <span>{t("analytics.reasoning", "Reasoning")} <Num>{fmt.tokens(message.usage.reasoning_tokens)}</Num></span>
                         ) : null}
 
                         {/* Cache Hit Indicator */}
                         {message.usage.cache_read_input_tokens && message.usage.cache_read_input_tokens > 0 && (
                             <div className="flex items-center gap-0.5 text-success" title={t("session.interaction.cacheHit", { tokens: message.usage.cache_read_input_tokens })}>
                                 <Zap className="w-3.5 h-3.5 fill-success/20" />
-                                <span>{fmt.tokens(message.usage.cache_read_input_tokens)}</span>
+                                <span><Num>{fmt.tokens(message.usage.cache_read_input_tokens)}</Num></span>
                             </div>
                         )}
 
@@ -581,7 +583,7 @@ export const InteractionCard = memo(({
                         {message.durationMs && (
                             <div className="flex items-center gap-0.5 ml-auto" title={t("session.interaction.duration", { seconds: fmt.decimal(message.durationMs / 1000, 1) })}>
                                 <Timer className="w-3.5 h-3.5" />
-                                <span>{fmt.duration(message.durationMs)}</span>
+                                <span><Num>{fmt.duration(message.durationMs)}</Num></span>
                             </div>
                         )}
                     </div>

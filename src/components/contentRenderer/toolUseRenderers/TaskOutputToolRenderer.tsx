@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { getVariantStyles, layout } from "@/components/renderers";
 import { ToolUseCard } from "./ToolUseCard";
 import { useFormat } from "@/lib/format/useFormat";
+import { Num } from "@/lib/format/Num";
 
 interface TaskOutputToolInput {
   task_id?: string;
@@ -41,7 +42,7 @@ export const TaskOutputToolRenderer = memo(function TaskOutputToolRenderer({ too
             <span>{t("renderers.taskOutputToolRenderer.block")}: <code className="text-foreground">{String(input.block)}</code></span>
           )}
           {input.timeout != null && (
-            <span>{t("renderers.taskOutputToolRenderer.timeout")}: <code className="text-foreground">{fmt.duration(input.timeout)}</code></span>
+            <span>{t("renderers.taskOutputToolRenderer.timeout")}: <code className="text-foreground"><Num>{fmt.duration(input.timeout)}</Num></code></span>
           )}
         </div>
     </ToolUseCard>

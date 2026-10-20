@@ -6,6 +6,7 @@ import { TrendingUp, Zap, Database, Eye, Brain } from "lucide-react";
 import type { SessionTokenStats } from "../types";
 import { cn } from "@/lib/utils";
 import { useFormat } from "@/lib/format/useFormat";
+import { Num } from "@/lib/format/Num";
 
 /**
  * SessionStatsCard - Compact token usage card
@@ -71,22 +72,22 @@ export const SessionStatsCard = memo(({
           <div className="min-w-0 flex flex-wrap items-baseline gap-x-4 gap-y-1">
             <div className="whitespace-nowrap">
               <span className="font-mono text-lg font-bold text-foreground tabular-nums">
-                {fmt.tokens(stats.total_tokens)}
+                <Num>{fmt.tokens(stats.total_tokens)}</Num>
               </span>
               <span className="text-caption text-muted-foreground ml-1">{t("analytics.tokens")}</span>
             </div>
             <div className="text-caption text-muted-foreground whitespace-nowrap">
-              <span className="font-mono tabular-nums">{fmt.count(stats.message_count)}</span>
+              <span className="font-mono tabular-nums"><Num>{fmt.count(stats.message_count)}</Num></span>
               <span className="ml-1">{t("analytics.messages")}</span>
             </div>
             <div className="text-caption text-muted-foreground whitespace-nowrap">
-              <span className="font-mono tabular-nums">{fmt.minutes(durationMinutes)}</span>
+              <span className="font-mono tabular-nums"><Num>{fmt.minutes(durationMinutes)}</Num></span>
             </div>
           </div>
 
           {/* Right: Time */}
           <div className="text-caption text-muted-foreground/70 font-mono tabular-nums">
-            {fmt.dateTime(stats.first_message_time)}
+            <Num>{fmt.dateTime(stats.first_message_time)}</Num>
           </div>
         </div>
 
@@ -103,10 +104,10 @@ export const SessionStatsCard = memo(({
                   className="font-mono text-caption font-semibold tabular-nums"
                   style={{ color: token.color }}
                 >
-                  {fmt.tokens(token.value)}
+                  <Num>{fmt.tokens(token.value)}</Num>
                 </span>
                 <span className="text-caption text-muted-foreground/50 tabular-nums">
-                  {fmt.percent(percentage / 100)}
+                  <Num>{fmt.percent(percentage / 100)}</Num>
                 </span>
               </div>
             );

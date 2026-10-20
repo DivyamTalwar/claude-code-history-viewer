@@ -10,6 +10,7 @@ import { ToolIcon } from "../ToolIcon";
 import { useTranslation } from "react-i18next";
 import { getToolUseBlock, isClaudeAssistantMessage } from "../../utils/messageUtils";
 import { useFormat } from "@/lib/format/useFormat";
+import { Num } from "@/lib/format/Num";
 
 export const ExpandedCard = memo(({
     message,
@@ -185,7 +186,7 @@ export const ExpandedCard = memo(({
                                 {toolUseBlock ? toolUseBlock.name : role}
                             </span>
                             <span className="text-caption text-muted-foreground font-mono leading-none">
-                                {fmt.time(message.timestamp)}
+                                <Num>{fmt.time(message.timestamp)}</Num>
                             </span>
                         </div>
                         {editedMdFile && (

@@ -6,6 +6,7 @@ import { isFailedTaskStatus } from "../../MessageViewer/helpers/messageKinds";
 import { OUTLINE_CHILD_INDENT_CLASS } from "./childRowStyles";
 import type { OutlineTaskChild } from "./types";
 import { useFormat } from "@/lib/format/useFormat";
+import { Num } from "@/lib/format/Num";
 
 /**
  * i18n keys that already label a task-notification status elsewhere in the
@@ -94,7 +95,7 @@ export const OutlineTaskRow = React.memo<OutlineTaskRowProps>(({
         />
         <span className="text-list font-medium text-foreground/80 truncate flex-1">{label}</span>
         {formattedTime && (
-          <span className="shrink-0 text-caption text-muted-foreground/60">{formattedTime}</span>
+          <span className="shrink-0 text-caption text-muted-foreground/60"><Num>{formattedTime}</Num></span>
         )}
       </div>
       <p className="text-list text-muted-foreground">{subtitle}</p>

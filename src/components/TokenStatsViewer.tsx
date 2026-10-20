@@ -26,6 +26,7 @@ import { calculateGlobalCostSummary } from "./AnalyticsDashboard/utils";
 import { supportsConversationBreakdown } from "../utils/providers";
 import { useAppStore } from "../store/useAppStore";
 import { useFormat } from "@/lib/format/useFormat";
+import { Num } from "@/lib/format/Num";
 
 /**
  * Token Stats Viewer - Mission Control Design
@@ -296,11 +297,14 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
                         className="absolute top-0 left-1/2 -translate-x-1/2 w-10 h-[2px] rounded-b"
                         style={{ background: metric.color }}
                       />
+                      {/* One unit: where the tile is narrower than the value (a
+                          phone at the largest font size) it runs into the
+                          padding, as in every language, instead of wrapping. */}
                       <div
-                        className="font-mono text-2xl font-bold tracking-tight"
+                        className="font-mono text-2xl font-bold tracking-tight whitespace-nowrap"
                         style={{ color: i === 0 ? "var(--foreground)" : metric.color }}
                       >
-                        {"isCount" in metric ? fmt.count(metric.value) : fmt.tokens(metric.value)}
+                        <Num>{"isCount" in metric ? fmt.count(metric.value) : fmt.tokens(metric.value)}</Num>
                       </div>
                       <div className="text-caption font-medium text-muted-foreground uppercase tracking-wider mt-1">
                         {metric.label}
@@ -308,7 +312,7 @@ export const TokenStatsViewer: React.FC<TokenStatsViewerProps> = ({
                     </button>
                   </TooltipTrigger>
                   <TooltipContent className="font-mono text-list">
-                    {fmt.count(metric.value)}
+                    <Num>{fmt.count(metric.value)}</Num>
                   </TooltipContent>
                 </Tooltip>
               ))}
