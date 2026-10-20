@@ -8,11 +8,13 @@
  *   is computed per theme in `src/test/primitiveStates.contrast.test.ts`;
  *   that the steps show on screen is `pnpm ui:states`.
  * - `aria-disabled="true"` looks exactly like `disabled` but stays in the
- *   tab order, and click, Enter and Space do nothing.
+ *   tab order, and click, Enter and Space do nothing (with `asChild` too:
+ *   the child's own handlers do not run).
  * - `loading` is busy (`aria-busy`) and unavailable (`aria-disabled`), keeps
  *   its name and its width (the label stays in the layout, invisible, under
  *   the shared Spinner) and keeps focus. jsdom cannot measure, so the width
- *   is measured in real WebKit by scripts/ui-capture/test/primitives.states.test.mjs.
+ *   (also with the caller's own gap, padding or direction) is measured in
+ *   real WebKit and Chromium by scripts/ui-capture/test/primitives.states.test.mjs.
  */
 import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -144,6 +146,77 @@ describe("aria-disabled", () => {
     expect(button).not.toHaveAttribute("aria-disabled");
     fireEvent.click(button);
     expect(onClick).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("aria-disabled with asChild", () => {
+  // Slot runs the child's own handlers before Button's: the child's click,
+  // pointer-down and activation keys must not run either.
+  it("runs none of the child's click, pointer down, Enter or Space handlers and does not submit its form", () => {
+    const onClick = vi.fn();
+    const onPointerDown = vi.fn();
+    const onKeyDown = vi.fn();
+    const onAncestorClick = vi.fn();
+    const onSubmit = vi.fn((event: React.FormEvent) => event.preventDefault());
+    render(
+      <div onClick={onAncestorClick}>
+        <form onSubmit={onSubmit}>
+          <Button asChild aria-disabled>
+            <a href="#restore" onClick={onClick} onPointerDown={onPointerDown} onKeyDown={onKeyDown}>
+              Restore
+            </a>
+          </Button>
+          <Button asChild aria-disabled="true">
+            <button type="submit" onClick={onClick} onPointerDown={onPointerDown} onKeyDown={onKeyDown}>
+              Send
+            </button>
+          </Button>
+        </form>
+      </div>,
+    );
+    for (const control of [screen.getByRole("link", { name: "Restore" }), screen.getByRole("button", { name: "Send" })]) {
+      expect(control).toHaveAttribute("aria-disabled", "true");
+      fireEvent.pointerDown(control);
+      fireEvent.click(control);
+      fireEvent.keyDown(control, { key: "Enter" });
+      fireEvent.keyDown(control, { key: " " });
+    }
+    expect(onClick).not.toHaveBeenCalled();
+    expect(onPointerDown).not.toHaveBeenCalled();
+    expect(onKeyDown).not.toHaveBeenCalled();
+    expect(onAncestorClick).not.toHaveBeenCalled();
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it("still passes the child other keys (as without asChild)", () => {
+    const onKeyDown = vi.fn();
+    render(
+      <Button asChild aria-disabled>
+        <a href="#restore" onKeyDown={onKeyDown}>
+          Restore
+        </a>
+      </Button>,
+    );
+    fireEvent.keyDown(screen.getByRole("link", { name: "Restore" }), { key: "Escape" });
+    expect(onKeyDown).toHaveBeenCalledTimes(1);
+  });
+
+  it("an enabled asChild child still handles click and keys", () => {
+    const onClick = vi.fn((event: React.MouseEvent) => event.preventDefault());
+    const onKeyDown = vi.fn();
+    render(
+      <Button asChild>
+        <a href="#open" onClick={onClick} onKeyDown={onKeyDown}>
+          Open
+        </a>
+      </Button>,
+    );
+    const link = screen.getByRole("link", { name: "Open" });
+    expect(link).not.toHaveAttribute("aria-disabled");
+    fireEvent.click(link);
+    fireEvent.keyDown(link, { key: "Enter" });
+    expect(onClick).toHaveBeenCalledTimes(1);
+    expect(onKeyDown).toHaveBeenCalledTimes(1);
   });
 });
 

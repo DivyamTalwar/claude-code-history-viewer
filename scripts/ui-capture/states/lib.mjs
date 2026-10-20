@@ -43,10 +43,10 @@ export function serveDir(dir) {
 /** Transitions, animations and the caret off: a state is captured as it settles. */
 export const FREEZE = "*,*::before,*::after{transition:none!important;animation:none!important;caret-color:transparent!important}";
 
-/** Open the gallery in `context`'s new page, fonts loaded and motion frozen. */
-export async function openGalleryPage(context, origin, theme) {
+/** Open the gallery (or its `view`, e.g. "probes") in `context`'s new page, fonts loaded and motion frozen. */
+export async function openGalleryPage(context, origin, theme, view) {
   const page = await context.newPage();
-  await page.goto(`${origin}/?theme=${theme}`);
+  await page.goto(`${origin}/?theme=${theme}${view ? `&view=${view}` : ""}`);
   await page.waitForSelector("[data-gallery-ready]");
   await page.evaluate(() => document.fonts.ready);
   await page.addStyleTag({ content: FREEZE });

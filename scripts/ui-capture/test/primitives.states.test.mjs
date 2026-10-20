@@ -15,6 +15,13 @@
 //   track is Highlight and the thumb HighlightText; the thumb still travels
 //   at least 8px (D10);
 // - keyboard focus is a 2px CanvasText outline on every contract control.
+// WebKit and Chromium, on the gallery's Button probes (`?view=probes`):
+// - the same mounted Button keeps its width and height when it starts
+//   loading with the caller's own gap, padding or direction (an invisible
+//   label with a gap of its own changed the width);
+// - an aria-disabled Button runs no click, pointer-down, Enter or Space
+//   handler, follows no link and submits no form, also with `asChild`
+//   (whose child's own handlers ran first); an enabled `asChild` link works.
 // Computed styles and boxes, not pixel ratios (pixels are `pnpm ui:states`).
 // Before F2a (the primitives of origin/develop) the focus, aria-disabled,
 // loading and forced-colour checks fail. Skipped without WebKit/Chromium
@@ -56,7 +63,7 @@ afterAll(async () => {
   if (outDir) fs.rmSync(outDir, { recursive: true, force: true });
 });
 
-async function withGallery(browser, { theme, forcedColors }, fn) {
+async function withGallery(browser, { theme, forcedColors, view }, fn) {
   const context = await browser.newContext({
     viewport: { width: 1200, height: 2400 },
     colorScheme: theme,
@@ -64,12 +71,14 @@ async function withGallery(browser, { theme, forcedColors }, fn) {
     ...(forcedColors ? { forcedColors: "active" } : {}),
   });
   try {
-    const page = await openGalleryPage(context, origin, theme);
+    const page = await openGalleryPage(context, origin, theme, view);
     return await fn(page);
   } finally {
     await context.close();
   }
 }
+
+const browserFor = (engine) => (engine === "webkit" ? webkitBrowser : chromiumBrowser);
 
 /** The interactive F2a instances (`default` / `checked`), as `{ name, handle }`. */
 async function contractControls(page) {
@@ -245,4 +254,66 @@ describe.skipIf(!ENABLED)("F2a primitive states (real Chromium, forced colours)"
       expect(wrong).toEqual([]);
     });
   }, 120_000);
+});
+
+describe.skipIf(!ENABLED)("F2a Button probes (real WebKit and Chromium)", () => {
+  /** Box and gap of every loading-width probe, in page order. */
+  const probeBoxes = (page) =>
+    page.$$eval("[data-probe-width]", (els) =>
+      els.map((el) => {
+        const r = el.getBoundingClientRect();
+        return { id: el.getAttribute("data-probe-width"), width: r.width, height: r.height, gap: getComputedStyle(el).columnGap, busy: el.getAttribute("aria-busy") };
+      }),
+    );
+
+  it.each(["webkit", "chromium"])("%s: the same Button keeps its width and height when it starts loading, with the caller's own gap, padding and direction", async (engine) => {
+    await withGallery(browserFor(engine), { theme: "light", view: "probes" }, async (page) => {
+      const idle = await probeBoxes(page);
+      expect(idle.length).toBe(6);
+      // The probes really set their own gap (Tailwind generated the classes).
+      const gaps = Object.fromEntries(idle.map((p) => [p.id, p.gap]));
+      expect(gaps).toMatchObject({ default: "8px", "gap-1": "4px", "gap-3": "12px", "gap-1.5 px-2, icon label icon": "6px" });
+      expect(idle.every((p) => p.busy === null)).toBe(true);
+
+      await page.locator('[data-probe="toggle-loading"]').click();
+      await page.waitForFunction((n) => document.querySelectorAll('[data-probe-width][aria-busy="true"] [data-slot="spinner"]').length === n, idle.length);
+      const loading = await probeBoxes(page);
+      const moved = [];
+      for (const [i, before] of idle.entries()) {
+        const after = loading[i];
+        expect(after.id).toBe(before.id);
+        if (Math.abs(after.width - before.width) > 0.5 || Math.abs(after.height - before.height) > 0.5) {
+          moved.push(`${before.id}: ${before.width}×${before.height} → ${after.width}×${after.height}`);
+        }
+      }
+      expect(moved).toEqual([]);
+    });
+  }, 60_000);
+
+  it.each(["webkit", "chromium"])("%s: an aria-disabled Button runs no click, pointer-down, Enter or Space handler, follows no link and submits no form, also with asChild", async (engine) => {
+    await withGallery(browserFor(engine), { theme: "light", view: "probes" }, async (page) => {
+      const actions = async () => JSON.parse(await page.locator('[data-probe="actions"]').textContent());
+      const clickCentre = async (locator) => {
+        const box = await locator.boundingBox();
+        await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+      };
+      for (const id of ["inert-link", "inert-child-submit", "inert-submit"]) {
+        const control = page.locator(`[data-probe="${id}"]`);
+        expect(await control.getAttribute("aria-disabled"), id).toBe("true");
+        await clickCentre(control);
+        await control.focus();
+        await page.keyboard.press("Enter");
+        await page.keyboard.press("Space");
+        expect(await control.evaluate((el) => document.activeElement === el), `${id} keeps focus`).toBe(true);
+      }
+      await page.waitForTimeout(100);
+      expect(await actions()).toEqual({ link: 0, linkPointer: 0, linkKey: 0, childSubmit: 0, childSubmitKey: 0, button: 0, submit: 0, enabled: 0 });
+      expect(await page.evaluate(() => location.hash)).toBe("");
+
+      // The control: the same asChild link, enabled, runs its action and is followed.
+      await clickCentre(page.locator('[data-probe="enabled-link"]'));
+      await page.waitForFunction(() => location.hash === "#enabled");
+      expect((await actions()).enabled).toBe(1);
+    });
+  }, 60_000);
 });

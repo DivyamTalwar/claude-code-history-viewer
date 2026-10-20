@@ -10,8 +10,14 @@
 // variants and sizes, the Input variants and sizes, controls inside a Field
 // with help and error text. Not part of the app build or tsc (scripts/ is
 // outside tsconfig.app.json).
+//
+// `?view=probes` renders the Button behaviour probes of the real-browser
+// tests (test/primitives.states.test.mjs) instead: the same mounted Button
+// idle and loading with the caller's own gap, padding and direction, and
+// aria-disabled Buttons (also `asChild`) whose handlers count what ran. They
+// are not part of the gallery sheets (`pnpm ui:states` opens the gallery).
 import { createRoot } from "react-dom/client";
-import type { ReactNode } from "react";
+import { useState, type KeyboardEvent, type ReactNode } from "react";
 import { Settings } from "lucide-react";
 import "./states.css";
 import "@/i18n";
@@ -213,4 +219,72 @@ function App() {
   );
 }
 
-createRoot(document.getElementById("root")!).render(<App />);
+/** Loading-width probes: an icon and a label laid out by the caller's own classes. */
+const LOADING_PROBES: { id: string; className?: string; size?: "sm"; trailingIcon?: boolean }[] = [
+  { id: "default" },
+  { id: "gap-1", className: "gap-1" },
+  { id: "gap-3", className: "gap-3" },
+  { id: "gap-1.5 px-2, icon label icon", className: "gap-1.5 px-2", trailingIcon: true },
+  { id: "sm gap-1", className: "gap-1", size: "sm" },
+  { id: "flex-col gap-1", className: "h-auto flex-col gap-1 py-2" },
+];
+
+const NO_ACTIONS = { link: 0, linkPointer: 0, linkKey: 0, childSubmit: 0, childSubmitKey: 0, button: 0, submit: 0, enabled: 0 };
+
+function Probes() {
+  const [loading, setLoading] = useState(false);
+  const [actions, setActions] = useState(NO_ACTIONS);
+  const count = (name: keyof typeof NO_ACTIONS) => setActions((n) => ({ ...n, [name]: n[name] + 1 }));
+  const countActivation = (name: keyof typeof NO_ACTIONS) => (event: KeyboardEvent) => {
+    if (event.key === "Enter" || event.key === " ") count(name);
+  };
+  return (
+    <div className="bg-background text-foreground min-h-screen p-6" style={{ width: 1100 }} data-gallery-ready="true">
+      <Row id="probe-loading" label="loading width">
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 8 }}>
+          <button type="button" data-probe="toggle-loading" onClick={() => setLoading((on) => !on)}>
+            Toggle loading
+          </button>
+          {LOADING_PROBES.map(({ id, className, size, trailingIcon }) => (
+            <Button key={id} data-probe-width={id} className={className} size={size} loading={loading}>
+              <Settings />
+              Save changes
+              {trailingIcon && <Settings />}
+            </Button>
+          ))}
+        </div>
+      </Row>
+      <Row id="probe-inert" label="aria-disabled">
+        <form
+          style={{ display: "flex", gap: 8 }}
+          onSubmit={(event) => {
+            event.preventDefault();
+            count("submit");
+          }}
+        >
+          <Button asChild aria-disabled>
+            <a data-probe="inert-link" href="#followed" onClick={() => count("link")} onPointerDown={() => count("linkPointer")} onKeyDown={countActivation("linkKey")}>
+              Child link
+            </a>
+          </Button>
+          <Button asChild aria-disabled>
+            <button data-probe="inert-child-submit" type="submit" onClick={() => count("childSubmit")} onKeyDown={countActivation("childSubmitKey")}>
+              Child submit
+            </button>
+          </Button>
+          <Button data-probe="inert-submit" type="submit" aria-disabled onClick={() => count("button")}>
+            Send
+          </Button>
+        </form>
+        <Button asChild>
+          <a data-probe="enabled-link" href="#enabled" onClick={() => count("enabled")}>
+            Enabled child link
+          </a>
+        </Button>
+        <output data-probe="actions">{JSON.stringify(actions)}</output>
+      </Row>
+    </div>
+  );
+}
+
+createRoot(document.getElementById("root")!).render(query.get("view") === "probes" ? <Probes /> : <App />);
