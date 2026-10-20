@@ -124,6 +124,7 @@ async fn an_unreadable_part_of_a_file_store_is_never_a_scanned_zero() {
         grok,
         kimi,
         kimi_code,
+        cline,
         copilot_cli,
         copilot_vscode,
         antigravity,
@@ -407,6 +408,44 @@ fn kimi_code(home: &Path) -> Store {
             session.join("agents"),
             session.join("agents/main"),
             wire,
+        ],
+    )
+}
+
+/// Cline's VS Code extension directory: `state/taskHistory.json` lists the
+/// tasks, `tasks/<id>/ui_messages.json` holds each one.
+fn cline(home: &Path) -> Store {
+    let global = crate::utils::config_dir()
+        .unwrap()
+        .join("Code/User/globalStorage");
+    let ext = global.join("saoudrizwan.claude-dev");
+    let history = ext.join("state/taskHistory.json");
+    write_lines(
+        &history,
+        &[
+            json!([{"id": "task-1", "ts": 1_760_605_200_000_u64, "task": "hi",
+                  "tokensIn": 100, "tokensOut": 50,
+                  "cwdOnTaskInitialization": "/work/app"}]),
+        ],
+    );
+    let task = ext.join("tasks/task-1");
+    let messages = task.join("ui_messages.json");
+    write_lines(
+        &messages,
+        &[json!([{"type": "say", "say": "text", "text": "hello",
+                  "ts": 1_760_605_200_000_u64}])],
+    );
+    assert!(global.starts_with(home));
+    Store::new(
+        "cline",
+        vec![
+            global,
+            ext.clone(),
+            ext.join("state"),
+            history,
+            ext.join("tasks"),
+            task,
+            messages,
         ],
     )
 }
