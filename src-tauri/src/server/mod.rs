@@ -1335,6 +1335,99 @@ mod tests {
         );
     }
 
+    /// The session routes stay inside the history root as the stats routes
+    /// do: the guard checks the requested project or session, so the readers
+    /// behind it must never follow a symlink below it, not a session file
+    /// and not a session's subagent folder.
+    #[cfg(unix)]
+    #[tokio::test]
+    #[serial]
+    async fn test_session_routes_never_follow_a_symlink_out_of_the_history_root() {
+        use std::os::unix::fs::symlink;
+        let home = crate::test_utils::SandboxHome::new();
+        let project = home.path().join(".claude").join("projects").join("p");
+        std::fs::create_dir_all(&project).unwrap();
+        let session = history_row("s1", "u1", Some("inside"), 0);
+        std::fs::write(project.join("s1.jsonl"), session).unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        let private = outside.path().join("private.jsonl");
+        std::fs::write(&private, history_row("private", "x1", Some("outside"), 0)).unwrap();
+        let subagents = outside.path().join("subagents");
+        std::fs::create_dir_all(&subagents).unwrap();
+        let subagent = history_row("s1", "x2", Some("outside subagent"), 0);
+        std::fs::write(subagents.join("agent-x.jsonl"), subagent).unwrap();
+        symlink(&private, project.join("escaped.jsonl")).unwrap();
+        symlink(outside.path(), project.join("s1")).unwrap();
+
+        let project_path = project.to_string_lossy();
+        let session_path = project.join("s1.jsonl");
+        let routes = [
+            (
+                "load_project_sessions",
+                serde_json::json!({ "projectPath": project_path }),
+            ),
+            (
+                "load_provider_sessions",
+                serde_json::json!({ "provider": "claude", "projectPath": project_path }),
+            ),
+            (
+                "get_session_subagents",
+                serde_json::json!({ "sessionPath": session_path.to_string_lossy() }),
+            ),
+            (
+                "get_expiring_sessions",
+                serde_json::json!({ "projectPath": project_path, "thresholdDays": 100_000 }),
+            ),
+        ];
+        let name = |path: &serde_json::Value| {
+            std::path::Path::new(path.as_str().unwrap())
+                .file_name()
+                .unwrap()
+                .to_string_lossy()
+                .to_string()
+        };
+        let mut shown = Vec::new();
+        for (route, body) in routes {
+            let (status, json) = post_read_only(route, body).await;
+            assert_eq!(status, StatusCode::OK, "{route}: {json}");
+            let mut items: Vec<String> = json
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|item| match route {
+                    "get_session_subagents" => item["summary"].to_string(),
+                    "get_expiring_sessions" => format!(
+                        "{}: {} subagents",
+                        name(&item["session"]["file_path"]),
+                        item["subagentCount"]
+                    ),
+                    _ => format!("{}: {}", name(&item["file_path"]), item["summary"]),
+                })
+                .collect();
+            items.sort();
+            shown.push((route, items));
+        }
+        // Only the history inside the root, on every route at once.
+        assert_eq!(
+            shown,
+            [
+                (
+                    "load_project_sessions",
+                    vec![r#"s1.jsonl: "inside""#.to_string()]
+                ),
+                (
+                    "load_provider_sessions",
+                    vec![r#"s1.jsonl: "inside""#.to_string()]
+                ),
+                ("get_session_subagents", vec![]),
+                (
+                    "get_expiring_sessions",
+                    vec!["s1.jsonl: 0 subagents".to_string()]
+                ),
+            ]
+        );
+    }
+
     /// An `AppState` differing only in the two inputs the gate reads.
     fn state_with(loopback_bind: bool, auth_token: Option<&str>) -> Arc<AppState> {
         let state = test_state(auth_token);
