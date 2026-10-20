@@ -194,7 +194,9 @@ jobs:
           # An older tag (a manual rebuild) still gets its assets and checksums,
           # but the formula must not move back to it.
           CURRENT=$(sed -n 's/^ *version "\(.*\)"$/\1/p' cchv-server.rb | head -n 1)
-          if [ -n "$CURRENT" ] && [ "$(printf '%s\n' "$CURRENT" "$VERSION" | sort -V | tail -n 1)" != "$VERSION" ]; then
+          # "-" to "~" so sort -V puts a prerelease (1.32.1-beta.1) below 1.32.1.
+          NEWEST=$(printf '%s\n' "$CURRENT" "$VERSION" | sed 's/-/~/g' | sort -V | tail -n 1)
+          if [ -n "$CURRENT" ] && [ "$NEWEST" != "$(printf '%s\n' "$VERSION" | sed 's/-/~/g')" ]; then
             echo "::notice::Formula is at ${CURRENT}, newer than ${VERSION}; leaving it unchanged"
             exit 0
           fi
