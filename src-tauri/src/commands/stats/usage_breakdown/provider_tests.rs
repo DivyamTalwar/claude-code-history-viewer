@@ -351,6 +351,82 @@ async fn an_empty_store_that_exists_is_scanned() {
     );
 }
 
+/// 2026-10-16T09:00:00Z, inside [`days`].
+const CLINE_TS_MS: u64 = 1_792_141_200_000;
+
+/// A task of Cline's VS Code extension in `cwd`. It lists its
+/// `tasks/<id>/ui_messages.json` as its file; its session id is
+/// `cline://<extension dir>:<id>`.
+fn write_cline_task(home: &Path, cwd: &str) {
+    let ext = crate::utils::config_dir()
+        .unwrap()
+        .join("Code/User/globalStorage/saoudrizwan.claude-dev");
+    assert!(ext.starts_with(home), "{}", ext.display());
+    let history = json!([{"id": "task-1", "ts": CLINE_TS_MS, "task": "hi",
+                          "tokensIn": 100, "tokensOut": 50,
+                          "cwdOnTaskInitialization": cwd}]);
+    fs::create_dir_all(ext.join("state")).unwrap();
+    fs::write(ext.join("state/taskHistory.json"), history.to_string()).unwrap();
+    let messages = json!([
+        {"type": "say", "say": "task", "text": "hi", "ts": CLINE_TS_MS},
+        {"type": "say", "say": "text", "text": "hello", "ts": CLINE_TS_MS + 1_000}
+    ]);
+    fs::create_dir_all(ext.join("tasks/task-1")).unwrap();
+    fs::write(
+        ext.join("tasks/task-1/ui_messages.json"),
+        messages.to_string(),
+    )
+    .unwrap();
+}
+
+/// A session of Cline's SDK store (`~/.cline/data/sessions/<id>/`) in `cwd`
+/// whose reply carries usage (21 in, 8 out, 3 cache read, 1 cache write).
+/// It lists its `<id>.messages.json` as its file; its session id is
+/// `cline://sdk:<id>`.
+fn write_cline_sdk_session(home: &Path, cwd: &str) {
+    let id = "1792141200000_sdk01";
+    let dir = home.join(".cline/data/sessions").join(id);
+    fs::create_dir_all(&dir).unwrap();
+    let manifest = json!({"version": 1, "session_id": id, "cwd": cwd,
+                          "started_at": "2026-10-16T09:00:00.000Z",
+                          "ended_at": "2026-10-16T09:00:02.000Z",
+                          "metadata": {"title": "Demo"}});
+    fs::write(dir.join(format!("{id}.json")), manifest.to_string()).unwrap();
+    let transcript = json!({"version": 1, "agent": "lead", "sessionId": id, "messages": [
+        {"id": "u1", "role": "user", "content": [{"type": "text", "text": "hi"}]},
+        {"id": "a1", "role": "assistant", "ts": CLINE_TS_MS + 2_000,
+         "modelInfo": {"id": "claude-sonnet-4-6", "provider": "anthropic"},
+         "metrics": {"inputTokens": 21, "outputTokens": 8, "cacheReadTokens": 3,
+                     "cacheWriteTokens": 1, "cost": 0.13},
+         "content": [{"type": "text", "text": "ok"}]}
+    ]});
+    fs::write(
+        dir.join(format!("{id}.messages.json")),
+        transcript.to_string(),
+    )
+    .unwrap();
+}
+
+/// A Cline session is loaded by its `cline://` session id (`AN0b` review):
+/// the file it lists is not a path the Cline loader takes, so loading by
+/// it failed every Cline session and dropped its usage.
+#[tokio::test]
+#[serial]
+async fn cline_sessions_load_by_their_session_id() {
+    let home = SandboxHome::new();
+    let _env = without_store_env();
+    write_cline_task(home.path(), "/work/app");
+    write_cline_sdk_session(home.path(), "/work/app");
+
+    let response = get_usage_breakdown(all_request(&["cline"], &home.path().join(".claude")))
+        .await
+        .expect("breakdown");
+    assert_eq!(
+        (wire_statuses(&response), total_tokens(&response)),
+        (vec![("cline".to_string(), "scanned".to_string(), 2, 0)], 33)
+    );
+}
+
 fn write_rows(path: &Path, rows: &[FixtureRow]) {
     fs::create_dir_all(path.parent().unwrap()).unwrap();
     let body: String = rows
