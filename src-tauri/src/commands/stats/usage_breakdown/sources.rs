@@ -16,10 +16,11 @@ use super::{ProviderScanStatus, UsageScope};
 use crate::commands::stats::session_files::{claude_project_dirs, walk_session_files};
 use crate::commands::stats::{
     all_stats_providers, claude_session_heads, detect_project_provider,
-    load_antigravity_usage_records, load_stats_messages, load_stats_sessions, scan_stats_projects,
-    stats_provider_id, StatsMode, StatsProvider,
+    load_antigravity_usage_records_checked, load_stats_messages, load_stats_sessions,
+    scan_stats_projects, stats_provider_id, StatsMode, StatsProvider,
 };
-use crate::models::ClaudeSession;
+use crate::models::{ClaudeProject, ClaudeSession};
+use crate::providers::scan_report::ScanReport;
 use rayon::prelude::*;
 use std::collections::{HashMap, HashSet};
 use std::fs;
@@ -213,14 +214,29 @@ impl ProviderScan {
 
     /// Run `read` only when the provider's store can be read (ADR 0003 §7):
     /// a missing store is `not_found`, an unreadable one a failed source.
+    /// Whatever `read` records in its [`ScanReport`] — a part of the store
+    /// it went past without reading — is a failed source as well.
     fn when_store_present(
         &mut self,
-        read: impl FnOnce(&mut Self) -> Vec<(String, ClaudeSession)>,
+        read: impl FnOnce(&mut Self, &ScanReport) -> Vec<(String, ClaudeSession)>,
     ) -> Vec<(String, ClaudeSession)> {
-        match store_availability(self.provider) {
+        let report = ScanReport::default();
+        let tasks = match store_availability(self.provider) {
             StoreAvailability::Missing => {
-                self.store_missing = true;
-                Vec::new()
+                // Detection only looks at paths, and a path it may not look
+                // into passes for an absent one. So the scan runs anyway,
+                // on a probe: a store that is really absent records nothing
+                // (a path that is not there is no failure), while one that
+                // records what it could not read is there after all.
+                let mut probe = Self::new(self.provider);
+                let found = read(&mut probe, &report);
+                if report.is_empty() {
+                    self.store_missing = true;
+                    Vec::new()
+                } else {
+                    self.sources_failed += probe.sources_failed;
+                    found
+                }
             }
             StoreAvailability::Unreadable(error) => {
                 log::warn!(
@@ -230,7 +246,22 @@ impl ProviderScan {
                 self.sources_failed += 1;
                 Vec::new()
             }
-            StoreAvailability::Present => read(self),
+            StoreAvailability::Present => read(self, &report),
+        };
+        self.account_report(report);
+        tasks
+    }
+
+    /// What the provider's scan went past without reading (a directory it
+    /// could not list, a file or database it could not open): each one is a
+    /// source that was not read (ADR 0003 §7).
+    fn account_report(&mut self, report: ScanReport) {
+        for what in report.into_unread() {
+            log::warn!(
+                "usage breakdown: {}: cannot read {what}",
+                stats_provider_id(self.provider)
+            );
+            self.sources_failed += 1;
         }
     }
 }
@@ -262,19 +293,20 @@ pub(super) fn collect(plan: &ScopePlan, mode: StatsMode) -> Collected {
                         &mut scan,
                     )
                 } else {
-                    let tasks = scan.when_store_present(|scan| {
-                        match load_stats_sessions(*provider, project_path) {
-                            Ok(sessions) => sessions
-                                .into_iter()
-                                .map(|session| (project_path.clone(), session))
-                                .collect(),
-                            Err(error) => {
-                                log::warn!("usage breakdown: {project_path}: {error}");
-                                scan.sources_failed += 1;
-                                Vec::new()
+                    let tasks =
+                        scan.when_store_present(|scan, report| {
+                            match load_sessions_reporting(*provider, project_path, report) {
+                                Ok(sessions) => sessions
+                                    .into_iter()
+                                    .map(|session| (project_path.clone(), session))
+                                    .collect(),
+                                Err(error) => {
+                                    log::warn!("usage breakdown: {project_path}: {error}");
+                                    scan.sources_failed += 1;
+                                    Vec::new()
+                                }
                             }
-                        }
-                    });
+                        });
                     collect_provider_sessions(*provider, tasks, mode, &mut scan)
                 };
                 collected.sessions.extend(sessions);
@@ -295,8 +327,9 @@ pub(super) fn collect(plan: &ScopePlan, mode: StatsMode) -> Collected {
                         collect_claude(projects, mode, &mut scan)
                     } else {
                         let provider = *provider;
-                        let tasks =
-                            scan.when_store_present(|scan| provider_all_sessions(provider, scan));
+                        let tasks = scan.when_store_present(|scan, report| {
+                            provider_all_sessions(provider, scan, report)
+                        });
                         collect_provider_sessions(provider, tasks, mode, &mut scan)
                     };
                     collected.sessions.extend(sessions);
@@ -561,10 +594,12 @@ fn collect_claude(
 
 // ---- other providers ----------------------------------------------------------
 
-/// Every (project path, session) of a provider, as the old global stats list them.
+/// Every (project path, session) of a provider, as the old global stats list
+/// them; what the scan could not read goes to `report`.
 fn provider_all_sessions(
     provider: StatsProvider,
     scan: &mut ProviderScan,
+    report: &ScanReport,
 ) -> Vec<(String, ClaudeSession)> {
     if provider == StatsProvider::Antigravity {
         let Some(root) = crate::commands::antigravity::resolve_antigravity_root() else {
@@ -572,7 +607,7 @@ fn provider_all_sessions(
             return Vec::new();
         };
         let root = root.to_string_lossy().to_string();
-        return match load_stats_sessions(provider, &root) {
+        return match load_sessions_reporting(provider, &root, report) {
             Ok(sessions) => sessions.into_iter().map(|s| (root.clone(), s)).collect(),
             Err(error) => {
                 log::warn!("usage breakdown: antigravity: {error}");
@@ -581,7 +616,7 @@ fn provider_all_sessions(
             }
         };
     }
-    let projects = match scan_stats_projects(provider) {
+    let projects = match scan_projects_reporting(provider, report) {
         Ok(projects) => projects,
         Err(error) => {
             log::warn!("usage breakdown: {}: {error}", stats_provider_id(provider));
@@ -591,7 +626,7 @@ fn provider_all_sessions(
     };
     let mut tasks = Vec::new();
     for project in projects {
-        match load_stats_sessions(provider, &project.path) {
+        match load_sessions_reporting(provider, &project.path, report) {
             Ok(sessions) => tasks.extend(sessions.into_iter().map(|s| (project.path.clone(), s))),
             Err(error) => {
                 log::warn!("usage breakdown: {}: {error}", project.path);
@@ -600,6 +635,98 @@ fn provider_all_sessions(
         }
     }
     tasks
+}
+
+/// The provider's project scan for a request that reports coverage: what the
+/// scan could not read goes to `report` (ADR 0003 §7). Every other command
+/// keeps [`scan_stats_projects`]: a reporting scanner may answer a store it
+/// cannot read with nothing where the plain one fails (llm, Z Code), which
+/// only a caller that counts the report may do (#708 review).
+fn scan_projects_reporting(
+    provider: StatsProvider,
+    report: &ScanReport,
+) -> Result<Vec<ClaudeProject>, String> {
+    use crate::providers as p;
+    use StatsProvider as P;
+    match provider {
+        P::Antigravity => p::antigravity::scan_projects_reporting(report),
+        P::Cline => p::cline::scan_projects_reporting(report),
+        P::Codex => p::codex::scan_projects_reporting(report),
+        P::Copilot => p::copilot::scan_projects_reporting(report),
+        P::Cursor => p::cursor::scan_projects_reporting(report),
+        P::ForgeCode => p::forgecode::scan_projects_reporting(report),
+        P::Gemini => p::gemini::scan_projects_reporting(report),
+        P::Grok => p::grok::scan_projects_reporting(report),
+        P::Kilo => p::kilo::scan_projects_reporting(report),
+        P::Kimi => p::kimi::scan_projects_reporting(report),
+        P::Llm => p::llm::scan_projects_reporting(report),
+        P::Ompi => p::ompi::scan_projects_reporting(report),
+        P::OpenCode => p::opencode::scan_projects_reporting(report),
+        P::OpenInterpreter => p::openinterpreter::scan_projects_reporting(report),
+        P::Pi => p::pi::scan_projects_reporting(report),
+        P::Qwen => p::qwen::scan_projects_reporting(report),
+        P::Zcode => p::zcode::scan_projects_reporting(report),
+        // No token usage (`reports_token_usage`): never scanned here.
+        P::Aider
+        | P::AmazonQ
+        | P::Claude
+        | P::Codebuddy
+        | P::Continue
+        | P::Crush
+        | P::CursorAgent
+        | P::Goose
+        | P::Kiro
+        | P::OpenHands
+        | P::PearAI
+        | P::Trae
+        | P::Vibe
+        | P::Zed => scan_stats_projects(provider),
+    }
+}
+
+/// The sessions of one project, for a request that reports coverage; as
+/// [`scan_projects_reporting`], every other command keeps
+/// [`load_stats_sessions`].
+fn load_sessions_reporting(
+    provider: StatsProvider,
+    project_path: &str,
+    report: &ScanReport,
+) -> Result<Vec<ClaudeSession>, String> {
+    use crate::providers as p;
+    use StatsProvider as P;
+    match provider {
+        P::Antigravity => p::antigravity::load_sessions_reporting(project_path, report),
+        P::Cline => p::cline::load_sessions_reporting(project_path, report),
+        P::Codex => p::codex::load_sessions_reporting(project_path, report),
+        P::Copilot => p::copilot::load_sessions_reporting(project_path, report),
+        P::Cursor => p::cursor::load_sessions_reporting(project_path, report),
+        P::ForgeCode => p::forgecode::load_sessions_reporting(project_path, report),
+        P::Gemini => p::gemini::load_sessions_reporting(project_path, report),
+        P::Grok => p::grok::load_sessions_reporting(project_path, report),
+        P::Kilo => p::kilo::load_sessions_reporting(project_path, report),
+        P::Kimi => p::kimi::load_sessions_reporting(project_path, report),
+        P::Llm => p::llm::load_sessions_reporting(project_path, report),
+        P::Ompi => p::ompi::load_sessions_reporting(project_path, report),
+        P::OpenCode => p::opencode::load_sessions_reporting(project_path, report),
+        P::OpenInterpreter => p::openinterpreter::load_sessions_reporting(project_path, report),
+        P::Pi => p::pi::load_sessions_reporting(project_path, report),
+        P::Qwen => p::qwen::load_sessions_reporting(project_path, report),
+        P::Zcode => p::zcode::load_sessions_reporting(project_path, report),
+        P::Aider
+        | P::AmazonQ
+        | P::Claude
+        | P::Codebuddy
+        | P::Continue
+        | P::Crush
+        | P::CursorAgent
+        | P::Goose
+        | P::Kiro
+        | P::OpenHands
+        | P::PearAI
+        | P::Trae
+        | P::Vibe
+        | P::Zed => load_stats_sessions(provider, project_path),
+    }
 }
 
 fn collect_provider_sessions(
@@ -644,7 +771,7 @@ fn load_provider_session(
     mode: StatsMode,
 ) -> Result<FileContributions, String> {
     if provider == StatsProvider::Antigravity {
-        let records = load_antigravity_usage_records(&session.file_path)?;
+        let records = load_antigravity_usage_records_checked(&session.file_path)?;
         return Ok(from_antigravity_records(
             &records,
             mode,
@@ -652,6 +779,14 @@ fn load_provider_session(
             session.summary.clone(),
         ));
     }
-    let messages = load_stats_messages(provider, &session.file_path)?;
+    // A Cline session lists a file (`tasks/<id>/ui_messages.json`, or
+    // `<id>.messages.json` in the SDK store), but the Cline loader takes the
+    // session's `cline://` id: the file alone does not name its store.
+    let session_path = if provider == StatsProvider::Cline {
+        &session.session_id
+    } else {
+        &session.file_path
+    };
+    let messages = load_stats_messages(provider, session_path)?;
     Ok(from_messages(&messages, mode, session.summary.clone()))
 }
