@@ -94,14 +94,14 @@ describe("aria-disabled", () => {
     expect(document.activeElement).toBe(button);
   });
 
-  it("ignores click, pointer down, Enter and Space, and does not submit its form", () => {
+  it("ignores click, pointer down (also in the capture phase), Enter and Space, and does not submit its form", () => {
     const onClick = vi.fn();
     const onPointerDown = vi.fn();
     const onKeyDown = vi.fn();
     const onSubmit = vi.fn((event: React.FormEvent) => event.preventDefault());
     render(
       <form onSubmit={onSubmit}>
-        <Button type="submit" aria-disabled onClick={onClick} onPointerDown={onPointerDown} onKeyDown={onKeyDown}>
+        <Button type="submit" aria-disabled onClick={onClick} onPointerDown={onPointerDown} onPointerDownCapture={onPointerDown} onKeyDown={onKeyDown}>
           Send
         </Button>
       </form>,
@@ -152,7 +152,7 @@ describe("aria-disabled", () => {
 describe("aria-disabled with asChild", () => {
   // Slot runs the child's own handlers before Button's: the child's click,
   // pointer-down and activation keys must not run either.
-  it("runs none of the child's click, pointer down, Enter or Space handlers and does not submit its form", () => {
+  it("runs none of the child's click, pointer down (also in the capture phase), Enter or Space handlers and does not submit its form", () => {
     const onClick = vi.fn();
     const onPointerDown = vi.fn();
     const onKeyDown = vi.fn();
@@ -162,12 +162,12 @@ describe("aria-disabled with asChild", () => {
       <div onClick={onAncestorClick}>
         <form onSubmit={onSubmit}>
           <Button asChild aria-disabled>
-            <a href="#restore" onClick={onClick} onPointerDown={onPointerDown} onKeyDown={onKeyDown}>
+            <a href="#restore" onClick={onClick} onPointerDown={onPointerDown} onPointerDownCapture={onPointerDown} onKeyDown={onKeyDown}>
               Restore
             </a>
           </Button>
           <Button asChild aria-disabled="true">
-            <button type="submit" onClick={onClick} onPointerDown={onPointerDown} onKeyDown={onKeyDown}>
+            <button type="submit" onClick={onClick} onPointerDown={onPointerDown} onPointerDownCapture={onPointerDown} onKeyDown={onKeyDown}>
               Send
             </button>
           </Button>
