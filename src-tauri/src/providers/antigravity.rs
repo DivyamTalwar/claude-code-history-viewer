@@ -182,6 +182,7 @@ pub(crate) fn scan_projects_reporting(report: &ScanReport) -> Result<Vec<ClaudeP
         Err(err) if cli_projects.is_empty() => Err(err),
         Err(err) => {
             log::warn!("Antigravity desktop scan failed; returning CLI projects only: {err}");
+            report.unread(&err);
             Ok(cli_projects)
         }
     }

@@ -140,6 +140,45 @@ async fn an_unreadable_part_of_a_database_store_is_never_a_scanned_zero() {
     check(&[opencode, kilo, forgecode, zcode, llm, cursor]).await;
 }
 
+/// Antigravity's project scan falls back to its CLI projects when the
+/// desktop scan fails; the reporting variant still records that failure
+/// (a review finding on #708).
+#[test]
+#[serial]
+fn an_antigravity_desktop_failure_beside_cli_projects_is_recorded() {
+    let home = SandboxHome::new();
+    let _cleared = without_store_env();
+    let Store { env: _env, .. } = antigravity(home.path());
+    let brain = home.path().join(".gemini/antigravity/brain");
+    fs::create_dir_all(&brain).unwrap();
+    let cli = home.path().join(".gemini/antigravity-cli");
+    write_lines(
+        &cli.join("history.jsonl"),
+        &[json!({"display": "hi", "timestamp": 1_792_141_200_000_u64,
+                 "workspace": "/work/app", "conversationId": "conv-1"})],
+    );
+    write_lines(
+        &cli.join("brain/conv-1/.system_generated/logs/transcript_full.jsonl"),
+        &[
+            json!({"step_index": 0, "source": "USER_EXPLICIT", "type": "USER_INPUT",
+                 "status": "DONE", "content": "hi",
+                 "created_at": "2026-10-16T09:00:00Z"}),
+        ],
+    );
+    let Some(_locked) = Unreadable::new(&brain) else {
+        return;
+    };
+
+    let report = crate::providers::scan_report::ScanReport::default();
+    let projects =
+        crate::providers::antigravity::scan_projects_reporting(&report).expect("the CLI projects");
+    let paths: Vec<&str> = projects.iter().map(|p| p.path.as_str()).collect();
+    assert_eq!(
+        (paths, report.is_empty()),
+        (vec!["antigravity-cli:///work/app"], false)
+    );
+}
+
 // ---- fixtures ----------------------------------------------------------------
 
 fn write_lines(path: &Path, lines: &[Value]) {
