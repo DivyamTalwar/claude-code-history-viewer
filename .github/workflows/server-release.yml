@@ -9,9 +9,23 @@ on:
   push:
     tags:
       - "v*"
+  # Recovery path: rebuild an existing tag when a matrix job failed. The
+  # Homebrew update only runs after all four builds pass, so a failed tag
+  # otherwise leaves the formula on the previous version.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to build and upload, e.g. v1.32.1"
+        required: true
+        type: string
 
 permissions:
   contents: write
+
+# The release tag. On a tag push this is github.ref_name (as before); on a
+# manual run github.ref_name is the branch, so the input is used instead.
+env:
+  TAG: ${{ inputs.tag || github.ref_name }}
 
 jobs:
   build-server:
@@ -37,6 +51,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
 
       - name: Install just
         uses: extractions/setup-just@v2
@@ -62,8 +78,11 @@ jobs:
         run: |
           sudo dpkg --add-architecture arm64
           sudo sed -i 's/^deb /deb [arch=amd64] /' /etc/apt/sources.list
+          # Multi-Arch: same libs (libx11-6, libsystemd0, ...) must have the same version for
+          # amd64 and arm64. The runner image takes them from jammy-security, so arm64 needs it too.
           echo "deb [arch=arm64] http://ports.ubuntu.com/ jammy main restricted universe multiverse" | sudo tee /etc/apt/sources.list.d/arm64.list
           echo "deb [arch=arm64] http://ports.ubuntu.com/ jammy-updates main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list.d/arm64.list
+          echo "deb [arch=arm64] http://ports.ubuntu.com/ jammy-security main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list.d/arm64.list
           sudo apt-get update
           sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
           sudo apt-get install -y libwebkit2gtk-4.1-dev:arm64 libssl-dev:arm64 libglib2.0-dev:arm64 libappindicator3-dev:arm64 librsvg2-dev:arm64 patchelf
@@ -104,11 +123,11 @@ jobs:
 
       - name: Wait for release to be published
         run: |
-          echo "Waiting for release ${GITHUB_REF_NAME} to be published (non-draft)..."
+          echo "Waiting for release ${TAG} to be published (non-draft)..."
           for i in $(seq 1 60); do
-            DRAFT=$(gh api "repos/${{ github.repository }}/releases/tags/${GITHUB_REF_NAME}" --jq '.draft' 2>/dev/null || echo "not_found")
+            DRAFT=$(gh api "repos/${{ github.repository }}/releases/tags/${TAG}" --jq '.draft' 2>/dev/null || echo "not_found")
             if [ "$DRAFT" = "false" ]; then
-              echo "Release ${GITHUB_REF_NAME} is published!"
+              echo "Release ${TAG} is published!"
               break
             elif [ "$DRAFT" = "not_found" ]; then
               echo "Release not found yet... (attempt $i/60)"
@@ -121,7 +140,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
 
       - name: Upload to release
-        run: gh release upload "${GITHUB_REF_NAME}" "${{ matrix.artifact }}.tar.gz" --clobber
+        run: gh release upload "${TAG}" "${{ matrix.artifact }}.tar.gz" --clobber
         env:
           GH_TOKEN: ${{ github.token }}
 
@@ -132,11 +151,11 @@ jobs:
     steps:
       - name: Get version from tag
         id: version
-        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+        run: echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
 
       - name: Download release assets and compute SHA256
         run: |
-          BASE="https://github.com/jhlee0409/claude-code-history-viewer/releases/download/${GITHUB_REF_NAME}"
+          BASE="https://github.com/jhlee0409/claude-code-history-viewer/releases/download/${TAG}"
           : > CHECKSUMS.sha256
           for asset in cchv-server-macos-arm64 cchv-server-macos-x64 cchv-server-linux-arm64 cchv-server-linux-x64; do
             curl -fsSL -o "${asset}.tar.gz" "${BASE}/${asset}.tar.gz"
@@ -149,7 +168,7 @@ jobs:
       - name: Upload checksums
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "${GITHUB_REF_NAME}" CHECKSUMS.sha256 --clobber -R "${{ github.repository }}"
+        run: gh release upload "${TAG}" CHECKSUMS.sha256 --clobber -R "${{ github.repository }}"
 
       - name: Update Homebrew formula
         env:
