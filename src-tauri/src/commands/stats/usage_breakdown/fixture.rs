@@ -209,21 +209,33 @@ impl UsageFixture {
     }
 }
 
-/// Makes a directory unreadable (mode 000) and restores it when dropped —
-/// declare it after the fixture so it drops first.
+/// Makes a directory or a file unreadable (mode 000) and restores its mode
+/// when dropped — declare it after the fixture so it drops first.
 #[cfg(unix)]
-pub struct Unreadable(PathBuf);
+pub struct Unreadable {
+    path: PathBuf,
+    mode: u32,
+}
 
 #[cfg(unix)]
 impl Unreadable {
-    /// `None` when the process reads the directory anyway (running as
-    /// root): there is nothing to test then.
-    pub fn new(dir: &Path) -> Option<Self> {
+    /// `None` when the process reads it anyway (running as root): there is
+    /// nothing to test then.
+    pub fn new(path: &Path) -> Option<Self> {
         use std::os::unix::fs::PermissionsExt;
-        fs::set_permissions(dir, fs::Permissions::from_mode(0o000)).expect("chmod 000");
-        let guard = Self(dir.to_path_buf());
-        if fs::read_dir(dir).is_ok() {
-            eprintln!("skipped: {} stays readable at mode 000", dir.display());
+        let metadata = fs::metadata(path).expect("the path to lock exists");
+        fs::set_permissions(path, fs::Permissions::from_mode(0o000)).expect("chmod 000");
+        let guard = Self {
+            path: path.to_path_buf(),
+            mode: metadata.permissions().mode(),
+        };
+        let still_readable = if metadata.is_dir() {
+            fs::read_dir(path).is_ok()
+        } else {
+            fs::File::open(path).is_ok()
+        };
+        if still_readable {
+            eprintln!("skipped: {} stays readable at mode 000", path.display());
             return None;
         }
         Some(guard)
@@ -234,8 +246,69 @@ impl Unreadable {
 impl Drop for Unreadable {
     fn drop(&mut self) {
         use std::os::unix::fs::PermissionsExt;
-        let _ = fs::set_permissions(&self.0, fs::Permissions::from_mode(0o755));
+        let _ = fs::set_permissions(&self.path, fs::Permissions::from_mode(self.mode));
     }
+}
+
+/// Sets or clears one environment variable for the guard's lifetime and
+/// restores the old value.
+pub struct EnvGuard {
+    key: &'static str,
+    previous: Option<std::ffi::OsString>,
+}
+
+impl EnvGuard {
+    pub fn set(key: &'static str, value: &Path) -> Self {
+        let previous = std::env::var_os(key);
+        std::env::set_var(key, value);
+        Self { key, previous }
+    }
+
+    pub fn remove(key: &'static str) -> Self {
+        let previous = std::env::var_os(key);
+        std::env::remove_var(key);
+        Self { key, previous }
+    }
+}
+
+impl Drop for EnvGuard {
+    fn drop(&mut self) {
+        match self.previous.take() {
+            Some(value) => std::env::set_var(self.key, value),
+            None => std::env::remove_var(self.key),
+        }
+    }
+}
+
+/// Every variable a token-reporting provider reads to locate its store.
+/// Cleared, the sandbox home is the only place a store could be.
+pub const STORE_ENV: [&str; 22] = [
+    "ANTIGRAVITY_USER_DIR",
+    "CLINE_DATA_DIR",
+    "CLINE_DIR",
+    "CLINE_SESSION_DATA_DIR",
+    "CODEX_HOME",
+    "COPILOT_CLI_HOME",
+    "CURSOR_USER_DIR",
+    "FORGE_CONFIG",
+    "GEMINI_HOME",
+    "GROK_HOME",
+    "INTERPRETER_HOME",
+    "KILO_HOME",
+    "KIMI_CODE_HOME",
+    "KIMI_HOME",
+    "KIMI_SHARE_DIR",
+    "LLM_USER_PATH",
+    "OPENCODE_HOME",
+    "QWEN_HOME",
+    "QWEN_RUNTIME_DIR",
+    "XDG_CONFIG_HOME",
+    "XDG_DATA_HOME",
+    "ZCODE_HOME",
+];
+
+pub fn without_store_env() -> Vec<EnvGuard> {
+    STORE_ENV.iter().map(|key| EnvGuard::remove(key)).collect()
 }
 
 /// Summed usage of one reference bucket.

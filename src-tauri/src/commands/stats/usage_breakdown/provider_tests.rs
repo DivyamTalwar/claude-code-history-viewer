@@ -11,60 +11,8 @@ use crate::commands::stats::{
 use crate::test_utils::SandboxHome;
 use serde_json::{json, Value};
 use serial_test::serial;
-use std::ffi::OsString;
 use std::fs;
 use std::path::{Path, PathBuf};
-
-/// Sets one env var for the guard's lifetime and restores the old value.
-struct EnvGuard {
-    key: &'static str,
-    previous: Option<OsString>,
-}
-
-impl EnvGuard {
-    fn set(key: &'static str, value: &Path) -> Self {
-        let previous = std::env::var_os(key);
-        std::env::set_var(key, value);
-        Self { key, previous }
-    }
-
-    fn remove(key: &'static str) -> Self {
-        let previous = std::env::var_os(key);
-        std::env::remove_var(key);
-        Self { key, previous }
-    }
-}
-
-/// Every variable a token-reporting provider reads to locate its store.
-/// Cleared, the sandbox home is the only place a store could be.
-const STORE_ENV: [&str; 22] = [
-    "ANTIGRAVITY_USER_DIR",
-    "CLINE_DATA_DIR",
-    "CLINE_DIR",
-    "CLINE_SESSION_DATA_DIR",
-    "CODEX_HOME",
-    "COPILOT_CLI_HOME",
-    "CURSOR_USER_DIR",
-    "FORGE_CONFIG",
-    "GEMINI_HOME",
-    "GROK_HOME",
-    "INTERPRETER_HOME",
-    "KILO_HOME",
-    "KIMI_CODE_HOME",
-    "KIMI_HOME",
-    "KIMI_SHARE_DIR",
-    "LLM_USER_PATH",
-    "OPENCODE_HOME",
-    "QWEN_HOME",
-    "QWEN_RUNTIME_DIR",
-    "XDG_CONFIG_HOME",
-    "XDG_DATA_HOME",
-    "ZCODE_HOME",
-];
-
-fn without_store_env() -> Vec<EnvGuard> {
-    STORE_ENV.iter().map(|key| EnvGuard::remove(key)).collect()
-}
 
 /// (id, wire status, sessions scanned, sessions failed) per provider.
 fn wire_statuses(response: &UsageBreakdownResponse) -> Vec<(String, String, u64, u64)> {
@@ -92,15 +40,6 @@ fn supported_provider_ids() -> Vec<&'static str> {
         .collect();
     ids.sort_unstable();
     ids
-}
-
-impl Drop for EnvGuard {
-    fn drop(&mut self) {
-        match self.previous.take() {
-            Some(value) => std::env::set_var(self.key, value),
-            None => std::env::remove_var(self.key),
-        }
-    }
 }
 
 fn days() -> Vec<UsageInterval> {

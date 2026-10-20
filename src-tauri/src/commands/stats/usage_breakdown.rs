@@ -42,6 +42,8 @@ mod perf_tests;
 mod provider_tests;
 #[cfg(test)]
 mod reconciliation_tests;
+#[cfg(all(test, unix))]
+mod store_failure_tests;
 #[cfg(test)]
 mod tests;
 

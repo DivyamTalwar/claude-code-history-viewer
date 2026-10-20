@@ -212,7 +212,13 @@ pub(crate) mod test_support {
     use std::path::Path;
 
     pub(crate) fn create_test_db(dir: &Path) -> rusqlite::Connection {
-        let conn = rusqlite::Connection::open(dir.join(DB_FILE)).expect("open kilo.db");
+        create_db(&dir.join(DB_FILE))
+    }
+
+    /// An `OpenCode`-core database at `path` (`kilo.db`, or `opencode.db`
+    /// for an `OpenCode` store: the schema is the same).
+    pub(crate) fn create_db(path: &Path) -> rusqlite::Connection {
+        let conn = rusqlite::Connection::open(path).expect("open the OpenCode-core db");
         conn.execute_batch(
             "CREATE TABLE project (
                 id TEXT PRIMARY KEY, worktree TEXT NOT NULL, name TEXT,
