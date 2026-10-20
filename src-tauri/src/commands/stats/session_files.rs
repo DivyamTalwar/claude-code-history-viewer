@@ -1,5 +1,5 @@
-//! The Claude session files a stats scan reads, found without following a
-//! symlink (src-tauri security rule; ADR 0003 §7).
+//! The Claude session files a history reader reads, found and opened without
+//! following a symlink (src-tauri security rule; ADR 0003 §7).
 //!
 //! One walk for every Claude stats command (the old ones and
 //! `get_usage_breakdown`, so both read the same file set) and history reader
@@ -9,6 +9,13 @@
 //! authorizes the root, and the HTTP route judges it by its canonical path.
 //! Nothing inside the root is followed. What a walk skipped or could not read
 //! is returned, so a caller that reports coverage can say so.
+//!
+//! A check at walk time and the open after it are separate system calls, so
+//! the check alone cannot decide what is read. Every history file is opened
+//! through [`open_session_file`] (or [`open_history_file`], for a file a
+//! reader was handed on its own), which decides at the open itself (#698): a
+//! file swapped for a symlink or a FIFO after the walk is refused there, and
+//! a FIFO never blocks the reader.
 
 use std::fs::{self, File, Metadata};
 use std::io;
@@ -59,29 +66,6 @@ pub(crate) fn is_regular_file(path: &Path) -> bool {
         swap_after_check::checked(path);
     }
     regular
-}
-
-/// Opens a history file for reading if it is a regular file.
-///
-/// Anything else named like a session is refused before it is opened:
-/// opening a FIFO blocks until something writes to it, and every read of a
-/// directory fails. The path itself may be reached through a symlink (a
-/// direct reader is handed a path from the lists above, which yield none, or
-/// over HTTP one the root guard judged by its canonical path); what it names
-/// must be a regular file.
-pub(crate) fn open_regular_file(path: &Path) -> io::Result<fs::File> {
-    let not_regular = || io::Error::new(io::ErrorKind::InvalidInput, "not a regular file");
-    if !fs::metadata(path)?.is_file() {
-        return Err(not_regular());
-    }
-    #[cfg(test)]
-    swap_after_check::checked(path);
-    let file = fs::File::open(path)?;
-    // Swapped for a directory since the check: still refused.
-    if !file.metadata()?.is_file() {
-        return Err(not_regular());
-    }
-    Ok(file)
 }
 
 /// The session files a history reader opens under `project_dir`: the walk's
@@ -140,37 +124,153 @@ pub(crate) fn claude_project_dirs(projects_dir: &Path) -> io::Result<ProjectDirs
     Ok(listing)
 }
 
-/// Open a session file found under `root` (canonical) for reading.
+/// Why a history file was not opened; the reader's error says it.
+const A_SYMLINK: &str = "a symlink is never read";
+const NOT_REGULAR: &str = "not a regular file";
+const CHANGED: &str = "changed while it was opened";
+
+fn refused(reason: &'static str) -> io::Error {
+    io::Error::new(io::ErrorKind::InvalidInput, reason)
+}
+
+fn outside(root: &Path) -> io::Error {
+    io::Error::new(
+        io::ErrorKind::InvalidInput,
+        format!("outside the scanned root {}", root.display()),
+    )
+}
+
+/// Open a history file found under `root`, a canonical directory, for
+/// reading (#698).
 ///
-/// Refused when `path` is a symlink, is not a regular file, or resolves
-/// outside `root`. The file is opened by its canonical path, and the opened
-/// handle must be the very file that was checked (same device and inode on
-/// Unix), so a file swapped for a symlink after the walk is not read.
+/// What is read is decided at the open, not by a check made before it, so a
+/// file swapped after the walk is refused as well:
+///
+/// - a symlink is never read: `path` is opened without following one
+///   (`O_NOFOLLOW`), so a file swapped for a link after the check is
+///   refused by the open itself;
+/// - only a regular file is read, and the open never blocks: a FIFO opens
+///   at once (`O_NONBLOCK`, cleared again once the handle is a regular
+///   file) and is refused by the handle's metadata, as a directory is;
+/// - the file lies inside `root`: its canonical path before the open, and
+///   the opened handle's own path where the system reports it (`F_GETPATH`
+///   on macOS, `/proc/self/fd` on Linux), so a folder on the way swapped for
+///   a link out of the root is refused too;
+/// - the handle is the file that was checked (same device and inode).
+///
+/// The root itself may be reached through a symlink (a symlinked
+/// `~/.claude`, #355); callers pass its canonical path. A hardlink is a
+/// regular file inside the root by another name and is read (ADR 0003 §7):
+/// for a file with more than one link the handle's path is any of its names,
+/// so the canonical path and the identity decide.
+///
+/// Windows has no `O_NOFOLLOW`, and std reports neither a file id nor a
+/// handle's path there. The file is opened with
+/// `FILE_FLAG_OPEN_REPARSE_POINT`, so a symlink or junction swapped in is
+/// opened as the link itself and refused by the opened handle's metadata; a
+/// folder on the way swapped for a junction between the containment check
+/// and the open is not detected.
 pub(crate) fn open_session_file(path: &Path, root: &Path) -> Result<(File, Metadata), String> {
-    let at = |error: io::Error| format!("{}: {error}", path.display());
-    let checked = fs::symlink_metadata(path).map_err(at)?;
+    open_inside(path, root).map_err(|error| format!("{}: {error}", path.display()))
+}
+
+/// Open a history file a reader was handed on its own, with no walk to
+/// name its root (one session's messages and its export, its continuation
+/// chain, an archived session): [`open_session_file`] with the file's own
+/// folder as the root.
+pub(crate) fn open_history_file(path: &Path) -> io::Result<File> {
+    open_inside(path, &own_folder(path)?).map(|(file, _)| file)
+}
+
+/// The canonical folder of a history file: the root of a file a reader was
+/// handed on its own, and of the files kept beside it (its continuation
+/// chain, its subagent transcripts).
+pub(crate) fn own_folder(path: &Path) -> io::Result<PathBuf> {
+    let parent = path
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+        .unwrap_or_else(|| Path::new("."));
+    fs::canonicalize(parent)
+}
+
+fn open_inside(path: &Path, root: &Path) -> io::Result<(File, Metadata)> {
+    let checked = fs::symlink_metadata(path)?;
     if checked.file_type().is_symlink() {
-        return Err(format!("{}: a symlink is never read", path.display()));
+        return Err(refused(A_SYMLINK));
     }
     if !checked.is_file() {
-        return Err(format!("{}: not a regular file", path.display()));
+        return Err(refused(NOT_REGULAR));
     }
     #[cfg(test)]
     swap_after_check::checked(path);
-    let canonical = fs::canonicalize(path).map_err(at)?;
+    let canonical = fs::canonicalize(path)?;
     if !canonical.starts_with(root) {
-        return Err(format!(
-            "{}: outside the scanned root {}",
-            path.display(),
-            root.display()
-        ));
+        return Err(outside(root));
     }
-    let file = File::open(&canonical).map_err(at)?;
-    let opened = file.metadata().map_err(at)?;
-    if !opened.is_file() || !same_file(&checked, &opened) {
-        return Err(format!("{}: changed while it was opened", path.display()));
+    let file = open_without_following(&canonical)?;
+    let opened = file.metadata()?;
+    // On Windows a link swapped in is opened as the link itself.
+    if opened.file_type().is_symlink() {
+        return Err(refused(A_SYMLINK));
+    }
+    if !opened.is_file() {
+        return Err(refused(NOT_REGULAR));
+    }
+    if !same_file(&checked, &opened) {
+        return Err(refused(CHANGED));
+    }
+    blocking_reads(&file)?;
+    if !opened_inside(&file, &opened, root) {
+        return Err(outside(root));
     }
     Ok((file, opened))
+}
+
+/// Open `path` for reading without following a symlink at its last
+/// component and without blocking: a FIFO opens at once and is refused by
+/// the caller.
+#[cfg(unix)]
+fn open_without_following(path: &Path) -> io::Result<File> {
+    use rustix::fs::{Mode, OFlags};
+    let flags =
+        OFlags::RDONLY | OFlags::NOFOLLOW | OFlags::NONBLOCK | OFlags::NOCTTY | OFlags::CLOEXEC;
+    match rustix::fs::open(path, flags, Mode::empty()) {
+        Ok(fd) => Ok(File::from(fd)),
+        Err(errno) if errno == rustix::io::Errno::LOOP => Err(refused(A_SYMLINK)),
+        Err(errno) => Err(errno.into()),
+    }
+}
+
+/// `FILE_FLAG_OPEN_REPARSE_POINT`: a symlink or junction is opened itself,
+/// not what it points to.
+#[cfg(windows)]
+fn open_without_following(path: &Path) -> io::Result<File> {
+    use std::os::windows::fs::OpenOptionsExt;
+    const FILE_FLAG_OPEN_REPARSE_POINT: u32 = 0x0020_0000;
+    fs::OpenOptions::new()
+        .read(true)
+        .custom_flags(FILE_FLAG_OPEN_REPARSE_POINT)
+        .open(path)
+}
+
+#[cfg(not(any(unix, windows)))]
+fn open_without_following(path: &Path) -> io::Result<File> {
+    File::open(path)
+}
+
+/// Reads of the regular file block as usual again: it was opened
+/// non-blocking only so that a FIFO in its place could not block the open.
+#[cfg(unix)]
+fn blocking_reads(file: &File) -> io::Result<()> {
+    use rustix::fs::{fcntl_getfl, fcntl_setfl, OFlags};
+    let flags = fcntl_getfl(file)?;
+    fcntl_setfl(file, flags - OFlags::NONBLOCK)?;
+    Ok(())
+}
+
+#[cfg(not(unix))]
+fn blocking_reads(_file: &File) -> io::Result<()> {
+    Ok(())
 }
 
 #[cfg(unix)]
@@ -184,6 +284,47 @@ fn same_file(checked: &Metadata, opened: &Metadata) -> bool {
 #[cfg(not(unix))]
 fn same_file(_checked: &Metadata, _opened: &Metadata) -> bool {
     true
+}
+
+/// Whether the opened file lies inside `root`, judged by the path the system
+/// reports for the handle. A file with more than one link is any of its
+/// names there, so it is judged by the checks before the open alone, and so
+/// is a file on a system that reports no path.
+fn opened_inside(file: &File, opened: &Metadata, root: &Path) -> bool {
+    if link_count(opened) > 1 {
+        return true;
+    }
+    opened_path(file).map_or(true, |path| path.starts_with(root))
+}
+
+#[cfg(unix)]
+fn link_count(opened: &Metadata) -> u64 {
+    use std::os::unix::fs::MetadataExt;
+    opened.nlink()
+}
+
+#[cfg(not(unix))]
+fn link_count(_opened: &Metadata) -> u64 {
+    1
+}
+
+/// The path of the opened file, as the kernel reports it.
+#[cfg(target_vendor = "apple")]
+fn opened_path(file: &File) -> Option<PathBuf> {
+    use std::os::unix::ffi::OsStrExt;
+    let path = rustix::fs::getpath(file).ok()?;
+    Some(PathBuf::from(std::ffi::OsStr::from_bytes(path.as_bytes())))
+}
+
+#[cfg(any(target_os = "linux", target_os = "android"))]
+fn opened_path(file: &File) -> Option<PathBuf> {
+    use std::os::fd::AsRawFd;
+    fs::read_link(format!("/proc/self/fd/{}", file.as_raw_fd())).ok()
+}
+
+#[cfg(not(any(target_vendor = "apple", target_os = "linux", target_os = "android")))]
+fn opened_path(_file: &File) -> Option<PathBuf> {
+    None
 }
 
 /// The subagent transcripts folded into `session` (#577), as
@@ -666,35 +807,78 @@ mod tests {
         );
     }
 
-    /// A direct reader opens a regular file, also through a link, and refuses
-    /// a directory and a FIFO named like a session without blocking.
+    /// A direct reader opens a regular file, and refuses a directory, a link
+    /// and a FIFO named like a session without blocking. The folder may be
+    /// reached through a link (#355).
     #[test]
-    fn open_regular_file_refuses_what_is_not_a_regular_file() {
+    fn open_history_file_refuses_what_is_not_a_regular_file() {
         let dir = tempfile::tempdir().unwrap();
         let session = dir.path().join("s1.jsonl");
         fs::write(&session, "{}\n").unwrap();
         let folder = dir.path().join("folder.jsonl");
         fs::create_dir(&folder).unwrap();
 
-        assert!(open_regular_file(&session).is_ok());
-        let refused = open_regular_file(&folder).unwrap_err();
+        assert!(open_history_file(&session).is_ok());
+        let refused = open_history_file(&folder).unwrap_err();
         assert_eq!(refused.to_string(), "not a regular file");
-        assert!(open_regular_file(&dir.path().join("gone.jsonl")).is_err());
+        assert!(open_history_file(&dir.path().join("gone.jsonl")).is_err());
 
-        #[cfg(unix)]
-        {
-            let link = dir.path().join("link.jsonl");
-            std::os::unix::fs::symlink(&session, &link).unwrap();
-            assert!(open_regular_file(&link).is_ok());
-            let fifo = dir.path().join("fifo.jsonl");
-            let made = std::process::Command::new("mkfifo")
-                .arg(&fifo)
-                .status()
-                .unwrap();
-            assert!(made.success());
-            let refused = open_regular_file(&fifo).unwrap_err();
-            assert_eq!(refused.to_string(), "not a regular file");
-        }
+        let link = dir.path().join("link.jsonl");
+        symlink(&session, &link).unwrap();
+        let refused = open_history_file(&link).unwrap_err();
+        assert_eq!(refused.to_string(), "a symlink is never read");
+        let fifo = dir.path().join("fifo.jsonl");
+        mkfifo(&fifo);
+        let refused = open_history_file(&fifo).unwrap_err();
+        assert_eq!(refused.to_string(), "not a regular file");
+
+        let linked_folder = dir.path().join("linked");
+        symlink(dir.path(), &linked_folder).unwrap();
+        assert!(open_history_file(&linked_folder.join("s1.jsonl")).is_ok());
+    }
+
+    /// `open_session_file` keeps the file inside the root it was found
+    /// under, which may itself be reached through a link, and reads a
+    /// hardlink there (ADR 0003 §7).
+    #[test]
+    fn open_session_file_keeps_the_file_inside_its_root() {
+        let dir = TempDir::new().unwrap();
+        let outside = TempDir::new().unwrap();
+        let root = fs::canonicalize(dir.path()).unwrap();
+        touch(&root.join("p/s1.jsonl"));
+        touch(&outside.path().join("o.jsonl"));
+        fs::hard_link(outside.path().join("o.jsonl"), root.join("p/hard.jsonl")).unwrap();
+        let linked = outside.path().join("linked-root");
+        symlink(&root, &linked).unwrap();
+
+        let opened = |path: &Path, within: &Path| open_session_file(path, within).is_ok();
+        assert_eq!(
+            [
+                opened(&root.join("p/s1.jsonl"), &root),
+                opened(&linked.join("p/s1.jsonl"), &root),
+                opened(&root.join("p/hard.jsonl"), &root),
+                opened(&root.join("p/s1.jsonl"), &root.join("q")),
+                opened(&outside.path().join("o.jsonl"), &root),
+            ],
+            [true, true, true, false, false]
+        );
+    }
+
+    /// The opened handle is judged by its own path: a file opened outside the
+    /// root is refused even when the path checked before the open was inside
+    /// it (a folder swapped for a link in between).
+    #[test]
+    fn the_opened_handle_is_judged_by_its_own_path() {
+        let dir = TempDir::new().unwrap();
+        let outside = TempDir::new().unwrap();
+        let root = fs::canonicalize(dir.path()).unwrap();
+        touch(&root.join("s1.jsonl"));
+        touch(&outside.path().join("o.jsonl"));
+        let inside = File::open(root.join("s1.jsonl")).unwrap();
+        let elsewhere = File::open(outside.path().join("o.jsonl")).unwrap();
+
+        let judged = |file: &File| opened_inside(file, &file.metadata().unwrap(), &root);
+        assert_eq!((judged(&inside), judged(&elsewhere)), (true, false));
     }
 
     fn mkfifo(path: &Path) {

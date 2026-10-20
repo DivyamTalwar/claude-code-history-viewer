@@ -196,6 +196,20 @@ symlink. A symlinked project directory under `projects/` is not walked either.
   root it was found under, through its canonical path, and the opened handle must be the file
   that was checked (same device and inode on Unix). A file swapped for a symlink after the walk
   is not read. The contribution cache never answers a symlink with its target's entry.
+- **The open decides, not the walk (#698).** A walk-time check and the open after it are
+  separate system calls, so every history reader — the stats commands, search, the session,
+  subagent and project lists, the session loaders, recent edits and the archive copy — opens
+  through `session_files::open_session_file`: without following a symlink at the file
+  (`O_NOFOLLOW`), without blocking on a FIFO (`O_NONBLOCK`, then the handle must be a regular
+  file), inside the root resolved before the walk, and, where the system reports the opened
+  handle's path (`F_GETPATH` on macOS, `/proc/self/fd` on Linux), that path inside the root as
+  well. A reader handed a single file (one session's messages, its export) uses the file's own
+  folder as the root (`open_history_file`). A unit test swaps a file for a symlink and for a
+  FIFO right after its check, for every reader; a source guard fails on a plain open of a path
+  in the readers' production code. Windows has no `O_NOFOLLOW`: the file is opened with
+  `FILE_FLAG_OPEN_REPARSE_POINT`, so a link swapped in is opened as itself and refused by the
+  handle's metadata; a folder on the way swapped for a junction between the containment check
+  and the open is not detected there.
 - **Hardlinks are read.** A hardlink is not a link entry but another name of the file itself: a
   regular file whose canonical path lies inside the root. A hardlink under a project directory to
   a file kept elsewhere on the same filesystem is therefore read like any other session file, by

@@ -141,13 +141,14 @@ fn extract_project_name(file_path: &PathBuf) -> Option<String> {
 ///
 /// Uses a reusable buffer to avoid repeated heap allocations during JSON parsing.
 /// Accepts a pre-built `AhoCorasick` matcher to avoid rebuilding per file.
+/// `root` is the canonical `projects/` folder the file was found under: the
+/// file is read inside it only (`session_files::open_session_file`).
 #[allow(unsafe_code)] // Required for mmap performance optimization
-fn search_in_file(file_path: &PathBuf, matcher: &AhoCorasick) -> Vec<ClaudeMessage> {
+fn search_in_file(file_path: &PathBuf, root: &Path, matcher: &AhoCorasick) -> Vec<ClaudeMessage> {
     let project_name = extract_project_name(file_path);
 
-    let file = match fs::File::open(file_path) {
-        Ok(f) => f,
-        Err(_) => return Vec::new(),
+    let Ok((file, _)) = session_files::open_session_file(file_path, root) else {
+        return Vec::new();
     };
 
     // SAFETY: We're only reading the file, and the file handle is kept open
@@ -486,7 +487,11 @@ fn search_messages_blocking(
 
     // Regular files only, no symlink followed (`session_files`): a linked
     // `*.jsonl` entry would be read wherever it points, and a FIFO named
-    // like a session would block the search.
+    // like a session would block the search. Each is read inside the
+    // `projects/` folder, resolved before the walk.
+    let Ok(root) = fs::canonicalize(&projects_path) else {
+        return Ok(vec![]);
+    };
     let file_paths: Vec<PathBuf> = session_files::regular_session_files(&projects_path);
 
     let key = cache_key(&claude_path, &query);
@@ -535,7 +540,10 @@ fn search_messages_blocking(
         .map(|idx| {
             #[cfg(test)]
             note_scan(&file_paths[idx]);
-            (idx, Arc::new(search_in_file(&file_paths[idx], &matcher)))
+            (
+                idx,
+                Arc::new(search_in_file(&file_paths[idx], &root, &matcher)),
+            )
         })
         .collect();
     for (idx, matches) in scanned {

@@ -815,6 +815,7 @@ dependencies = [
  "rstest",
  "rusqlite",
  "rust-embed",
+ "rustix",
  "serde",
  "serde_json",
  "serial_test",
