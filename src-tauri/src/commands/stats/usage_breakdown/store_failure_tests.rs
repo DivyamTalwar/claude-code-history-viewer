@@ -96,8 +96,10 @@ async fn check(fixtures: &[Fixture]) {
                 .unwrap()
                 .display()
                 .to_string();
+            // As root, mode 000 locks nothing: this store's lock rows are
+            // skipped, and its readable row and the other stores still count.
             let Some(_locked) = Unreadable::new(lock) else {
-                return;
+                break;
             };
             seen.push((
                 provider,
