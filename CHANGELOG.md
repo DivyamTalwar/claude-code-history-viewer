@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.32.1] - 2026-10-20
+
+Patch release for the WebUI server mode (`--serve`); upgrade if you run the WebUI.
+
+### Security
+- **History readers stay inside the history folders** (desktop and WebUI). The session list, subagent list, project list, message search, recent edits, usage statistics, archives and the list of sessions about to expire no longer read a session or subagent file through a symbolic link inside a Claude history folder. A project folder under `projects/` that is itself a link is no longer counted in the global summary; that project's own statistics are unchanged. (#691, backported; #696)
+
+### Fixed
+- **A folder named like a session file no longer stalls loading.** History readers open regular files only: an entry in a history folder that is named like a session but is not a file is skipped by the lists and archives and refused when opened directly, instead of stalling the request. (#696)
+- **WebUI: an empty Claude folder means the default one.** Requests that leave the Claude folder empty (project list, search, global statistics) read `~/.claude` instead of a `projects` folder in the server's working directory. (#693)
+
 ## [1.32.0] - 2026-10-11
 
 ### Added
