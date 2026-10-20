@@ -128,6 +128,17 @@ pub(crate) fn subagent_files(session: &Path) -> Vec<PathBuf> {
         .collect()
 }
 
+/// The subagent transcripts of `session` a reader opens: the
+/// [`subagent_files`] that are regular files. The lookup keeps a directory
+/// named like a transcript (an archive refuses one); a reader skips it, and
+/// a FIFO, which would block it.
+pub(crate) fn regular_subagent_files(session: &Path) -> Vec<PathBuf> {
+    subagent_files(session)
+        .into_iter()
+        .filter(|file| is_regular_file(file))
+        .collect()
+}
+
 /// Whether `path` lies below `dir` through real entries only: every component
 /// after `dir` is a plain name and none of them is a symlink. `dir` itself may
 /// be reached through one, as the walk root may.
@@ -297,6 +308,29 @@ mod tests {
         assert_eq!(
             subagent_files(&linked.join("s1.jsonl")),
             [linked.join("s1/subagents/agent-1.jsonl")]
+        );
+    }
+
+    /// A directory or a FIFO named like a transcript is not one: the lookup
+    /// keeps both, a reader gets neither.
+    #[test]
+    fn readers_open_the_regular_subagent_files_only() {
+        let dir = TempDir::new().unwrap();
+        let project = dir.path().join("p");
+        touch(&project.join("s1.jsonl"));
+        touch(&project.join("s1/subagents/agent-1.jsonl"));
+        fs::create_dir_all(project.join("s1/subagents/agent-folder.jsonl")).unwrap();
+        let made = std::process::Command::new("mkfifo")
+            .arg(project.join("s1/subagents/agent-fifo.jsonl"))
+            .status()
+            .unwrap();
+        assert!(made.success());
+
+        let session = project.join("s1.jsonl");
+        assert_eq!(subagent_files(&session).len(), 3);
+        assert_eq!(
+            regular_subagent_files(&session),
+            [project.join("s1/subagents/agent-1.jsonl")]
         );
     }
 

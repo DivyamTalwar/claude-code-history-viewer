@@ -273,6 +273,37 @@ async fn the_session_lists_never_read_a_session_file_through_a_symlink() {
     );
 }
 
+/// The readers that list, count or archive a session's subagent
+/// transcripts never follow a symlinked folder to them.
+#[tokio::test]
+#[serial]
+async fn the_subagent_readers_never_follow_a_symlinked_folder() {
+    let planted = Planted::new();
+    let project = planted.project();
+    let (s1, s2) = (project.join("s1.jsonl"), project.join("s2.jsonl"));
+
+    let read = (
+        subagents(&s1).await,
+        subagents(&s2).await,
+        expiring(&project).await,
+        archived(&project, &[s1, s2]).await,
+    );
+
+    assert_eq!(
+        read,
+        (
+            Ok(vec![]),
+            Ok(vec!["r: inside s2's subagent".to_string()]),
+            Ok(vec!["s1.jsonl: 0".to_string(), "s2.jsonl: 1".to_string()]),
+            Ok(vec![
+                "sessions/s1.jsonl".to_string(),
+                "sessions/s2.jsonl".to_string(),
+                "subagents/s2/agent-r.jsonl".to_string(),
+            ]),
+        )
+    );
+}
+
 /// The root itself may be reached through a symlink: a symlinked `~/.claude`
 /// (#355) and a project folder that is a link are read as before, subagent
 /// folders included.
@@ -453,6 +484,81 @@ fn the_session_lists_skip_entries_that_are_not_regular_files() {
             ("get_recent_edits", "Ok(0)".to_string()),
             ("get_project_stats_summary", "Ok(200)".to_string()),
             ("get_global_stats_summary", "Ok(200)".to_string()),
+        ]
+    );
+}
+
+/// The subagent readers answer, and read only the regular transcripts, with
+/// a directory and a FIFO named like a transcript in the subagent folder. An
+/// archive refuses them without opening either.
+#[test]
+#[serial]
+fn the_subagent_readers_skip_entries_that_are_not_regular_files() {
+    let home = SandboxHome::new();
+    let (project, s9) = project_q(&home);
+    fs::create_dir_all(project.join("s9/subagents/agent-folder.jsonl")).unwrap();
+    let fifo = project.join("s9/subagents/agent-fifo.jsonl");
+    mkfifo(&fifo);
+
+    let read = within_deadline(vec![
+        (
+            "get_session_subagents",
+            read_path(&s9, |s9| block_on(subagents(&s9))),
+        ),
+        (
+            "get_expiring_sessions",
+            read_path(&project, |project| block_on(expiring(&project))),
+        ),
+        (
+            "create_archive",
+            read_path(&s9, |s9| {
+                block_on(archived(s9.parent().unwrap(), std::slice::from_ref(&s9)))
+            }),
+        ),
+        (
+            "get_session_token_stats",
+            read_path(&s9, |s9| {
+                block_on(stats::get_session_token_stats(text(&s9), None, None, None))
+                    .map(|session| session.total_tokens)
+            }),
+        ),
+        (
+            "get_project_token_stats",
+            read_path(&project, |project| {
+                block_on(stats::get_project_token_stats(
+                    text(&project),
+                    Some(0),
+                    Some(100),
+                    None,
+                    None,
+                    None,
+                ))
+                .map(|page| {
+                    page.items
+                        .iter()
+                        .map(|item| item.total_tokens)
+                        .collect::<Vec<_>>()
+                })
+            }),
+        ),
+    ]);
+
+    let refused: Result<Vec<String>, String> =
+        Err(format!("Subagent path is not a file: {}", fifo.display()));
+    assert_eq!(
+        read,
+        [
+            (
+                "get_session_subagents",
+                r#"Ok(["r: inside s9's subagent"])"#.to_string()
+            ),
+            (
+                "get_expiring_sessions",
+                r#"Ok(["s9.jsonl: 1"])"#.to_string()
+            ),
+            ("create_archive", format!("{refused:?}")),
+            ("get_session_token_stats", "Ok(200)".to_string()),
+            ("get_project_token_stats", "Ok([200])".to_string()),
         ]
     );
 }

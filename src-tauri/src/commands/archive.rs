@@ -5,7 +5,6 @@
 
 use crate::commands::stats::session_files;
 use crate::models::ClaudeSession;
-use crate::utils::find_subagent_files;
 use chrono::Utc;
 use lazy_static::lazy_static;
 use regex::Regex;
@@ -751,7 +750,11 @@ pub async fn create_archive(
                 let mut subagent_size: u64 = 0;
 
                 if include_subagents {
-                    let subagent_files = find_subagent_files(session_path);
+                    // Never through a symlinked folder
+                    // (`session_files::subagent_files`): a linked folder would
+                    // copy transcripts from outside the root into the archive.
+                    // Anything there that is not a file is refused below.
+                    let subagent_files = session_files::subagent_files(session_path);
                     if !subagent_files.is_empty() {
                         let dest_subagent_dir = subagents_dir.join(&dest_stem);
                         fs::create_dir_all(&dest_subagent_dir)
@@ -1476,7 +1479,7 @@ pub async fn get_expiring_sessions(
                     entrypoint: None,
                 };
 
-                let subagent_count = find_subagent_files(&path).len() as u32;
+                let subagent_count = session_files::regular_subagent_files(&path).len() as u32;
 
                 expiring.push(ExpiringSession {
                     session,
@@ -2054,7 +2057,7 @@ mod tests {
         fs::create_dir_all(&project_subagents).unwrap();
         unix_fs::symlink(&external_subagents, project_subagents.join("agent_run")).unwrap();
 
-        let files = find_subagent_files(&session_path);
+        let files = crate::utils::find_subagent_files(&session_path);
         assert_eq!(files, Vec::<std::path::PathBuf>::new());
     }
 
