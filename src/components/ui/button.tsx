@@ -108,10 +108,10 @@ const ignoreClick = (event: React.MouseEvent<HTMLElement>) => {
 };
 
 /** The handlers of an `asChild` child that an inactive Button holds back. */
-type ChildHandlers = Pick<React.DOMAttributes<Element>, "onClickCapture" | "onPointerDown" | "onKeyDown">;
+type ChildHandlers = Pick<React.DOMAttributes<Element>, "onClickCapture" | "onPointerDown" | "onPointerDownCapture" | "onKeyDown">;
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant, size, asChild = false, loading = false, disabled, children, onClick, onClickCapture, onPointerDown, onKeyDown, ...props }, ref) => {
+  ({ className, variant, size, asChild = false, loading = false, disabled, children, onClick, onClickCapture, onPointerDown, onPointerDownCapture, onKeyDown, ...props }, ref) => {
     const Comp = asChild ? Slot : "button";
     const busy = loading && !asChild;
     const ariaDisabled = props["aria-disabled"] === true || props["aria-disabled"] === "true";
@@ -125,6 +125,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         ? React.cloneElement(children, {
             onClickCapture: undefined,
             onPointerDown: undefined,
+            onPointerDownCapture: undefined,
             onKeyDown: withoutActivationKeys(children.props.onKeyDown),
           })
         : children;
@@ -141,6 +142,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         onClickCapture={inert ? ignoreClick : onClickCapture}
         onClick={inert ? undefined : onClick}
         onPointerDown={inert ? undefined : onPointerDown}
+        onPointerDownCapture={inert ? undefined : onPointerDownCapture}
         onKeyDown={inert ? withoutActivationKeys(onKeyDown) : onKeyDown}
       >
         {busy ? (
