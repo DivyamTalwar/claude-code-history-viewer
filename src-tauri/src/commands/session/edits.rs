@@ -102,7 +102,7 @@ fn apply_edit(content: &str, old_str: &str, new_str: &str, replace_all: bool) ->
 /// Process a single session file and extract edit information
 #[allow(unsafe_code)] // Required for mmap performance optimization
 fn process_session_file_for_edits(file_path: &PathBuf) -> Option<SessionEditsResult> {
-    let file = fs::File::open(file_path).ok()?;
+    let file = session_files::open_regular_file(file_path).ok()?;
 
     // SAFETY: We're only reading the file, and the file handle is kept open
     // for the duration of the mmap's lifetime. Session files are append-only.
@@ -814,11 +814,15 @@ fn validate_session_file_in_project(
     // Reject a symlink outright, matching the policy `decode_project_path_verified`
     // already applies to project directories. `canonicalize` would happily follow
     // one out of the project and then report the resolved name as fine.
-    if fs::symlink_metadata(candidate)
-        .map(|m| m.file_type().is_symlink())
-        .unwrap_or(false)
-    {
-        return Err("Invalid session file path: symlinks are not allowed".to_string());
+    if let Ok(meta) = fs::symlink_metadata(candidate) {
+        if meta.file_type().is_symlink() {
+            return Err("Invalid session file path: symlinks are not allowed".to_string());
+        }
+        // Regular files only, as the directory walk below: a FIFO named like
+        // a session would block the reader that opens it.
+        if !meta.is_file() {
+            return Err("Invalid session file path: not a regular file".to_string());
+        }
     }
 
     // The check above reports on the final component only: `symlink_metadata`
