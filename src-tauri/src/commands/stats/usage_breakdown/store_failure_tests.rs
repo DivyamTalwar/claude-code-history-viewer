@@ -142,7 +142,9 @@ async fn an_unreadable_part_of_a_database_store_is_never_a_scanned_zero() {
 
 /// Antigravity's project scan falls back to its CLI projects when the
 /// desktop scan fails; the reporting variant still records that failure
-/// (a review finding on #708).
+/// (a review finding on #708). The desktop scan fails on a `brain` that is
+/// a file for every user, root included (mode 000 does not stop root), so
+/// this test always reaches its assertion.
 #[test]
 #[serial]
 fn an_antigravity_desktop_failure_beside_cli_projects_is_recorded() {
@@ -150,7 +152,7 @@ fn an_antigravity_desktop_failure_beside_cli_projects_is_recorded() {
     let _cleared = without_store_env();
     let Store { env: _env, .. } = antigravity(home.path());
     let brain = home.path().join(".gemini/antigravity/brain");
-    fs::create_dir_all(&brain).unwrap();
+    fs::write(&brain, "").unwrap();
     let cli = home.path().join(".gemini/antigravity-cli");
     write_lines(
         &cli.join("history.jsonl"),
@@ -165,10 +167,6 @@ fn an_antigravity_desktop_failure_beside_cli_projects_is_recorded() {
                  "created_at": "2026-10-16T09:00:00Z"}),
         ],
     );
-    let Some(_locked) = Unreadable::new(&brain) else {
-        return;
-    };
-
     let report = crate::providers::scan_report::ScanReport::default();
     let projects =
         crate::providers::antigravity::scan_projects_reporting(&report).expect("the CLI projects");
