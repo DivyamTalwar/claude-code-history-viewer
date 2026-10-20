@@ -21,11 +21,14 @@ import { Spinner } from "./spinner";
  *   on --muted), not 50% opacity. Button marks it `data-disabled` for
  *   `disabled` and for `aria-disabled="true"`, so both look the same; an
  *   aria-disabled button stays in the tab order and ignores click, Enter
- *   and Space (and does not open a menu it triggers).
+ *   and Space (and does not open a menu it triggers). With `asChild` the
+ *   child's own handlers are held back too.
  * - `loading`: `aria-busy` + `aria-disabled`, clicks ignored, focus kept
  *   (a natively disabled button would drop it). The label stays in the
  *   layout, invisible and still the accessible name, under the shared
- *   Spinner, so the width does not change; the variant's look stays.
+ *   Spinner; it lays its parts out with the button's own direction, gap
+ *   and alignment, so the size does not change whatever the caller sets.
+ *   The variant's look stays.
  *
  * `accent`, `success` and `warning` have no call sites; they keep their
  * names (F2b renames and removes variants) and render `default`.
@@ -87,13 +90,44 @@ export interface ButtonProps
 /** Keys that activate a button or open the menu it triggers. */
 const ACTIVATION_KEYS = new Set(["Enter", " ", "ArrowDown", "ArrowUp"]);
 
+/** An inactive button's key handler: the activation keys reach no handler, other keys do. */
+const withoutActivationKeys =
+  <T extends Element>(handler?: React.KeyboardEventHandler<T>): React.KeyboardEventHandler<T> =>
+  (event) => {
+    if (!ACTIVATION_KEYS.has(event.key)) handler?.(event);
+  };
+
+/**
+ * An inactive button's click, in the capture phase: it runs before every
+ * click handler of the button (Slot runs an `asChild` child's own before
+ * Button's) and stops them, the form submit and the link.
+ */
+const ignoreClick = (event: React.MouseEvent<HTMLElement>) => {
+  event.preventDefault();
+  event.stopPropagation();
+};
+
+/** The handlers of an `asChild` child that an inactive Button holds back. */
+type ChildHandlers = Pick<React.DOMAttributes<Element>, "onClickCapture" | "onPointerDown" | "onKeyDown">;
+
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant, size, asChild = false, loading = false, disabled, children, onClick, onPointerDown, onKeyDown, ...props }, ref) => {
+  ({ className, variant, size, asChild = false, loading = false, disabled, children, onClick, onClickCapture, onPointerDown, onKeyDown, ...props }, ref) => {
     const Comp = asChild ? Slot : "button";
     const busy = loading && !asChild;
     const ariaDisabled = props["aria-disabled"] === true || props["aria-disabled"] === "true";
     // Focusable but inactive: aria-disabled or busy.
     const inert = ariaDisabled || busy;
+    // Slot runs the child's own handlers before Button's: an inactive Button
+    // holds back the child's pointer down and activation keys as it holds
+    // back its own (its clicks stop at ignoreClick).
+    const content =
+      inert && asChild && React.isValidElement<ChildHandlers>(children)
+        ? React.cloneElement(children, {
+            onClickCapture: undefined,
+            onPointerDown: undefined,
+            onKeyDown: withoutActivationKeys(children.props.onKeyDown),
+          })
+        : children;
     return (
       <Comp
         ref={ref}
@@ -104,27 +138,18 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         aria-busy={busy ? true : props["aria-busy"]}
         data-disabled={(disabled || ariaDisabled) && !busy ? "" : undefined}
         data-loading={busy ? "" : undefined}
-        onClick={
-          inert
-            ? (event: React.MouseEvent<HTMLButtonElement>) => {
-                event.preventDefault();
-                event.stopPropagation();
-              }
-            : onClick
-        }
+        onClickCapture={inert ? ignoreClick : onClickCapture}
+        onClick={inert ? undefined : onClick}
         onPointerDown={inert ? undefined : onPointerDown}
-        onKeyDown={
-          inert
-            ? (event: React.KeyboardEvent<HTMLButtonElement>) => {
-                if (ACTIVATION_KEYS.has(event.key)) return;
-                onKeyDown?.(event);
-              }
-            : onKeyDown
-        }
+        onKeyDown={inert ? withoutActivationKeys(onKeyDown) : onKeyDown}
       >
         {busy ? (
           <>
-            <span data-slot="button-label" className="inline-flex items-center justify-center gap-2 opacity-0">
+            {/* Inherits the button's flex direction, wrap, gap and alignment: as wide and tall as the parts without it. */}
+            <span
+              data-slot="button-label"
+              className="inline-flex opacity-0 [flex-flow:inherit] [gap:inherit] [place-content:inherit] [place-items:inherit]"
+            >
               {children}
             </span>
             <span className="absolute inset-0 flex items-center justify-center">
@@ -132,7 +157,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
             </span>
           </>
         ) : (
-          children
+          content
         )}
       </Comp>
     );
