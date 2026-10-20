@@ -1188,6 +1188,83 @@ mod tests {
         format!("{row}\n")
     }
 
+    /// The old stats routes (#691, backported): the history-root guard checks
+    /// the requested directory or file, so the scans behind it must never
+    /// follow a symlink out of the root: not a session file, not a project
+    /// directory, not a session's subagent folder.
+    #[cfg(unix)]
+    #[tokio::test]
+    #[serial]
+    async fn test_old_stats_routes_never_follow_a_symlink_out_of_the_history_root() {
+        use std::os::unix::fs::symlink;
+        let home = crate::test_utils::SandboxHome::new();
+        let claude = home.path().join(".claude");
+        let project = claude.join("projects").join("p");
+        std::fs::create_dir_all(&project).unwrap();
+        std::fs::write(project.join("s1.jsonl"), history_row("s1", "a1", None, 100)).unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        let private = outside.path().join("private.jsonl");
+        std::fs::write(&private, history_row("private", "x1", None, 4_242)).unwrap();
+        let subagents = outside.path().join("subagents");
+        std::fs::create_dir_all(&subagents).unwrap();
+        std::fs::write(
+            subagents.join("agent-x.jsonl"),
+            history_row("s1", "x2", None, 4_242),
+        )
+        .unwrap();
+        symlink(&private, project.join("escaped.jsonl")).unwrap();
+        symlink(outside.path(), claude.join("projects").join("evil")).unwrap();
+        symlink(outside.path(), project.join("s1")).unwrap();
+
+        let project_path = project.to_string_lossy();
+        let session_path = project.join("s1.jsonl");
+        let routes = [
+            (
+                "get_project_stats_summary",
+                serde_json::json!({ "projectPath": project_path }),
+            ),
+            (
+                "get_project_token_stats",
+                serde_json::json!({ "projectPath": project_path, "limit": 100 }),
+            ),
+            (
+                "get_session_token_stats",
+                serde_json::json!({ "sessionPath": session_path.to_string_lossy() }),
+            ),
+            (
+                "get_global_stats_summary",
+                serde_json::json!({
+                    "claudePath": claude.to_string_lossy(), "activeProviders": ["claude"]
+                }),
+            ),
+        ];
+        let mut tokens_by_route = Vec::new();
+        for (route, body) in routes {
+            let (status, json) = post_read_only(route, body).await;
+            assert_eq!(status, StatusCode::OK, "{route}: {json}");
+            let tokens: u64 = match json.get("items") {
+                Some(items) => items
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .map(|item| item["total_tokens"].as_u64().unwrap())
+                    .sum(),
+                None => json["total_tokens"].as_u64().unwrap(),
+            };
+            tokens_by_route.push((route, tokens));
+        }
+        // Only the history inside the root, on every route at once.
+        assert_eq!(
+            tokens_by_route,
+            [
+                ("get_project_stats_summary", 100),
+                ("get_project_token_stats", 100),
+                ("get_session_token_stats", 100),
+                ("get_global_stats_summary", 100),
+            ]
+        );
+    }
+
     /// #693. The root guard lets an empty `claudePath` through as "use the
     /// default", so every route behind it reads `~/.claude`, never a
     /// `projects/` folder relative to the server's working directory. An
