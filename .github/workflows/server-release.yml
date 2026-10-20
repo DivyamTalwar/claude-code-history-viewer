@@ -52,7 +52,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.tag || github.ref }}
+          # refs/tags/ so a manual run cannot pick a branch of the same name.
+          ref: ${{ inputs.tag && format('refs/tags/{0}', inputs.tag) || github.ref }}
 
       - name: Install just
         uses: extractions/setup-just@v2
@@ -179,6 +180,14 @@ jobs:
           # Fetch current formula
           gh api repos/jhlee0409/homebrew-tap/contents/Formula/cchv-server.rb \
             --jq '.content' | base64 -d > cchv-server.rb
+
+          # An older tag (a manual rebuild) still gets its assets and checksums,
+          # but the formula must not move back to it.
+          CURRENT=$(sed -n 's/^ *version "\(.*\)"$/\1/p' cchv-server.rb | head -n 1)
+          if [ -n "$CURRENT" ] && [ "$(printf '%s\n' "$CURRENT" "$VERSION" | sort -V | tail -n 1)" != "$VERSION" ]; then
+            echo "::notice::Formula is at ${CURRENT}, newer than ${VERSION}; leaving it unchanged"
+            exit 0
+          fi
 
           FILE_SHA=$(gh api repos/jhlee0409/homebrew-tap/contents/Formula/cchv-server.rb --jq '.sha')
 
