@@ -1248,6 +1248,112 @@ mod tests {
         );
     }
 
+    /// `post_read_only` on a thread of its own, so a route that never answers
+    /// fails the test instead of stalling it: `None` after 10 s, and the
+    /// thread is left behind.
+    #[cfg(unix)]
+    fn post_read_only_within_deadline(
+        route: &'static str,
+        body: serde_json::Value,
+    ) -> Option<(StatusCode, serde_json::Value)> {
+        let (sent, received) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let runtime = tokio::runtime::Runtime::new().unwrap();
+            sent.send(runtime.block_on(post_read_only(route, body)))
+        });
+        received
+            .recv_timeout(std::time::Duration::from_secs(10))
+            .ok()
+    }
+
+    /// Inside a history root only directories and regular files are history.
+    /// The routes answer with a directory and a FIFO named like a session in
+    /// the project: the lists skip both, and a route given either as the
+    /// session refuses it instead of reading it forever (a directory) or
+    /// blocking on it (a FIFO).
+    #[cfg(unix)]
+    #[test]
+    #[serial]
+    fn test_session_routes_answer_with_entries_that_are_not_regular_files() {
+        let home = crate::test_utils::SandboxHome::new();
+        let project = home.path().join(".claude").join("projects").join("q");
+        std::fs::create_dir_all(project.join("folder.jsonl")).unwrap();
+        let session = history_row("s9", "u9", Some("inside"), 0);
+        std::fs::write(project.join("s9.jsonl"), session).unwrap();
+        let fifo = project.join("fifo.jsonl");
+        let made = std::process::Command::new("mkfifo")
+            .arg(&fifo)
+            .status()
+            .unwrap();
+        assert!(made.success());
+
+        let project_path = project.to_string_lossy().to_string();
+        let folder_path = project.join("folder.jsonl").to_string_lossy().to_string();
+        let fifo_path = fifo.to_string_lossy().to_string();
+        let routes = [
+            (
+                "load_project_sessions",
+                serde_json::json!({ "projectPath": project_path }),
+            ),
+            (
+                "load_project_sessions_page",
+                serde_json::json!({ "projectPath": project_path }),
+            ),
+            (
+                "load_provider_session_by_path",
+                serde_json::json!({
+                    "provider": "claude", "projectPath": project_path, "filePath": folder_path
+                }),
+            ),
+            (
+                "load_session_messages",
+                serde_json::json!({ "sessionPath": fifo_path }),
+            ),
+            (
+                "load_session_messages_paginated",
+                serde_json::json!({ "sessionPath": fifo_path, "offset": 0, "limit": 10 }),
+            ),
+            (
+                "get_session_message_count",
+                serde_json::json!({ "sessionPath": fifo_path }),
+            ),
+            (
+                "export_session",
+                serde_json::json!({ "sessionFilePath": fifo_path, "format": "json" }),
+            ),
+        ];
+        let answers: Vec<(&str, String)> = routes
+            .into_iter()
+            .map(|(route, body)| {
+                let answer = match post_read_only_within_deadline(route, body) {
+                    None => "stalled".to_string(),
+                    Some((StatusCode::OK, json)) => {
+                        let sessions = json.get("sessions").unwrap_or(&json);
+                        format!("{} sessions", sessions.as_array().unwrap().len())
+                    }
+                    Some((_, json)) => json["error"].as_str().unwrap_or_default().to_string(),
+                };
+                (route, answer)
+            })
+            .collect();
+        let refused = "Path is not a regular file or directory".to_string();
+        assert_eq!(
+            answers,
+            [
+                ("load_project_sessions", "1 sessions".to_string()),
+                ("load_project_sessions_page", "1 sessions".to_string()),
+                (
+                    "load_provider_session_by_path",
+                    "Session file is not a regular file".to_string()
+                ),
+                ("load_session_messages", refused.clone()),
+                ("load_session_messages_paginated", refused.clone()),
+                ("get_session_message_count", refused.clone()),
+                ("export_session", refused),
+            ]
+        );
+    }
+
     /// An `AppState` differing only in the two inputs the gate reads.
     fn state_with(loopback_bind: bool, auth_token: Option<&str>) -> Arc<AppState> {
         let state = test_state(auth_token);

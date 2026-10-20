@@ -700,6 +700,12 @@ pub async fn create_archive(
                             "Session path is a symlink (rejected for security): {session_path_str}"
                         ));
                     }
+                    // A FIFO named like a session would block the copy.
+                    Ok(meta) if !meta.is_file() => {
+                        return Err(format!(
+                            "Session path is not a regular file: {session_path_str}"
+                        ));
+                    }
                     Ok(_) => {}
                     Err(_) => {
                         return Err(format!("Session file not found: {session_path_str}"));

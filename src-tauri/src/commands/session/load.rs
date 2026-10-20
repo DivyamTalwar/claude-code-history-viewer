@@ -260,6 +260,21 @@ fn extract_session_metadata_from_file(file_path: &PathBuf) -> Option<SessionExtr
     extract_session_metadata_internal(file_path, None)
 }
 
+/// The lines of a session file for a metadata scan. A line that is not UTF-8
+/// is skipped; any other read error ends the scan. `BufRead::lines` returns
+/// such an error again on every call (each read of a directory fails), so a
+/// scan that skipped it as well never ended.
+fn session_lines(reader: impl BufRead) -> impl Iterator<Item = String> {
+    reader
+        .lines()
+        .map_while(|line| match line {
+            Ok(line) => Some(Some(line)),
+            Err(error) if error.kind() == std::io::ErrorKind::InvalidData => Some(None),
+            Err(_) => None,
+        })
+        .flatten()
+}
+
 /// Incremental session metadata extraction - only parses new content from given offset
 fn extract_session_metadata_incremental(
     file_path: &PathBuf,
@@ -350,12 +365,7 @@ fn extract_session_metadata_internal(
     let mut lines_processed = 0usize;
     const METADATA_PHASE_LINES: usize = 100; // Full parse first N lines
 
-    for line_result in reader.lines() {
-        let line = match line_result {
-            Ok(l) => l,
-            Err(_) => continue,
-        };
-
+    for line in session_lines(reader) {
         if line.trim().is_empty() {
             continue;
         }
@@ -1434,6 +1444,11 @@ pub fn find_project_session_by_path(
     if metadata.file_type().is_symlink() {
         return Err("Session file cannot be a symlink".to_string());
     }
+    // Nothing but a regular file is read: a directory named like a session
+    // fails every read, and a FIFO blocks the read.
+    if !metadata.is_file() {
+        return Err("Session file is not a regular file".to_string());
+    }
     let canonical_path = path
         .canonicalize()
         .map_err(|error| format!("Failed to resolve file_path: {error}"))?;
@@ -2301,8 +2316,7 @@ fn extract_subagent_metadata(
     let mut last_time: Option<String> = None;
     let mut summary: Option<String> = None;
 
-    for line_result in reader.lines() {
-        let Ok(line) = line_result else { continue };
+    for line in session_lines(reader) {
         if line.trim().is_empty() {
             continue;
         }
@@ -4588,5 +4602,22 @@ mod tests {
         let link = dir.path().join("agent-link.meta.json");
         std::os::unix::fs::symlink(&real, &link).unwrap();
         assert_eq!(read_subagent_tool_use_id(&link), None);
+    }
+
+    /// A read that keeps failing ends a metadata scan: `BufRead::lines`
+    /// returns the same error again (every read of a directory fails), so a
+    /// scan that skipped it never returned. A line that is not UTF-8 is
+    /// still skipped.
+    #[test]
+    fn test_session_lines_end_at_a_read_error() {
+        struct Unreadable;
+        impl std::io::Read for Unreadable {
+            fn read(&mut self, _: &mut [u8]) -> std::io::Result<usize> {
+                Err(std::io::Error::other("unreadable"))
+            }
+        }
+        assert_eq!(session_lines(BufReader::new(Unreadable)).count(), 0);
+        let mixed: &[u8] = b"one\n\xff\ntwo\n";
+        assert_eq!(session_lines(mixed).collect::<Vec<_>>(), ["one", "two"]);
     }
 }
