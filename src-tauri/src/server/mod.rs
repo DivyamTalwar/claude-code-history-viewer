@@ -1523,6 +1523,10 @@ mod tests {
                 "get_session_token_stats",
                 serde_json::json!({ "sessionPath": fifo_path }),
             ),
+            (
+                "get_recent_edits",
+                serde_json::json!({ "projectPath": project_path, "sessionFilePath": fifo_path }),
+            ),
         ];
         let answers: Vec<(&str, String)> = routes
             .into_iter()
@@ -1555,7 +1559,8 @@ mod tests {
                 ("load_provider_messages", refused.clone()),
                 ("load_provider_messages_paginated", refused.clone()),
                 ("get_provider_message_offset", refused.clone()),
-                ("get_session_token_stats", refused),
+                ("get_session_token_stats", refused.clone()),
+                ("get_recent_edits", refused),
             ]
         );
     }

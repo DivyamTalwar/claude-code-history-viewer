@@ -648,7 +648,7 @@ fn the_message_readers_refuse_entries_that_are_not_regular_files() {
     fs::create_dir_all(project.join("folder.jsonl")).unwrap();
     mkfifo(&project.join("fifo.jsonl"));
 
-    let readers: [(&'static str, ReadSession); 6] = [
+    let readers: [(&'static str, ReadSession); 7] = [
         ("load_session_messages", |path| {
             refusal(block_on(load_session_messages(path)))
         }),
@@ -669,6 +669,10 @@ fn the_message_readers_refuse_entries_that_are_not_regular_files() {
                 "claude".to_string(),
                 path,
             )))
+        }),
+        ("get_recent_edits", |path| {
+            let project = text(Path::new(&path).parent().unwrap());
+            refusal(block_on(get_recent_edits(project, None, None, Some(path), None)).map(|_| ()))
         }),
     ];
     let mut read = Vec::new();
