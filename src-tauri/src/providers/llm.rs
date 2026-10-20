@@ -106,7 +106,9 @@ pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
 }
 
 /// [`scan_projects`], recording in `report` a logs database that is there
-/// but cannot be read.
+/// but cannot be read. Unlike [`scan_projects`], no database (or one that
+/// cannot be opened) is no projects, not an error: for a caller that counts
+/// the report only.
 pub(crate) fn scan_projects_reporting(report: &ScanReport) -> Result<Vec<ClaudeProject>, String> {
     match open_db_reporting(report) {
         Some((path, conn)) => scan_in_conn_reporting(&conn, &path, report),
@@ -196,7 +198,9 @@ pub fn load_sessions(
 }
 
 /// [`load_sessions`], recording in `report` a logs database, or a row of
-/// it, that cannot be read.
+/// it, that cannot be read. Unlike [`load_sessions`], no database (or one
+/// that cannot be opened) is no sessions, not an error: for a caller that
+/// counts the report only.
 pub(crate) fn load_sessions_reporting(
     _project_path: &str,
     report: &ScanReport,

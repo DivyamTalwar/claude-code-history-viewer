@@ -3,10 +3,13 @@
 //! The provider scanners keep going past a part of their store they cannot
 //! read — a directory they may not list, a session file or database they
 //! cannot open — so the project tree still shows everything else. A caller
-//! that reports coverage (`get_usage_breakdown`) passes a
+//! that reports coverage (`get_usage_breakdown`) calls a provider's
+//! `*_reporting` scanner with a
 //! [`ScanReport`](crate::providers::scan_report::ScanReport) and counts what
-//! it collected as sources that were not read; every other caller passes a
-//! fresh one and drops it, so what it returns is unchanged.
+//! it collected as sources that were not read. Every other caller uses the
+//! plain scanner: a reporting one may answer a store it cannot read with
+//! nothing where the plain one fails (llm, Z Code: a database that cannot be
+//! opened), which is only right when the report is counted.
 //!
 //! Only failures to read are collected. A path that is not there is nothing
 //! to read (also when it vanished between a listing and the read), and

@@ -245,7 +245,12 @@ held no usage) nor `unreadable` (a store that exists but cannot be read).
   it. Before, the AN0b re-review reproduced Codex, OpenCode and Kilo as `scanned` with zero usage;
   `store_failure_tests` now locks (mode 000) each directory and file of a one-session store in
   turn, for every token-reporting provider, and requires `unreadable`. The old stats commands and
-  the project tree pass a report they drop, so what they return is unchanged.
+  the project tree do not use the reporting scanners; they keep the plain ones, so what they
+  return is unchanged: a reporting scanner may answer a store it cannot read with nothing where
+  the plain one fails (llm and Z Code, a database that cannot be opened), which only a caller
+  that counts the report may do. `the_other_commands_answer_an_unreadable_store_as_before`
+  holds the project scan, session list, search and old statistics of every store of the matrix
+  (readable, absent, each part locked) to what develop answered.
 - Detection only looks at paths, and a path it may not look into passes for an absent one. When
   `detect()` calls a store missing, its scanner still runs, on a probe: a probe that records a
   failure shows the store is there (`partial` / `unreadable`), one that records nothing leaves

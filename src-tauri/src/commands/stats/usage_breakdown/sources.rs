@@ -19,7 +19,7 @@ use crate::commands::stats::{
     load_antigravity_usage_records_checked, load_stats_messages, load_stats_sessions,
     scan_stats_projects, stats_provider_id, StatsMode, StatsProvider,
 };
-use crate::models::ClaudeSession;
+use crate::models::{ClaudeProject, ClaudeSession};
 use crate::providers::scan_report::ScanReport;
 use rayon::prelude::*;
 use std::collections::{HashMap, HashSet};
@@ -293,19 +293,20 @@ pub(super) fn collect(plan: &ScopePlan, mode: StatsMode) -> Collected {
                         &mut scan,
                     )
                 } else {
-                    let tasks = scan.when_store_present(|scan, report| {
-                        match load_stats_sessions(*provider, project_path, report) {
-                            Ok(sessions) => sessions
-                                .into_iter()
-                                .map(|session| (project_path.clone(), session))
-                                .collect(),
-                            Err(error) => {
-                                log::warn!("usage breakdown: {project_path}: {error}");
-                                scan.sources_failed += 1;
-                                Vec::new()
+                    let tasks =
+                        scan.when_store_present(|scan, report| {
+                            match load_sessions_reporting(*provider, project_path, report) {
+                                Ok(sessions) => sessions
+                                    .into_iter()
+                                    .map(|session| (project_path.clone(), session))
+                                    .collect(),
+                                Err(error) => {
+                                    log::warn!("usage breakdown: {project_path}: {error}");
+                                    scan.sources_failed += 1;
+                                    Vec::new()
+                                }
                             }
-                        }
-                    });
+                        });
                     collect_provider_sessions(*provider, tasks, mode, &mut scan)
                 };
                 collected.sessions.extend(sessions);
@@ -606,7 +607,7 @@ fn provider_all_sessions(
             return Vec::new();
         };
         let root = root.to_string_lossy().to_string();
-        return match load_stats_sessions(provider, &root, report) {
+        return match load_sessions_reporting(provider, &root, report) {
             Ok(sessions) => sessions.into_iter().map(|s| (root.clone(), s)).collect(),
             Err(error) => {
                 log::warn!("usage breakdown: antigravity: {error}");
@@ -615,7 +616,7 @@ fn provider_all_sessions(
             }
         };
     }
-    let projects = match scan_stats_projects(provider, report) {
+    let projects = match scan_projects_reporting(provider, report) {
         Ok(projects) => projects,
         Err(error) => {
             log::warn!("usage breakdown: {}: {error}", stats_provider_id(provider));
@@ -625,7 +626,7 @@ fn provider_all_sessions(
     };
     let mut tasks = Vec::new();
     for project in projects {
-        match load_stats_sessions(provider, &project.path, report) {
+        match load_sessions_reporting(provider, &project.path, report) {
             Ok(sessions) => tasks.extend(sessions.into_iter().map(|s| (project.path.clone(), s))),
             Err(error) => {
                 log::warn!("usage breakdown: {}: {error}", project.path);
@@ -634,6 +635,98 @@ fn provider_all_sessions(
         }
     }
     tasks
+}
+
+/// The provider's project scan for a request that reports coverage: what the
+/// scan could not read goes to `report` (ADR 0003 §7). Every other command
+/// keeps [`scan_stats_projects`]: a reporting scanner may answer a store it
+/// cannot read with nothing where the plain one fails (llm, Z Code), which
+/// only a caller that counts the report may do (#708 review).
+fn scan_projects_reporting(
+    provider: StatsProvider,
+    report: &ScanReport,
+) -> Result<Vec<ClaudeProject>, String> {
+    use crate::providers as p;
+    use StatsProvider as P;
+    match provider {
+        P::Antigravity => p::antigravity::scan_projects_reporting(report),
+        P::Cline => p::cline::scan_projects_reporting(report),
+        P::Codex => p::codex::scan_projects_reporting(report),
+        P::Copilot => p::copilot::scan_projects_reporting(report),
+        P::Cursor => p::cursor::scan_projects_reporting(report),
+        P::ForgeCode => p::forgecode::scan_projects_reporting(report),
+        P::Gemini => p::gemini::scan_projects_reporting(report),
+        P::Grok => p::grok::scan_projects_reporting(report),
+        P::Kilo => p::kilo::scan_projects_reporting(report),
+        P::Kimi => p::kimi::scan_projects_reporting(report),
+        P::Llm => p::llm::scan_projects_reporting(report),
+        P::Ompi => p::ompi::scan_projects_reporting(report),
+        P::OpenCode => p::opencode::scan_projects_reporting(report),
+        P::OpenInterpreter => p::openinterpreter::scan_projects_reporting(report),
+        P::Pi => p::pi::scan_projects_reporting(report),
+        P::Qwen => p::qwen::scan_projects_reporting(report),
+        P::Zcode => p::zcode::scan_projects_reporting(report),
+        // No token usage (`reports_token_usage`): never scanned here.
+        P::Aider
+        | P::AmazonQ
+        | P::Claude
+        | P::Codebuddy
+        | P::Continue
+        | P::Crush
+        | P::CursorAgent
+        | P::Goose
+        | P::Kiro
+        | P::OpenHands
+        | P::PearAI
+        | P::Trae
+        | P::Vibe
+        | P::Zed => scan_stats_projects(provider),
+    }
+}
+
+/// The sessions of one project, for a request that reports coverage; as
+/// [`scan_projects_reporting`], every other command keeps
+/// [`load_stats_sessions`].
+fn load_sessions_reporting(
+    provider: StatsProvider,
+    project_path: &str,
+    report: &ScanReport,
+) -> Result<Vec<ClaudeSession>, String> {
+    use crate::providers as p;
+    use StatsProvider as P;
+    match provider {
+        P::Antigravity => p::antigravity::load_sessions_reporting(project_path, report),
+        P::Cline => p::cline::load_sessions_reporting(project_path, report),
+        P::Codex => p::codex::load_sessions_reporting(project_path, report),
+        P::Copilot => p::copilot::load_sessions_reporting(project_path, report),
+        P::Cursor => p::cursor::load_sessions_reporting(project_path, report),
+        P::ForgeCode => p::forgecode::load_sessions_reporting(project_path, report),
+        P::Gemini => p::gemini::load_sessions_reporting(project_path, report),
+        P::Grok => p::grok::load_sessions_reporting(project_path, report),
+        P::Kilo => p::kilo::load_sessions_reporting(project_path, report),
+        P::Kimi => p::kimi::load_sessions_reporting(project_path, report),
+        P::Llm => p::llm::load_sessions_reporting(project_path, report),
+        P::Ompi => p::ompi::load_sessions_reporting(project_path, report),
+        P::OpenCode => p::opencode::load_sessions_reporting(project_path, report),
+        P::OpenInterpreter => p::openinterpreter::load_sessions_reporting(project_path, report),
+        P::Pi => p::pi::load_sessions_reporting(project_path, report),
+        P::Qwen => p::qwen::load_sessions_reporting(project_path, report),
+        P::Zcode => p::zcode::load_sessions_reporting(project_path, report),
+        P::Aider
+        | P::AmazonQ
+        | P::Claude
+        | P::Codebuddy
+        | P::Continue
+        | P::Crush
+        | P::CursorAgent
+        | P::Goose
+        | P::Kiro
+        | P::OpenHands
+        | P::PearAI
+        | P::Trae
+        | P::Vibe
+        | P::Zed => load_stats_sessions(provider, project_path),
+    }
 }
 
 fn collect_provider_sessions(
