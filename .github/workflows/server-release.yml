@@ -50,6 +50,16 @@ jobs:
     runs-on: ${{ matrix.platform }}
 
     steps:
+      # TAG ends up in URLs and in the Homebrew sed replacements; a manual
+      # run accepts only a release tag name (vX.Y.Z, optional -suffix).
+      - name: Check the tag input
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]]; then
+            echo "::error::The tag input is not a release tag (vX.Y.Z)"
+            exit 1
+          fi
+
       - uses: actions/checkout@v4
         with:
           # refs/tags/ so a manual run cannot pick a branch of the same name.
