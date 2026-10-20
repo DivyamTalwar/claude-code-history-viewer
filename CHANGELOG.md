@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.32.2] - 2026-10-20
+
+Patch release for Recent Edits; upgrade if you use Codex, OpenCode or Kilo.
+
+### Fixed
+- **Restore in Recent Edits only writes a recorded whole-file version** (desktop and WebUI). For an edit recorded as a patch or a partial change (Codex patches, OpenCode and Kilo edits, or an edit whose result could not be reconstructed), the Restore button is disabled and says why, and restoring such content is refused instead of writing it over the file. Recorded whole-file versions (Claude edits and writes, OpenCode and Kilo writes) restore as before. (#682, backported; #705)
+
 ## [1.32.1] - 2026-10-20
 
 Patch release for the WebUI server mode (`--serve`); upgrade if you run the WebUI.
