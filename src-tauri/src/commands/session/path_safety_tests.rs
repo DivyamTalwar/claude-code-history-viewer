@@ -10,8 +10,8 @@
 //! failure was retried, and a FIFO blocks the reader that opens it.
 
 use super::{
-    get_recent_edits, get_session_subagents, load_project_sessions, load_project_sessions_page,
-    search_messages,
+    find_project_session_by_path, get_recent_edits, get_session_subagents, load_project_sessions,
+    load_project_sessions_page, search_messages,
 };
 use crate::commands::{archive, multi_provider, project, stats};
 use crate::models::ClaudeSession;
@@ -559,6 +559,63 @@ fn the_subagent_readers_skip_entries_that_are_not_regular_files() {
             ("create_archive", format!("{refused:?}")),
             ("get_session_token_stats", "Ok(200)".to_string()),
             ("get_project_token_stats", "Ok([200])".to_string()),
+        ]
+    );
+}
+
+/// A reader given one session refuses a directory or a FIFO named like a
+/// session instead of reading it forever or blocking on it.
+#[test]
+#[serial]
+fn the_single_session_readers_refuse_entries_that_are_not_regular_files() {
+    let home = SandboxHome::new();
+    let (project, _) = project_q(&home);
+    fs::create_dir_all(project.join("folder.jsonl")).unwrap();
+    let fifo = project.join("fifo.jsonl");
+    mkfifo(&fifo);
+
+    let read = within_deadline(vec![
+        (
+            "find_project_session_by_path(folder.jsonl)",
+            read_path(&project, |project| {
+                let folder = project.join("folder.jsonl");
+                find_project_session_by_path(&text(&project), &text(&folder), None)
+                    .map(|session| session.is_some())
+            }),
+        ),
+        (
+            "find_project_session_by_path(fifo.jsonl)",
+            read_path(&project, |project| {
+                let fifo = project.join("fifo.jsonl");
+                find_project_session_by_path(&text(&project), &text(&fifo), None)
+                    .map(|session| session.is_some())
+            }),
+        ),
+        (
+            "create_archive(fifo.jsonl)",
+            read_path(&project, |project| {
+                block_on(archived(&project, &[project.join("fifo.jsonl")]))
+            }),
+        ),
+    ]);
+
+    let refused: Result<bool, String> = Err("Session file is not a regular file".to_string());
+    let not_archived: Result<Vec<String>, String> = Err(format!(
+        "Session path is not a regular file: {}",
+        fifo.display()
+    ));
+    assert_eq!(
+        read,
+        [
+            (
+                "find_project_session_by_path(folder.jsonl)",
+                format!("{refused:?}")
+            ),
+            (
+                "find_project_session_by_path(fifo.jsonl)",
+                format!("{refused:?}")
+            ),
+            ("create_archive(fifo.jsonl)", format!("{not_archived:?}")),
         ]
     );
 }
