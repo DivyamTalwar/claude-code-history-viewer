@@ -6,7 +6,8 @@
  * text goes through it: `<Num>{fmt.tokens(n)}</Num>`, and so does a message
  * that interpolates one, once rendered: `<Num>{t("key", { n: fmt.count(x) })}</Num>`
  * (its words keep the language's breaking; only its numbers are shielded).
- * The value handed to `t()`, attributes (`title`, `aria-label`) and data
+ * A component handed a formatter function (`formatTimeAgo={fmt.relative}`)
+ * renders its calls the same way. The value handed to `t()`, attributes (`title`, `aria-label`) and data
  * stay plain strings. The guard in num.invariant.test.ts fails on a
  * formatter result rendered bare.
  *

@@ -18,6 +18,15 @@
  * any call other than `t()` (data, a toast). Handed to a component prop or an
  * object field, it is listed in HANDOFFS below: each receiver renders it
  * through <Num>, and a new handoff is a reviewed change here.
+ *
+ * A formatter function handed on uncalled (`formatTimeAgo={fmt.relative}`,
+ * `const f = fmt.time`, `items.map(fmt.count)`) is followed too: an alias's
+ * calls, a `.map`'s results, and, by its prop or field name, every component
+ * that receives it (destructured, or `props.name`), where its calls are
+ * formatter results under the same rule (FUNCTION_HANDOFFS). Passed anywhere
+ * else (another call, returned, a DOM attribute, a `let`), it cannot be
+ * followed and is reported; so is a formatter object used as a value outside
+ * a hook's dependency list.
  */
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, relative, resolve, sep } from "node:path";
@@ -43,6 +52,8 @@ const FORMAT_FUNCTIONS = new Set(
   ),
 );
 const FORMATTER_FACTORIES = new Set(["useFormat", "appFormat", "formatterFor"]);
+/** Hooks whose last argument is a dependency list, not a use. */
+const HOOKS_WITH_DEPS = new Set(["useMemo", "useCallback", "useEffect", "useLayoutEffect", "useInsertionEffect", "useImperativeHandle"]);
 /** SVG text never wraps, so a number there cannot split. */
 const NEVER_WRAPS = new Set(["text", "tspan", "textPath"]);
 
@@ -57,6 +68,12 @@ export interface NumScan {
   bare: string[];
   /** `path: Component.prop` / `path: field name` of every handoff. */
   handoffs: string[];
+  /** `path: Component.prop` / `path: field name` where a formatter function (uncalled) is handed on. */
+  functionHandoffs: string[];
+  /** Each handed-on function's prop or field name → the files that receive it. */
+  functionReceivers: Record<string, string[]>;
+  /** `path:line: code` of a formatter function or object passed where it cannot be followed. */
+  untracked: string[];
   /** The bare JSX children themselves (`{…}`), by file and offset. */
   sites: { path: string; start: number; end: number }[];
 }
@@ -84,6 +101,41 @@ const tagName = (node: ts.JsxElement | ts.JsxOpeningLikeElement) =>
   (ts.isJsxElement(node) ? node.openingElement.tagName : node.tagName).getText();
 
 const isComponentTag = (name: string) => /^[A-Z]/.test(name) || name.includes(".");
+
+const calleeName = (call: ts.CallExpression) => {
+  const callee = unwrap(call.expression);
+  return ts.isIdentifier(callee) ? callee.text : ts.isPropertyAccessExpression(callee) ? callee.name.text : "";
+};
+
+/** `props` in `props.name`: a parameter of an enclosing function. */
+function isParameter(id: ts.Identifier): boolean {
+  for (let fn = ts.findAncestor(id.parent, isFunctionLike); fn; fn = ts.findAncestor(fn.parent, isFunctionLike)) {
+    if (fn.parameters.some((p) => ts.isIdentifier(p.name) && p.name.text === id.text)) return true;
+  }
+  return false;
+}
+
+/** `node` is used as a value where it is not called: an argument, a prop, a field, an initializer, an element, a result. */
+function usedUncalled(node: ts.Node): boolean {
+  let top = node;
+  while (isWrapper(top.parent)) top = top.parent;
+  const p = top.parent;
+  if (ts.isCallExpression(p)) return p.expression !== top;
+  if (ts.isBinaryExpression(p)) {
+    const op = p.operatorToken.kind;
+    return (op === ts.SyntaxKind.AmpersandAmpersandToken && p.right === top) || op === ts.SyntaxKind.BarBarToken || op === ts.SyntaxKind.QuestionQuestionToken;
+  }
+  return (
+    ts.isJsxExpression(p) ||
+    (ts.isVariableDeclaration(p) && p.initializer === top) ||
+    (ts.isPropertyAssignment(p) && p.initializer === top) ||
+    (ts.isShorthandPropertyAssignment(p) && p.name === top) ||
+    ts.isArrayLiteralExpression(p) ||
+    ts.isReturnStatement(p) ||
+    (ts.isArrowFunction(p) && p.body === top) ||
+    (ts.isConditionalExpression(p) && p.condition !== top)
+  );
+}
 
 /** Where a value ends up after the expressions that pass it on unchanged (or keep it as text). */
 function valueEnd(node: ts.Node): { child: ts.Node; parent: ts.Node } {
@@ -170,12 +222,21 @@ export function scanNum(files: readonly SourceFile[]): NumScan {
   const bare = new Map<string, string>();
   const handoffs = new Set<string>();
   const sites = new Map<string, NumScan["sites"][number]>();
+  const functionHandoffs = new Set<string>();
+  const untracked = new Map<string, string>();
+  /** Prop and field names that carry a formatter function to the components that receive them. */
+  const functionNames = new Set<string>();
   let changed = true;
+
+  /** `props.formatTimeAgo`: a handed-on formatter function, read from a parameter. */
+  const isReceivedFunction = (node: ts.Node) =>
+    ts.isPropertyAccessExpression(node) && functionNames.has(node.name.text) && ts.isIdentifier(node.expression) && isParameter(node.expression);
 
   const isFormatterText = (state: FileState, node: ts.Node): boolean => {
     if (!ts.isCallExpression(node)) return false;
     const callee = unwrap(node.expression);
     if (ts.isIdentifier(callee)) return state.functions.has(callee.text);
+    if (isReceivedFunction(callee)) return true;
     if (!ts.isPropertyAccessExpression(callee) || !FORMATTER_METHODS.has(callee.name.text)) return false;
     const receiver = unwrap(callee.expression);
     if (ts.isIdentifier(receiver)) return state.receivers.has(receiver.text);
@@ -311,6 +372,72 @@ export function scanNum(files: readonly SourceFile[]): NumScan {
     }
   };
 
+  /** What a formatter function used uncalled is: "function" (`fmt.relative`, `formatBytes`, a received `formatTimeAgo`), "formatter" (`fmt` itself). */
+  const uncalledFormatter = (state: FileState, node: ts.Node): "function" | "formatter" | undefined => {
+    if (!(ts.isIdentifier(node) || ts.isPropertyAccessExpression(node)) || !usedUncalled(node)) return undefined;
+    if (ts.isIdentifier(node)) {
+      if (state.functions.has(node.text)) return "function";
+      return state.receivers.has(node.text) ? "formatter" : undefined;
+    }
+    if (isReceivedFunction(node)) return "function";
+    if (!FORMATTER_METHODS.has(node.name.text)) return undefined;
+    const receiver = unwrap(node.expression);
+    const isFormatter = ts.isIdentifier(receiver)
+      ? state.receivers.has(receiver.text)
+      : ts.isCallExpression(receiver) && ts.isIdentifier(receiver.expression) && FORMATTER_FACTORIES.has(receiver.expression.text);
+    return isFormatter ? "function" : undefined;
+  };
+
+  /**
+   * Follow a formatter function handed on uncalled: an alias's calls and a
+   * `.map`'s results are formatter text; a prop or field carries its name to
+   * the components that receive it; anywhere else it cannot be followed.
+   */
+  const followFunction = (state: FileState, source: ts.Node, kind: "function" | "formatter"): void => {
+    if (seen.has(source)) return;
+    seen.add(source);
+    const { sf } = state;
+    const { child, parent } = valueEnd(source);
+    // A hook's dependency list.
+    if (ts.isArrayLiteralExpression(parent) && ts.isCallExpression(parent.parent) && parent.parent.arguments.indexOf(parent) > 0 && HOOKS_WITH_DEPS.has(calleeName(parent.parent))) return;
+    const untrack = () => {
+      const { line } = sf.getLineAndCharacterOfPosition(source.getStart(sf));
+      untracked.set(`${state.file.path}:${source.getStart(sf)}`, `${state.file.path}:${line + 1}: ${sf.text.split("\n")[line]!.trim()}`);
+    };
+    if (kind === "formatter") return untrack();
+    const carry = (name: string) => {
+      if (functionNames.has(name)) return;
+      functionNames.add(name);
+      changed = true;
+    };
+    if (ts.isJsxExpression(parent) && ts.isJsxAttribute(parent.parent)) {
+      const attribute = parent.parent;
+      const tag = tagName(attribute.parent.parent);
+      if (!isComponentTag(tag)) return untrack();
+      const prop = attribute.name.getText(sf);
+      functionHandoffs.add(`${state.file.path}: ${tag}.${prop}`);
+      return carry(prop);
+    }
+    if (ts.isVariableDeclaration(parent) && parent.initializer === child && ts.isIdentifier(parent.name)) {
+      const list = parent.parent;
+      if (!ts.isVariableDeclarationList(list) || !(list.flags & ts.NodeFlags.Const)) return untrack();
+      // An alias (`const f = fmt.time`): its calls are formatter results.
+      if (!state.functions.has(parent.name.text)) {
+        state.functions.add(parent.name.text);
+        changed = true;
+      }
+      return;
+    }
+    if (ts.isShorthandPropertyAssignment(parent) || (ts.isPropertyAssignment(parent) && parent.initializer === child)) {
+      const field = parent.name.getText(sf);
+      functionHandoffs.add(`${state.file.path}: field ${field}`);
+      return carry(field);
+    }
+    // items.map(fmt.count): its results are formatter text.
+    if (ts.isCallExpression(parent) && parent.arguments[0] === child && ["map", "flatMap"].includes(calleeName(parent))) return follow(state, parent);
+    untrack();
+  };
+
   while (changed) {
     changed = false;
     // Helpers imported from a file that returns formatter text.
@@ -329,16 +456,55 @@ export function scanNum(files: readonly SourceFile[]): NumScan {
         }
       }
     }
+    // Components that receive a handed-on formatter function by its name (`({ formatTimeAgo })`, `{ formatTimeAgo: ago } = data`).
+    for (const state of states) {
+      const visit = (node: ts.Node): void => {
+        if (ts.isBindingElement(node) && ts.isIdentifier(node.name) && functionNames.has((node.propertyName ?? node.name).getText(state.sf)) && !state.functions.has(node.name.text)) {
+          state.functions.add(node.name.text);
+          changed = true;
+        }
+        ts.forEachChild(node, visit);
+      };
+      if (functionNames.size > 0) visit(state.sf);
+    }
     seen.clear();
     for (const state of states) {
       const visit = (node: ts.Node): void => {
         if (isFormatterText(state, node)) follow(state, node);
+        else {
+          const kind = uncalledFormatter(state, node);
+          if (kind) followFunction(state, node, kind);
+        }
         ts.forEachChild(node, visit);
       };
       visit(state.sf);
     }
   }
-  return { bare: [...bare.values()], handoffs: [...handoffs].sort(), sites: [...sites.values()] };
+
+  const functionReceivers: Record<string, string[]> = {};
+  for (const name of functionNames) {
+    functionReceivers[name] = states
+      .filter((state) => {
+        let found = false;
+        const visit = (node: ts.Node): void => {
+          if (found) return;
+          if (ts.isBindingElement(node) && (node.propertyName ?? node.name).getText(state.sf) === name) found = true;
+          else if (ts.isPropertyAccessExpression(node) && node.name.text === name && ts.isIdentifier(node.expression) && isParameter(node.expression)) found = true;
+          else ts.forEachChild(node, visit);
+        };
+        visit(state.sf);
+        return found;
+      })
+      .map((state) => state.file.path);
+  }
+  return {
+    bare: [...bare.values()],
+    handoffs: [...handoffs].sort(),
+    functionHandoffs: [...functionHandoffs].sort(),
+    functionReceivers,
+    untracked: [...untracked.values()],
+    sites: [...sites.values()],
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -375,6 +541,23 @@ const RECEIVERS: Record<string, [file: string, child: string]> = {
   "MetricRow.detail": ["src/components/Inspector/InspectorTokensTab.tsx", "detail"],
   "field caption": ["src/components/ProjectTree/components/LibrarySection.tsx", "entry.caption"],
 };
+
+/**
+ * Every formatter function (not its result) the app hands on, by prop or
+ * field: `formatTimeAgo={fmt.relative}`. The scan follows the name into every
+ * component that receives it (destructured, or `props.name`), where a call of
+ * it is a formatter result under the same rule. A new entry is a reviewed
+ * change.
+ */
+const FUNCTION_HANDOFFS = [
+  "src/components/ProjectTree/components/GroupedProjectList.tsx: ProjectSessions.formatTimeAgo",
+  "src/components/ProjectTree/components/ProjectSessions.tsx: SessionItem.formatTimeAgo",
+  "src/components/ProjectTree/components/ProjectSessions.tsx: SessionList.formatTimeAgo",
+  "src/components/ProjectTree/components/SessionList.tsx: SessionItem.formatTimeAgo",
+  "src/components/ProjectTree/components/SessionList.tsx: field formatTimeAgo",
+  "src/components/ProjectTree/index.tsx: GroupedProjectList.formatTimeAgo",
+  "src/components/SessionItem/SessionItem.tsx: SessionMeta.formatTimeAgo",
+];
 
 /** The tags of the JSX elements whose child `{…}` is exactly `child`, in `file`. */
 function hostsOf(file: SourceFile, child: string): string[] {
@@ -515,6 +698,85 @@ describe("<Num> guard: handoffs to a component or an object field are listed", (
   });
 });
 
+describe("<Num> guard: a formatter function handed on is followed to where it renders", () => {
+  it("a method passed as a prop: the receiver's call of it is a formatter result", () => {
+    const scan = scanNum([
+      { path: "src/components/Probe.tsx", text: "const A = () => <Child formatTimeAgo={fmt.relative} />;" },
+      { path: "src/components/Child.tsx", text: "export const Child = ({ formatTimeAgo }) => (\n  <p>{formatTimeAgo(ts)}</p>\n);" },
+    ]);
+    expect(scan.bare).toEqual(["src/components/Child.tsx:2: <p>{formatTimeAgo(ts)}</p>"]);
+    expect(scan.functionHandoffs).toEqual(["src/components/Probe.tsx: Child.formatTimeAgo"]);
+    expect(scan.functionReceivers).toEqual({ formatTimeAgo: ["src/components/Child.tsx"] });
+    expect(scan.untracked).toEqual([]);
+  });
+
+  it("through components that pass it on: a destructured method, a field of a memoized object, a renamed binding, props.x()", () => {
+    const scan = scanNum([
+      { path: "src/components/Tree.tsx", text: "const { relative } = useFormat();\nexport const Tree = () => <List formatTimeAgo={relative} />;" },
+      {
+        path: "src/components/List.tsx",
+        text: [
+          "export function List(props: Props) {",
+          "  const data = useMemo(() => ({ formatTimeAgo: props.formatTimeAgo }), [props.formatTimeAgo]);",
+          "  return <Row data={data} />;",
+          "}",
+          "const Row = ({ data }) => {",
+          "  const { formatTimeAgo: ago } = data;",
+          "  return <Item ago={ago} />;",
+          "};",
+        ].join("\n"),
+      },
+      { path: "src/components/Item.tsx", text: "export const Item = (props) => (\n  <span>{props.ago(ts)}</span>\n);" },
+    ]);
+    expect(scan.bare).toEqual(["src/components/Item.tsx:2: <span>{props.ago(ts)}</span>"]);
+    expect(scan.functionHandoffs).toEqual([
+      "src/components/List.tsx: Item.ago",
+      "src/components/List.tsx: field formatTimeAgo",
+      "src/components/Tree.tsx: List.formatTimeAgo",
+    ]);
+    expect(scan.functionReceivers).toEqual({ formatTimeAgo: ["src/components/List.tsx"], ago: ["src/components/Item.tsx"] });
+    expect(scan.untracked).toEqual([]);
+  });
+
+  it.each([
+    ["an alias", "const f = fmt.time;\nconst A = () => <p>{f(ts)}</p>;", [2]],
+    ["map over a method", "const A = () => <p>{items.map(fmt.count)}</p>;", [1]],
+    ["map over a module function", "const A = () => <p>{sizes.map(formatBytes)}</p>;", [1]],
+  ])("%s, rendered bare", (_, code, lines) => {
+    expect(bareLines(code), code).toEqual(lines);
+  });
+
+  it("not reported: the receiver renders it inside <Num>, or as an attribute", () => {
+    const scan = scanNum([
+      { path: "src/components/Probe.tsx", text: "const A = () => <Child formatTimeAgo={fmt.relative} />;" },
+      { path: "src/components/Child.tsx", text: "export const Child = ({ formatTimeAgo }) => <p title={formatTimeAgo(ts)}><Num>{formatTimeAgo(ts)}</Num></p>;" },
+    ]);
+    expect(scan.bare).toEqual([]);
+    expect(scan.functionHandoffs).toEqual(["src/components/Probe.tsx: Child.formatTimeAgo"]);
+  });
+
+  it("a hook's dependency list is no handoff", () => {
+    const scan = scanNum([{ path: "src/components/Probe.tsx", text: "const x = useMemo(() => 1, [fmt.relative, formatBytes]);" }]);
+    expect(scan.functionHandoffs).toEqual([]);
+    expect(scan.untracked).toEqual([]);
+  });
+
+  it("a formatter function passed where it cannot be followed is reported", () => {
+    const scan = scanNum([
+      {
+        path: "src/components/Probe.tsx",
+        text: ["register(fmt.time);", "const A = () => <input data-format={fmt.time} />;", "const pick = () => fmt.time;", "let later = fmt.relative;"].join("\n"),
+      },
+    ]);
+    expect(scan.untracked).toEqual([
+      "src/components/Probe.tsx:1: register(fmt.time);",
+      "src/components/Probe.tsx:2: const A = () => <input data-format={fmt.time} />;",
+      "src/components/Probe.tsx:3: const pick = () => fmt.time;",
+      "src/components/Probe.tsx:4: let later = fmt.relative;",
+    ]);
+  });
+});
+
 describe("<Num> guard on the app", () => {
   it("scans the source tree", () => {
     expect(appSources().length).toBeGreaterThan(300);
@@ -526,6 +788,18 @@ describe("<Num> guard on the app", () => {
 
   it("every handoff to a component or an object field is listed (its receiver renders it through <Num>)", () => {
     expect(scanApp().handoffs).toEqual(HANDOFFS);
+  }, 30_000);
+
+  it("every formatter function handed to a component or a field is listed, and each is received in the app", () => {
+    const scan = scanApp();
+    expect(scan.functionHandoffs).toEqual(FUNCTION_HANDOFFS);
+    expect(Object.keys(scan.functionReceivers).length).toBeGreaterThan(0);
+    // A name nobody receives (a third-party component, a typo) could not be followed.
+    expect(Object.entries(scan.functionReceivers).filter(([, files]) => files.length === 0)).toEqual([]);
+  }, 30_000);
+
+  it("no formatter function is passed where it cannot be followed", () => {
+    expect(scanApp().untracked).toEqual([]);
   }, 30_000);
 
   it("each receiver renders the handed-over text inside <Num>", () => {
