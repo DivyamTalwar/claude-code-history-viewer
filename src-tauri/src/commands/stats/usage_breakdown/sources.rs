@@ -16,8 +16,8 @@ use super::{ProviderScanStatus, UsageScope};
 use crate::commands::stats::session_files::{claude_project_dirs, walk_session_files};
 use crate::commands::stats::{
     all_stats_providers, claude_session_heads, detect_project_provider,
-    load_antigravity_usage_records, load_stats_messages, load_stats_sessions, scan_stats_projects,
-    stats_provider_id, StatsMode, StatsProvider,
+    load_antigravity_usage_records_checked, load_stats_messages, load_stats_sessions,
+    scan_stats_projects, stats_provider_id, StatsMode, StatsProvider,
 };
 use crate::models::ClaudeSession;
 use crate::providers::scan_report::ScanReport;
@@ -678,7 +678,7 @@ fn load_provider_session(
     mode: StatsMode,
 ) -> Result<FileContributions, String> {
     if provider == StatsProvider::Antigravity {
-        let records = load_antigravity_usage_records(&session.file_path)?;
+        let records = load_antigravity_usage_records_checked(&session.file_path)?;
         return Ok(from_antigravity_records(
             &records,
             mode,

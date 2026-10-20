@@ -1579,18 +1579,20 @@ fn scan_stats_projects(
     match provider {
         StatsProvider::Aider => providers::aider::scan_projects(),
         StatsProvider::AmazonQ => providers::amazon_q::scan_projects(),
-        StatsProvider::Cline => providers::cline::scan_projects(),
+        StatsProvider::Cline => providers::cline::scan_projects_reporting(report),
         StatsProvider::Codebuddy => providers::codebuddy::scan_projects(),
         StatsProvider::Codex => providers::codex::scan_projects_reporting(report),
         StatsProvider::Continue => providers::continue_dev::scan_projects(),
-        StatsProvider::ForgeCode => providers::forgecode::scan_projects(),
-        StatsProvider::Kilo => providers::kilo::scan_projects(),
-        StatsProvider::OpenCode => providers::opencode::scan_projects(),
+        StatsProvider::ForgeCode => providers::forgecode::scan_projects_reporting(report),
+        StatsProvider::Kilo => providers::kilo::scan_projects_reporting(report),
+        StatsProvider::OpenCode => providers::opencode::scan_projects_reporting(report),
         StatsProvider::OpenHands => providers::openhands::scan_projects(),
-        StatsProvider::OpenInterpreter => providers::openinterpreter::scan_projects(),
+        StatsProvider::OpenInterpreter => {
+            providers::openinterpreter::scan_projects_reporting(report)
+        }
         StatsProvider::PearAI => providers::pearai::scan_projects(),
         StatsProvider::Qwen => providers::qwen::scan_projects_reporting(report),
-        StatsProvider::Zcode => providers::zcode::scan_projects(),
+        StatsProvider::Zcode => providers::zcode::scan_projects_reporting(report),
         StatsProvider::Trae => providers::trae::scan_projects(),
         StatsProvider::Vibe => providers::vibe::scan_projects(),
         StatsProvider::Zed => providers::zed::scan_projects(),
@@ -1598,15 +1600,15 @@ fn scan_stats_projects(
         StatsProvider::CursorAgent => providers::cursor_agent::scan_projects(),
         StatsProvider::Goose => providers::goose::scan_projects(),
         StatsProvider::Kiro => providers::kiro::scan_projects(),
-        StatsProvider::Llm => providers::llm::scan_projects(),
-        StatsProvider::Grok => providers::grok::scan_projects(),
-        StatsProvider::Kimi => providers::kimi::scan_projects(),
-        StatsProvider::Antigravity => providers::antigravity::scan_projects(),
-        StatsProvider::Copilot => providers::copilot::scan_projects(),
-        StatsProvider::Ompi => providers::ompi::scan_projects(),
-        StatsProvider::Pi => providers::pi::scan_projects(),
-        StatsProvider::Gemini => providers::gemini::scan_projects(),
-        StatsProvider::Cursor => providers::cursor::scan_projects(),
+        StatsProvider::Llm => providers::llm::scan_projects_reporting(report),
+        StatsProvider::Grok => providers::grok::scan_projects_reporting(report),
+        StatsProvider::Kimi => providers::kimi::scan_projects_reporting(report),
+        StatsProvider::Antigravity => providers::antigravity::scan_projects_reporting(report),
+        StatsProvider::Copilot => providers::copilot::scan_projects_reporting(report),
+        StatsProvider::Ompi => providers::ompi::scan_projects_reporting(report),
+        StatsProvider::Pi => providers::pi::scan_projects_reporting(report),
+        StatsProvider::Gemini => providers::gemini::scan_projects_reporting(report),
+        StatsProvider::Cursor => providers::cursor::scan_projects_reporting(report),
         StatsProvider::Claude => Ok(Vec::new()),
     }
 }
@@ -1620,20 +1622,24 @@ fn load_stats_sessions(
     match provider {
         StatsProvider::Aider => providers::aider::load_sessions(project_path, false),
         StatsProvider::AmazonQ => providers::amazon_q::load_sessions(project_path, false),
-        StatsProvider::Cline => providers::cline::load_sessions(project_path, false),
+        StatsProvider::Cline => providers::cline::load_sessions_reporting(project_path, report),
         StatsProvider::Codebuddy => providers::codebuddy::load_sessions(project_path, false),
         StatsProvider::Codex => providers::codex::load_sessions_reporting(project_path, report),
         StatsProvider::Continue => providers::continue_dev::load_sessions(project_path, false),
-        StatsProvider::ForgeCode => providers::forgecode::load_sessions(project_path, false),
-        StatsProvider::Kilo => providers::kilo::load_sessions(project_path, false),
-        StatsProvider::OpenCode => providers::opencode::load_sessions(project_path, false),
+        StatsProvider::ForgeCode => {
+            providers::forgecode::load_sessions_reporting(project_path, report)
+        }
+        StatsProvider::Kilo => providers::kilo::load_sessions_reporting(project_path, report),
+        StatsProvider::OpenCode => {
+            providers::opencode::load_sessions_reporting(project_path, report)
+        }
         StatsProvider::OpenHands => providers::openhands::load_sessions(project_path, false),
         StatsProvider::OpenInterpreter => {
-            providers::openinterpreter::load_sessions(project_path, false)
+            providers::openinterpreter::load_sessions_reporting(project_path, report)
         }
         StatsProvider::PearAI => providers::pearai::load_sessions(project_path, false),
         StatsProvider::Qwen => providers::qwen::load_sessions_reporting(project_path, report),
-        StatsProvider::Zcode => providers::zcode::load_sessions(project_path, false),
+        StatsProvider::Zcode => providers::zcode::load_sessions_reporting(project_path, report),
         StatsProvider::Trae => providers::trae::load_sessions(project_path, false),
         StatsProvider::Vibe => providers::vibe::load_sessions(project_path, false),
         StatsProvider::Zed => providers::zed::load_sessions(project_path, false),
@@ -1641,15 +1647,17 @@ fn load_stats_sessions(
         StatsProvider::CursorAgent => providers::cursor_agent::load_sessions(project_path, false),
         StatsProvider::Goose => providers::goose::load_sessions(project_path, false),
         StatsProvider::Kiro => providers::kiro::load_sessions(project_path, false),
-        StatsProvider::Llm => providers::llm::load_sessions(project_path, false),
-        StatsProvider::Grok => providers::grok::load_sessions(project_path, false),
-        StatsProvider::Kimi => providers::kimi::load_sessions(project_path, false),
-        StatsProvider::Antigravity => providers::antigravity::load_sessions(project_path, false),
-        StatsProvider::Copilot => providers::copilot::load_sessions(project_path, false),
-        StatsProvider::Ompi => providers::ompi::load_sessions(project_path, false),
-        StatsProvider::Pi => providers::pi::load_sessions(project_path, false),
-        StatsProvider::Gemini => providers::gemini::load_sessions(project_path, false),
-        StatsProvider::Cursor => providers::cursor::load_sessions(project_path, false),
+        StatsProvider::Llm => providers::llm::load_sessions_reporting(project_path, report),
+        StatsProvider::Grok => providers::grok::load_sessions_reporting(project_path, report),
+        StatsProvider::Kimi => providers::kimi::load_sessions_reporting(project_path, report),
+        StatsProvider::Antigravity => {
+            providers::antigravity::load_sessions_reporting(project_path, report)
+        }
+        StatsProvider::Copilot => providers::copilot::load_sessions_reporting(project_path, report),
+        StatsProvider::Ompi => providers::ompi::load_sessions_reporting(project_path, report),
+        StatsProvider::Pi => providers::pi::load_sessions_reporting(project_path, report),
+        StatsProvider::Gemini => providers::gemini::load_sessions_reporting(project_path, report),
+        StatsProvider::Cursor => providers::cursor::load_sessions_reporting(project_path, report),
         StatsProvider::Claude => Ok(Vec::new()),
     }
 }
@@ -2589,7 +2597,33 @@ fn calculate_session_active_minutes(timestamps: &mut [DateTime<Utc>]) -> u32 {
 fn load_antigravity_usage_records(
     session_path: &str,
 ) -> Result<Vec<AntigravityUsageRecord>, String> {
-    let Some(usage_path) = providers::antigravity::resolve_usage_jsonl_path(session_path) else {
+    load_antigravity_usage_records_reporting(session_path, &ScanReport::default())
+}
+
+/// [`load_antigravity_usage_records`] for a caller that reports coverage: a
+/// session whose usage file is there but cannot be looked for is an error,
+/// not a session without usage (`providers::scan_report`).
+fn load_antigravity_usage_records_checked(
+    session_path: &str,
+) -> Result<Vec<AntigravityUsageRecord>, String> {
+    let report = ScanReport::default();
+    let records = load_antigravity_usage_records_reporting(session_path, &report)?;
+    if records.is_empty() && !report.is_empty() {
+        return Err(format!(
+            "cannot read the usage of {session_path}: {}",
+            report.into_unread().join("; ")
+        ));
+    }
+    Ok(records)
+}
+
+fn load_antigravity_usage_records_reporting(
+    session_path: &str,
+    report: &ScanReport,
+) -> Result<Vec<AntigravityUsageRecord>, String> {
+    let Some(usage_path) =
+        providers::antigravity::resolve_usage_jsonl_path_reporting(session_path, report)
+    else {
         return Ok(vec![]);
     };
 
