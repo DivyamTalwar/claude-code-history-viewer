@@ -5384,8 +5384,8 @@ pub async fn get_global_stats_summary(
 
     if providers_to_include.contains(&StatsProvider::Claude) {
         // Empty is the default root, never a path relative to the working
-        // directory (`claude_base`); the usage breakdown reads the same roots.
-        if let Some(base) = session_files::claude_base(&claude_path) {
+        // directory (#693).
+        if let Some(base) = crate::providers::claude::base_path_or_default(&claude_path) {
             collect_claude_base(
                 &base.join("projects"),
                 &mut session_files,

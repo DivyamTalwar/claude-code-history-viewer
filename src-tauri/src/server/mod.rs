@@ -1143,6 +1143,121 @@ mod tests {
         assert!(!body.contains("do not leak"), "{body}");
     }
 
+    /// POST `body` to `/api/<route>` on a fresh read-only router, the mode a
+    /// shared `--serve` instance runs in. The body is `Null` when it is not
+    /// JSON.
+    async fn post_read_only(
+        route: &str,
+        body: serde_json::Value,
+    ) -> (StatusCode, serde_json::Value) {
+        let app = build_router(test_state_read_only(), "127.0.0.1", 3730, None, "/");
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method(Method::POST)
+                    .uri(format!("/api/{route}"))
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .body(Body::from(body.to_string()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let status = response.status();
+        let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let json = serde_json::from_slice(&bytes).unwrap_or(serde_json::Value::Null);
+        (status, json)
+    }
+
+    /// One Claude JSONL row: a user prompt, or an assistant reply that used
+    /// `tokens` input tokens.
+    fn history_row(session: &str, uuid: &str, user_text: Option<&str>, tokens: u64) -> String {
+        let row = match user_text {
+            Some(text) => serde_json::json!({
+                "type": "user", "sessionId": session, "uuid": uuid,
+                "timestamp": "2026-10-15T12:00:00Z",
+                "message": {"role": "user", "content": text}
+            }),
+            None => serde_json::json!({
+                "type": "assistant", "sessionId": session, "uuid": uuid,
+                "timestamp": "2026-10-15T12:00:01Z",
+                "message": {"id": format!("msg-{uuid}"), "role": "assistant",
+                            "model": "claude-sonnet-4-5-20250929", "content": [],
+                            "usage": {"input_tokens": tokens, "output_tokens": 0}}
+            }),
+        };
+        format!("{row}\n")
+    }
+
+    /// #693. The root guard lets an empty `claudePath` through as "use the
+    /// default", so every route behind it reads `~/.claude`, never a
+    /// `projects/` folder relative to the server's working directory. An
+    /// absent `claudePath` (global stats) means the same.
+    #[tokio::test]
+    #[serial]
+    async fn test_an_empty_claude_path_reads_the_default_root() {
+        let home = crate::test_utils::SandboxHome::new();
+        let project = home.path().join(".claude").join("projects").join("p");
+        std::fs::create_dir_all(&project).unwrap();
+        let session = history_row("s1", "u1", Some("needle-693 in the default root"), 0)
+            + &history_row("s1", "a1", None, 100);
+        std::fs::write(project.join("s1.jsonl"), session).unwrap();
+
+        let claude_only = serde_json::json!(["claude"]);
+        let routes = [
+            ("scan_projects", serde_json::json!({ "claudePath": "" })),
+            (
+                "scan_all_projects",
+                serde_json::json!({ "claudePath": "", "activeProviders": claude_only }),
+            ),
+            (
+                "search_messages",
+                serde_json::json!({ "claudePath": "", "query": "needle-693", "filters": {} }),
+            ),
+            (
+                "search_all_providers",
+                serde_json::json!({
+                    "claudePath": "", "query": "needle-693", "activeProviders": claude_only
+                }),
+            ),
+        ];
+        let mut results = Vec::new();
+        for (route, body) in routes {
+            let (status, json) = post_read_only(route, body).await;
+            assert_eq!(status, StatusCode::OK, "{route}: {json}");
+            results.push((route, json.as_array().map(Vec::len)));
+        }
+        for (label, body) in [
+            (
+                "get_global_stats_summary tokens, empty claudePath",
+                serde_json::json!({ "claudePath": "", "activeProviders": claude_only }),
+            ),
+            (
+                "get_global_stats_summary tokens, no claudePath",
+                serde_json::json!({ "activeProviders": claude_only }),
+            ),
+        ] {
+            let (status, json) = post_read_only("get_global_stats_summary", body).await;
+            assert_eq!(status, StatusCode::OK, "{label}: {json}");
+            results.push((label, json["total_tokens"].as_u64().map(|t| t as usize)));
+        }
+        // The default root's one project, its one match and its 100 tokens,
+        // on every route at once.
+        assert_eq!(
+            results,
+            [
+                ("scan_projects", Some(1)),
+                ("scan_all_projects", Some(1)),
+                ("search_messages", Some(1)),
+                ("search_all_providers", Some(1)),
+                (
+                    "get_global_stats_summary tokens, empty claudePath",
+                    Some(100)
+                ),
+                ("get_global_stats_summary tokens, no claudePath", Some(100)),
+            ]
+        );
+    }
+
     /// An `AppState` differing only in the two inputs the gate reads.
     fn state_with(loopback_bind: bool, auth_token: Option<&str>) -> Arc<AppState> {
         let state = test_state(auth_token);
