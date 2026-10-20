@@ -53,7 +53,12 @@ pub(crate) fn walk_session_files(project_dir: &Path) -> SessionFileWalk {
 /// line reader used to retry forever), and a FIFO blocks the reader that
 /// opens it.
 pub(crate) fn is_regular_file(path: &Path) -> bool {
-    fs::symlink_metadata(path).is_ok_and(|meta| meta.is_file())
+    let regular = fs::symlink_metadata(path).is_ok_and(|meta| meta.is_file());
+    #[cfg(test)]
+    if regular {
+        swap_after_check::checked(path);
+    }
+    regular
 }
 
 /// Opens a history file for reading if it is a regular file.
@@ -69,6 +74,8 @@ pub(crate) fn open_regular_file(path: &Path) -> io::Result<fs::File> {
     if !fs::metadata(path)?.is_file() {
         return Err(not_regular());
     }
+    #[cfg(test)]
+    swap_after_check::checked(path);
     let file = fs::File::open(path)?;
     // Swapped for a directory since the check: still refused.
     if !file.metadata()?.is_file() {
@@ -148,6 +155,8 @@ pub(crate) fn open_session_file(path: &Path, root: &Path) -> Result<(File, Metad
     if !checked.is_file() {
         return Err(format!("{}: not a regular file", path.display()));
     }
+    #[cfg(test)]
+    swap_after_check::checked(path);
     let canonical = fs::canonicalize(path).map_err(at)?;
     if !canonical.starts_with(root) {
         return Err(format!(
@@ -220,6 +229,244 @@ fn reached_without_a_symlink(dir: &Path, path: &Path) -> bool {
         }
         _ => false,
     })
+}
+
+/// Test hook: swaps a history file for something else right after a check
+/// has found it to be a regular file, before a reader opens it (#698). A
+/// walk-time check and the open that follows are separate system calls;
+/// this puts a swap between them deterministically. Every check of this
+/// module calls [`checked`](swap_after_check::checked): the walk's
+/// [`is_regular_file`] and the check each open helper makes before it opens.
+#[cfg(test)]
+pub(crate) mod swap_after_check {
+    use std::path::{Path, PathBuf};
+    use std::sync::{Mutex, PoisonError};
+
+    type Swap = Box<dyn FnOnce() + Send>;
+
+    static ARMED: Mutex<Option<(PathBuf, Swap)>> = Mutex::new(None);
+    static FIRED: Mutex<bool> = Mutex::new(false);
+
+    /// Run `swap` once, right after the next check that finds `path` to be a
+    /// regular file.
+    pub(crate) fn arm(path: &Path, swap: impl FnOnce() + Send + 'static) {
+        *FIRED.lock().unwrap_or_else(PoisonError::into_inner) = false;
+        *ARMED.lock().unwrap_or_else(PoisonError::into_inner) =
+            Some((path.to_path_buf(), Box::new(swap)));
+    }
+
+    /// Disarm the hook. Whether the swap ran since [`arm`].
+    pub(crate) fn disarm() -> bool {
+        ARMED.lock().unwrap_or_else(PoisonError::into_inner).take();
+        std::mem::take(&mut *FIRED.lock().unwrap_or_else(PoisonError::into_inner))
+    }
+
+    /// A check found `path` to be a regular file.
+    pub(super) fn checked(path: &Path) {
+        let swap = {
+            let mut armed = ARMED.lock().unwrap_or_else(PoisonError::into_inner);
+            match armed.as_ref() {
+                Some((armed_path, _)) if armed_path == path => armed.take(),
+                _ => None,
+            }
+        };
+        if let Some((_, swap)) = swap {
+            swap();
+            *FIRED.lock().unwrap_or_else(PoisonError::into_inner) = true;
+        }
+    }
+}
+
+/// Every history read goes through this module (#698): the history readers'
+/// production code calls no open that follows a symlink or blocks on a FIFO.
+/// A read of something that is not a history file (the app's own caches and
+/// manifests, a restore target in the user's project, another provider's
+/// store) says so on the line before it, with [`MARKER`](raw_open_guard::MARKER)
+/// and what it reads.
+#[cfg(test)]
+mod raw_open_guard {
+    use std::path::Path;
+
+    /// The history readers: the stats commands and the usage breakdown, the
+    /// session and subagent loaders and their chains, search, recent edits,
+    /// archives and the project list.
+    const READERS: &[&str] = &[
+        "src/commands/stats.rs",
+        "src/commands/stats/cache.rs",
+        "src/commands/stats/usage_breakdown.rs",
+        "src/commands/stats/usage_breakdown/aggregate.rs",
+        "src/commands/stats/usage_breakdown/availability.rs",
+        "src/commands/stats/usage_breakdown/contribution.rs",
+        "src/commands/stats/usage_breakdown/contribution_cache.rs",
+        "src/commands/stats/usage_breakdown/ranking.rs",
+        "src/commands/stats/usage_breakdown/sources.rs",
+        "src/commands/session/chain.rs",
+        "src/commands/session/edits.rs",
+        "src/commands/session/load.rs",
+        "src/commands/session/search.rs",
+        "src/commands/archive.rs",
+        "src/commands/project.rs",
+    ];
+
+    /// Opens by path that follow a symlink and block on a FIFO.
+    const RAW_OPENS: &[&str] = &[
+        "File::open(",
+        "fs::read(",
+        "fs::read_to_string(",
+        "fs::copy(",
+    ];
+
+    /// Marks a read that is not of a history file: the next raw open, on one
+    /// of the next three lines of code.
+    pub(super) const MARKER: &str = "// Not a history file:";
+
+    /// A `#[cfg(test)]` or `#[cfg(all(test, …))]` attribute on a top-level
+    /// item.
+    fn is_test_attribute(line: &str) -> bool {
+        line.starts_with("#[cfg(test") || line.starts_with("#[cfg(all(test")
+    }
+
+    /// `line: code` for every raw open in the production code of `source`
+    /// that is not marked. Test code is skipped: a top-level item under a
+    /// test attribute, up to the `}` that closes it.
+    fn raw_opens(source: &str) -> Vec<String> {
+        let mut found = Vec::new();
+        let mut in_test_item = false;
+        let mut test_attribute = false;
+        let mut marked_lines: usize = 0;
+        for (index, line) in source.lines().enumerate() {
+            if in_test_item {
+                in_test_item = !line.starts_with('}');
+                continue;
+            }
+            if is_test_attribute(line) {
+                test_attribute = true;
+                continue;
+            }
+            if test_attribute {
+                if line.starts_with("#[") {
+                    continue;
+                }
+                test_attribute = false;
+                in_test_item = !line.trim_end().ends_with(';') && !line.starts_with('}');
+                continue;
+            }
+            let code = line.trim();
+            if code.starts_with(MARKER) {
+                marked_lines = 3;
+                continue;
+            }
+            if code.starts_with("//") {
+                continue;
+            }
+            if RAW_OPENS.iter().any(|open| code.contains(open)) {
+                if marked_lines == 0 {
+                    found.push(format!("{}: {code}", index + 1));
+                }
+                marked_lines = 0;
+            }
+            marked_lines = marked_lines.saturating_sub(1);
+        }
+        found
+    }
+
+    fn crate_file(relative: &str) -> String {
+        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join(relative);
+        std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()))
+    }
+
+    /// A test-only file: its parent declares it under `#[cfg(test)]`.
+    fn is_test_file(path: &Path) -> bool {
+        let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or("");
+        stem.ends_with("tests") || stem == "fixture" || stem == "test_utils"
+    }
+
+    #[test]
+    fn history_readers_open_history_files_through_session_files_only() {
+        let found: Vec<(&str, Vec<String>)> = READERS
+            .iter()
+            .map(|&reader| (reader, raw_opens(&crate_file(reader))))
+            .filter(|(_, opens)| !opens.is_empty())
+            .collect();
+        assert_eq!(found, Vec::<(&str, Vec<String>)>::new());
+    }
+
+    /// A module that uses `session_files` reads history: it is on the list,
+    /// so a new reader is checked as well.
+    #[test]
+    fn every_module_using_session_files_is_checked() {
+        let src = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+        let mut unlisted: Vec<String> = walkdir::WalkDir::new(&src)
+            .into_iter()
+            .filter_map(Result::ok)
+            .map(walkdir::DirEntry::into_path)
+            .filter(|path| path.extension().is_some_and(|ext| ext == "rs"))
+            .filter(|path| !is_test_file(path) && !path.ends_with("stats/session_files.rs"))
+            .filter(|path| {
+                std::fs::read_to_string(path).is_ok_and(|text| text.contains("session_files::"))
+            })
+            .map(|path| {
+                let relative = path.strip_prefix(env!("CARGO_MANIFEST_DIR")).unwrap();
+                relative.to_string_lossy().replace('\\', "/")
+            })
+            .filter(|relative| !READERS.contains(&relative.as_str()))
+            .collect();
+        unlisted.sort();
+        assert_eq!(unlisted, Vec::<String>::new());
+    }
+
+    /// The guard itself: a raw open planted in a reader is reported; a marked
+    /// read, a comment and test code are not, and a marker covers only the
+    /// open right below it.
+    #[test]
+    fn the_guard_reports_a_raw_open_planted_in_a_reader() {
+        let planted = "\
+use std::fs::{self, File};
+
+fn read(path: &Path) -> Option<Vec<u8>> {
+    fs::read(path).ok()
+}
+
+fn reader(path: &Path) -> BufReader<File> {
+    BufReader::new(File::open(path).unwrap())
+}
+
+fn manifest(path: &Path) -> String {
+    // Not a history file: the archive manifest.
+    let content =
+        fs::read_to_string(path).unwrap_or_default();
+    content
+}
+
+/// `File::open(path)` in a comment is not a call.
+fn copy(from: &Path, to: &Path) {
+    // Not a history file: covers the next open only.
+    let _ = fs::read(to);
+    let _ = std::fs::copy(from, to);
+}
+
+#[cfg(test)]
+fn test_only(path: &Path) -> String {
+    std::fs::read_to_string(path).unwrap()
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    #[test]
+    fn fixture() {
+        let _ = std::fs::read(\"x.jsonl\");
+    }
+}
+";
+        assert_eq!(
+            raw_opens(planted),
+            [
+                "4: fs::read(path).ok()",
+                "8: BufReader::new(File::open(path).unwrap())",
+                "22: let _ = std::fs::copy(from, to);",
+            ]
+        );
+    }
 }
 
 #[cfg(all(test, unix))]
@@ -448,5 +695,61 @@ mod tests {
             let refused = open_regular_file(&fifo).unwrap_err();
             assert_eq!(refused.to_string(), "not a regular file");
         }
+    }
+
+    fn mkfifo(path: &Path) {
+        let made = std::process::Command::new("mkfifo")
+            .arg(path)
+            .status()
+            .unwrap();
+        assert!(made.success(), "mkfifo {}", path.display());
+    }
+
+    /// `open_session_file` decides at the open, not by the check it makes
+    /// first: a file swapped right after that check for a link out of the
+    /// root, or for a FIFO, is refused, and the FIFO does not block the open
+    /// (#698).
+    #[test]
+    #[serial_test::serial]
+    fn open_session_file_refuses_a_file_swapped_after_its_check() {
+        let dir = TempDir::new().unwrap();
+        let outside = TempDir::new().unwrap();
+        let root = fs::canonicalize(dir.path()).unwrap();
+        let session = root.join("p").join("s1.jsonl");
+        let secret = outside.path().join("secret.jsonl");
+        fs::write(&secret, "{\"secret\":true}\n").unwrap();
+
+        let mut opened = Vec::new();
+        for swap in ["link", "fifo"] {
+            touch(&session);
+            let (at, target) = (session.clone(), secret.clone());
+            swap_after_check::arm(&session, move || {
+                fs::remove_file(&at).unwrap();
+                if swap == "link" {
+                    symlink(&target, &at).unwrap();
+                } else {
+                    mkfifo(&at);
+                }
+            });
+            let (sent, received) = std::sync::mpsc::channel();
+            let (path, within) = (session.clone(), root.clone());
+            std::thread::spawn(move || sent.send(open_session_file(&path, &within).is_ok()));
+            let result = match received.recv_timeout(std::time::Duration::from_secs(10)) {
+                Ok(true) => "read",
+                Ok(false) => "refused",
+                Err(_) => {
+                    // Release the open blocked on the FIFO.
+                    let fifo = session.clone();
+                    std::thread::spawn(move || fs::OpenOptions::new().write(true).open(fifo));
+                    "stalled"
+                }
+            };
+            opened.push((swap, swap_after_check::disarm(), result));
+            fs::remove_file(&session).unwrap();
+        }
+        assert_eq!(
+            opened,
+            [("link", true, "refused"), ("fifo", true, "refused")]
+        );
     }
 }
