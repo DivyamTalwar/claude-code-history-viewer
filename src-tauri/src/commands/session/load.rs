@@ -299,7 +299,7 @@ fn extract_session_metadata_internal(
         })
         .unwrap_or_else(|| Utc::now().to_rfc3339());
 
-    let mut file = fs::File::open(file_path).ok()?;
+    let mut file = session_files::open_regular_file(file_path).ok()?;
     let file_path_str = file_path.to_string_lossy().to_string();
 
     // Initialize from incremental state or start fresh
@@ -2056,8 +2056,8 @@ pub async fn load_session_messages(session_path: String) -> Result<Vec<ClaudeMes
 #[allow(unsafe_code)] // Required for mmap performance optimization
 fn load_all_messages_from_file(session_path: &Path) -> Result<Vec<ClaudeMessage>, String> {
     // Use memory-mapped file for faster I/O
-    let file =
-        fs::File::open(session_path).map_err(|e| format!("Failed to open session file: {e}"))?;
+    let file = session_files::open_regular_file(session_path)
+        .map_err(|e| format!("Failed to open session file: {e}"))?;
 
     // SAFETY: We're only reading the file, and the file handle is kept open
     // for the duration of the mmap's lifetime. No concurrent modifications expected
@@ -2306,7 +2306,7 @@ fn read_subagent_tool_use_id(meta_path: &std::path::Path) -> Option<String> {
 fn extract_subagent_metadata(
     path: &PathBuf,
 ) -> (usize, Option<String>, Option<String>, Option<String>) {
-    let file = match fs::File::open(path) {
+    let file = match session_files::open_regular_file(path) {
         Ok(f) => f,
         Err(_) => return (0, None, None, None),
     };
@@ -2447,8 +2447,8 @@ pub fn get_session_message_offset(
     message_uuid: String,
     exclude_sidechain: Option<bool>,
 ) -> Result<Option<usize>, String> {
-    let file =
-        fs::File::open(&session_path).map_err(|e| format!("Failed to open session file: {e}"))?;
+    let file = session_files::open_regular_file(Path::new(&session_path))
+        .map_err(|e| format!("Failed to open session file: {e}"))?;
 
     // SAFETY: We're only reading the file, and the file handle is kept open
     // for the duration of the mmap's lifetime. No concurrent modifications expected
@@ -2507,8 +2507,8 @@ fn load_message_window_from_file(
     limit: usize,
     exclude: bool,
 ) -> Result<(Vec<ClaudeMessage>, usize, bool), String> {
-    let file =
-        fs::File::open(session_path).map_err(|e| format!("Failed to open session file: {e}"))?;
+    let file = session_files::open_regular_file(session_path)
+        .map_err(|e| format!("Failed to open session file: {e}"))?;
 
     // SAFETY: We're only reading the file, and the file handle is kept open
     // for the duration of the mmap's lifetime. No concurrent modifications expected
@@ -2555,8 +2555,8 @@ fn load_message_window_from_file(
 /// Count viewer-visible messages in a single file (the pre-chain algorithm).
 #[allow(unsafe_code)] // Required for mmap performance optimization
 fn count_valid_messages_in_file(session_path: &Path, exclude: bool) -> Result<usize, String> {
-    let file =
-        fs::File::open(session_path).map_err(|e| format!("Failed to open session file: {e}"))?;
+    let file = session_files::open_regular_file(session_path)
+        .map_err(|e| format!("Failed to open session file: {e}"))?;
 
     // SAFETY: We're only reading the file, and the file handle is kept open
     // for the duration of the mmap's lifetime. No concurrent modifications expected

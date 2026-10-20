@@ -104,11 +104,11 @@ struct BoundaryClassifier {
 #[allow(unsafe_code)]
 fn find_dangling_parent_uuid(path: &Path) -> Option<String> {
     {
-        let file = fs::File::open(path).ok()?;
+        let file = session_files::open_regular_file(path).ok()?;
         let map = unsafe { memmap2::Mmap::map(&file) }.ok()?;
         memchr::memmem::find(&map, b"compact_boundary")?;
     }
-    let file = fs::File::open(path).ok()?;
+    let file = session_files::open_regular_file(path).ok()?;
     let reader = BufReader::new(file);
 
     let mut own_uuids: HashSet<String> = HashSet::new();
@@ -179,7 +179,7 @@ fn find_file_containing_uuid(
 /// UUID referenced by a continuation boundary. A true result means the newer
 /// file is a branch from the predecessor, not a replacement for it.
 fn has_main_conversation_after_uuid(path: &Path, target_uuid: &str) -> bool {
-    let Ok(file) = fs::File::open(path) else {
+    let Ok(file) = session_files::open_regular_file(path) else {
         return false;
     };
     let reader = BufReader::new(file);
