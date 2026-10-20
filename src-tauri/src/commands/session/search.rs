@@ -498,9 +498,14 @@ fn search_messages_blocking(
         return Ok(vec![]);
     }
 
+    // Symlinks are never followed: not a linked directory (WalkDir's
+    // default), and not a linked `*.jsonl` entry either, which the walk
+    // still yields and opening it would read wherever it points.
     let file_paths: Vec<PathBuf> = WalkDir::new(&projects_path)
+        .follow_links(false)
         .into_iter()
         .filter_map(std::result::Result::ok)
+        .filter(|e| !e.path_is_symlink())
         .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("jsonl"))
         .map(|e| e.path().to_path_buf())
         .collect();
@@ -1094,5 +1099,72 @@ mod tests {
         );
         assert_eq!(test_scan_count(&file_a), 1, "untouched file a stays cached");
         assert_eq!(test_scan_count(&file_c), 1);
+    }
+
+    /// A session file linked into the history root from elsewhere is never
+    /// searched; only the files that are there are (#696 review).
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_search_never_reads_a_session_file_through_a_symlink() {
+        let temp_dir = TempDir::new().unwrap();
+        let project_dir = temp_dir.path().join("projects").join("p");
+        std::fs::create_dir_all(&project_dir).unwrap();
+        std::fs::write(
+            project_dir.join("inside.jsonl"),
+            create_sample_user_message("uuid-in", "inside", "needle inside") + "\n",
+        )
+        .unwrap();
+        let outside = TempDir::new().unwrap();
+        let outside_file = outside.path().join("private.jsonl");
+        std::fs::write(
+            &outside_file,
+            create_sample_user_message("uuid-out", "private", "needle outside") + "\n",
+        )
+        .unwrap();
+        std::os::unix::fs::symlink(&outside_file, project_dir.join("escaped.jsonl")).unwrap();
+
+        let messages = search_messages(
+            temp_dir.path().to_string_lossy().to_string(),
+            "needle".to_string(),
+            serde_json::json!({}),
+            None,
+        )
+        .await
+        .unwrap();
+        let sessions: Vec<&str> = messages.iter().map(|m| m.session_id.as_str()).collect();
+        assert_eq!(sessions, ["inside"]);
+    }
+
+    /// The root itself may be reached through a symlink (a symlinked
+    /// `~/.claude` or `projects/`, #355): its files are still searched.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_search_reads_a_root_reached_through_a_symlink() {
+        let real = TempDir::new().unwrap();
+        let real_projects = real.path().join("real-projects");
+        let project_dir = real_projects.join("p");
+        std::fs::create_dir_all(&project_dir).unwrap();
+        std::fs::write(
+            project_dir.join("inside.jsonl"),
+            create_sample_user_message("uuid-in", "inside", "needle inside") + "\n",
+        )
+        .unwrap();
+        let base = TempDir::new().unwrap();
+        std::os::unix::fs::symlink(&real_projects, base.path().join("projects")).unwrap();
+        let linked_base = TempDir::new().unwrap();
+        let linked = linked_base.path().join("claude");
+        std::os::unix::fs::symlink(base.path(), &linked).unwrap();
+
+        for claude_path in [base.path().to_path_buf(), linked] {
+            let messages = search_messages(
+                claude_path.to_string_lossy().to_string(),
+                "needle".to_string(),
+                serde_json::json!({}),
+                None,
+            )
+            .await
+            .unwrap();
+            assert_eq!(messages.len(), 1, "{}", claude_path.display());
+        }
     }
 }
