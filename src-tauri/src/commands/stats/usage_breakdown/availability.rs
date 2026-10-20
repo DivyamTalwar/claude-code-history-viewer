@@ -61,6 +61,8 @@ fn root_state(root: &Path) -> RootState {
     let opened = if metadata.is_dir() {
         fs::read_dir(root).map(drop)
     } else {
+        // Not a history file: a provider's store database, opened to see
+        // that it can be read; nothing is read from it here.
         fs::File::open(root).map(drop)
     };
     match opened {

@@ -16,6 +16,8 @@ mod path_safety_tests;
 mod rename;
 mod resume;
 mod search;
+#[cfg(all(test, unix))]
+mod swap_after_check_tests;
 
 // Re-export all commands
 pub use chain::{resolve_session_chain, superseded_chain_paths};
