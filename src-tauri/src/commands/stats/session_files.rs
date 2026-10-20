@@ -61,7 +61,7 @@ pub(crate) fn walk_session_files(project_dir: &Path) -> SessionFileWalk {
 /// opens it.
 pub(crate) fn is_regular_file(path: &Path) -> bool {
     let regular = fs::symlink_metadata(path).is_ok_and(|meta| meta.is_file());
-    #[cfg(test)]
+    #[cfg(all(test, unix))]
     if regular {
         swap_after_check::checked(path);
     }
@@ -201,7 +201,7 @@ fn open_inside(path: &Path, root: &Path) -> io::Result<(File, Metadata)> {
     if !checked.is_file() {
         return Err(refused(NOT_REGULAR));
     }
-    #[cfg(test)]
+    #[cfg(all(test, unix))]
     swap_after_check::checked(path);
     let canonical = fs::canonicalize(path)?;
     if !canonical.starts_with(root) {
@@ -378,7 +378,9 @@ fn reached_without_a_symlink(dir: &Path, path: &Path) -> bool {
 /// this puts a swap between them deterministically. Every check of this
 /// module calls [`checked`](swap_after_check::checked): the walk's
 /// [`is_regular_file`] and the check each open helper makes before it opens.
-#[cfg(test)]
+/// Built for Unix only, as the tests that arm it are: they swap in a symlink
+/// or a FIFO.
+#[cfg(all(test, unix))]
 pub(crate) mod swap_after_check {
     use std::path::{Path, PathBuf};
     use std::sync::{Mutex, PoisonError};
