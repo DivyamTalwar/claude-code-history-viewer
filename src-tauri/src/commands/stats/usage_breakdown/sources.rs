@@ -20,6 +20,7 @@ use crate::commands::stats::{
     stats_provider_id, StatsMode, StatsProvider,
 };
 use crate::models::ClaudeSession;
+use crate::providers::scan_report::ScanReport;
 use rayon::prelude::*;
 use std::collections::{HashMap, HashSet};
 use std::fs;
@@ -213,14 +214,29 @@ impl ProviderScan {
 
     /// Run `read` only when the provider's store can be read (ADR 0003 §7):
     /// a missing store is `not_found`, an unreadable one a failed source.
+    /// Whatever `read` records in its [`ScanReport`] — a part of the store
+    /// it went past without reading — is a failed source as well.
     fn when_store_present(
         &mut self,
-        read: impl FnOnce(&mut Self) -> Vec<(String, ClaudeSession)>,
+        read: impl FnOnce(&mut Self, &ScanReport) -> Vec<(String, ClaudeSession)>,
     ) -> Vec<(String, ClaudeSession)> {
-        match store_availability(self.provider) {
+        let report = ScanReport::default();
+        let tasks = match store_availability(self.provider) {
             StoreAvailability::Missing => {
-                self.store_missing = true;
-                Vec::new()
+                // Detection only looks at paths, and a path it may not look
+                // into passes for an absent one. So the scan runs anyway,
+                // on a probe: a store that is really absent records nothing
+                // (a path that is not there is no failure), while one that
+                // records what it could not read is there after all.
+                let mut probe = Self::new(self.provider);
+                let found = read(&mut probe, &report);
+                if report.is_empty() {
+                    self.store_missing = true;
+                    Vec::new()
+                } else {
+                    self.sources_failed += probe.sources_failed;
+                    found
+                }
             }
             StoreAvailability::Unreadable(error) => {
                 log::warn!(
@@ -230,7 +246,22 @@ impl ProviderScan {
                 self.sources_failed += 1;
                 Vec::new()
             }
-            StoreAvailability::Present => read(self),
+            StoreAvailability::Present => read(self, &report),
+        };
+        self.account_report(report);
+        tasks
+    }
+
+    /// What the provider's scan went past without reading (a directory it
+    /// could not list, a file or database it could not open): each one is a
+    /// source that was not read (ADR 0003 §7).
+    fn account_report(&mut self, report: ScanReport) {
+        for what in report.into_unread() {
+            log::warn!(
+                "usage breakdown: {}: cannot read {what}",
+                stats_provider_id(self.provider)
+            );
+            self.sources_failed += 1;
         }
     }
 }
@@ -262,8 +293,8 @@ pub(super) fn collect(plan: &ScopePlan, mode: StatsMode) -> Collected {
                         &mut scan,
                     )
                 } else {
-                    let tasks = scan.when_store_present(|scan| {
-                        match load_stats_sessions(*provider, project_path) {
+                    let tasks = scan.when_store_present(|scan, report| {
+                        match load_stats_sessions(*provider, project_path, report) {
                             Ok(sessions) => sessions
                                 .into_iter()
                                 .map(|session| (project_path.clone(), session))
@@ -295,8 +326,9 @@ pub(super) fn collect(plan: &ScopePlan, mode: StatsMode) -> Collected {
                         collect_claude(projects, mode, &mut scan)
                     } else {
                         let provider = *provider;
-                        let tasks =
-                            scan.when_store_present(|scan| provider_all_sessions(provider, scan));
+                        let tasks = scan.when_store_present(|scan, report| {
+                            provider_all_sessions(provider, scan, report)
+                        });
                         collect_provider_sessions(provider, tasks, mode, &mut scan)
                     };
                     collected.sessions.extend(sessions);
@@ -561,10 +593,12 @@ fn collect_claude(
 
 // ---- other providers ----------------------------------------------------------
 
-/// Every (project path, session) of a provider, as the old global stats list them.
+/// Every (project path, session) of a provider, as the old global stats list
+/// them; what the scan could not read goes to `report`.
 fn provider_all_sessions(
     provider: StatsProvider,
     scan: &mut ProviderScan,
+    report: &ScanReport,
 ) -> Vec<(String, ClaudeSession)> {
     if provider == StatsProvider::Antigravity {
         let Some(root) = crate::commands::antigravity::resolve_antigravity_root() else {
@@ -572,7 +606,7 @@ fn provider_all_sessions(
             return Vec::new();
         };
         let root = root.to_string_lossy().to_string();
-        return match load_stats_sessions(provider, &root) {
+        return match load_stats_sessions(provider, &root, report) {
             Ok(sessions) => sessions.into_iter().map(|s| (root.clone(), s)).collect(),
             Err(error) => {
                 log::warn!("usage breakdown: antigravity: {error}");
@@ -581,7 +615,7 @@ fn provider_all_sessions(
             }
         };
     }
-    let projects = match scan_stats_projects(provider) {
+    let projects = match scan_stats_projects(provider, report) {
         Ok(projects) => projects,
         Err(error) => {
             log::warn!("usage breakdown: {}: {error}", stats_provider_id(provider));
@@ -591,7 +625,7 @@ fn provider_all_sessions(
     };
     let mut tasks = Vec::new();
     for project in projects {
-        match load_stats_sessions(provider, &project.path) {
+        match load_stats_sessions(provider, &project.path, report) {
             Ok(sessions) => tasks.extend(sessions.into_iter().map(|s| (project.path.clone(), s))),
             Err(error) => {
                 log::warn!("usage breakdown: {}: {error}", project.path);

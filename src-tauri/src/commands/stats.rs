@@ -7,6 +7,7 @@ use crate::models::{
     SessionTokenStats, TokenDistribution, TokenUsage, ToolUsageStats,
 };
 use crate::providers;
+use crate::providers::scan_report::ScanReport;
 use crate::utils::find_line_ranges;
 use chrono::{DateTime, Datelike, Timelike, Utc};
 use memmap2::Mmap;
@@ -1567,15 +1568,20 @@ fn build_global_session_file_stats_from_messages(
 /// Dispatch the common project/session/message interface used by global and
 /// project stats. Keeping this table in one place prevents a provider from
 /// being visible in the project tree but silently disappearing from stats.
+///
+/// `report` collects what a provider's scan could not read
+/// (`providers::scan_report`); only `get_usage_breakdown` looks at it, every
+/// other caller passes a fresh one and drops it.
 fn scan_stats_projects(
     provider: StatsProvider,
+    report: &ScanReport,
 ) -> Result<Vec<crate::models::ClaudeProject>, String> {
     match provider {
         StatsProvider::Aider => providers::aider::scan_projects(),
         StatsProvider::AmazonQ => providers::amazon_q::scan_projects(),
         StatsProvider::Cline => providers::cline::scan_projects(),
         StatsProvider::Codebuddy => providers::codebuddy::scan_projects(),
-        StatsProvider::Codex => providers::codex::scan_projects(),
+        StatsProvider::Codex => providers::codex::scan_projects_reporting(report),
         StatsProvider::Continue => providers::continue_dev::scan_projects(),
         StatsProvider::ForgeCode => providers::forgecode::scan_projects(),
         StatsProvider::Kilo => providers::kilo::scan_projects(),
@@ -1583,7 +1589,7 @@ fn scan_stats_projects(
         StatsProvider::OpenHands => providers::openhands::scan_projects(),
         StatsProvider::OpenInterpreter => providers::openinterpreter::scan_projects(),
         StatsProvider::PearAI => providers::pearai::scan_projects(),
-        StatsProvider::Qwen => providers::qwen::scan_projects(),
+        StatsProvider::Qwen => providers::qwen::scan_projects_reporting(report),
         StatsProvider::Zcode => providers::zcode::scan_projects(),
         StatsProvider::Trae => providers::trae::scan_projects(),
         StatsProvider::Vibe => providers::vibe::scan_projects(),
@@ -1605,16 +1611,18 @@ fn scan_stats_projects(
     }
 }
 
+/// The sessions of one project; `report` as in [`scan_stats_projects`].
 fn load_stats_sessions(
     provider: StatsProvider,
     project_path: &str,
+    report: &ScanReport,
 ) -> Result<Vec<crate::models::ClaudeSession>, String> {
     match provider {
         StatsProvider::Aider => providers::aider::load_sessions(project_path, false),
         StatsProvider::AmazonQ => providers::amazon_q::load_sessions(project_path, false),
         StatsProvider::Cline => providers::cline::load_sessions(project_path, false),
         StatsProvider::Codebuddy => providers::codebuddy::load_sessions(project_path, false),
-        StatsProvider::Codex => providers::codex::load_sessions(project_path, false),
+        StatsProvider::Codex => providers::codex::load_sessions_reporting(project_path, report),
         StatsProvider::Continue => providers::continue_dev::load_sessions(project_path, false),
         StatsProvider::ForgeCode => providers::forgecode::load_sessions(project_path, false),
         StatsProvider::Kilo => providers::kilo::load_sessions(project_path, false),
@@ -1624,7 +1632,7 @@ fn load_stats_sessions(
             providers::openinterpreter::load_sessions(project_path, false)
         }
         StatsProvider::PearAI => providers::pearai::load_sessions(project_path, false),
-        StatsProvider::Qwen => providers::qwen::load_sessions(project_path, false),
+        StatsProvider::Qwen => providers::qwen::load_sessions_reporting(project_path, report),
         StatsProvider::Zcode => providers::zcode::load_sessions(project_path, false),
         StatsProvider::Trae => providers::trae::load_sessions(project_path, false),
         StatsProvider::Vibe => providers::vibe::load_sessions(project_path, false),
@@ -1894,7 +1902,10 @@ fn collect_provider_global_file_stats(
         return (all_stats, project_keys);
     }
 
-    let projects = scan_stats_projects(provider).unwrap_or_default();
+    // The old global summary reports no coverage: what a scan cannot read
+    // is skipped, as it always was.
+    let unreported = ScanReport::default();
+    let projects = scan_stats_projects(provider, &unreported).unwrap_or_default();
 
     let provider_tag = stats_provider_id(provider);
 
@@ -1905,7 +1916,8 @@ fn collect_provider_global_file_stats(
         let project_display_name = format!("{} [{}]", project.name, provider_tag);
         project_keys.insert(format!("{provider_tag}:{}", project.path));
 
-        let sessions = load_stats_sessions(provider, &project.path).unwrap_or_default();
+        let sessions =
+            load_stats_sessions(provider, &project.path, &unreported).unwrap_or_default();
 
         for session in sessions {
             session_tasks.push((project_display_name.clone(), session.file_path));
@@ -3397,7 +3409,7 @@ fn load_provider_sessions_for_stats(
     provider: StatsProvider,
     project_path: &str,
 ) -> Result<Vec<crate::models::ClaudeSession>, String> {
-    load_stats_sessions(provider, project_path)
+    load_stats_sessions(provider, project_path, &ScanReport::default())
 }
 
 /// Load messages for a provider-specific stats request.
