@@ -3,7 +3,8 @@
  *
  * Feeds the row shapes the backend builds for non-Claude providers (see
  * `build_tool_use_edits` in `src-tauri/src/commands/session/edits.rs`) into
- * the real card and compact row, then drives Restore -> Confirm.
+ * the real card and compact row, then drives Restore -> Confirm. Only a row
+ * whose `content_kind` is `"full"` may reach `restore_file`.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, fireEvent, screen, act } from "@testing-library/react";
@@ -42,7 +43,8 @@ const JSON_BLOB = `{"edits":[{"newString":"    20\\n","oldString":"    2\\n"}],"
 
 const RESTORE_TITLES = ["recentEdits.restoreFile", "recentEdits.restoreUnavailable"];
 
-const row = (content: string): RecentFileEdit => ({
+const row = (content: string, kind?: RecentFileEdit["content_kind"]): RecentFileEdit => ({
+  content_kind: kind,
   file_path: FILE,
   timestamp: "2026-10-19T01:00:03Z",
   session_id: "sess-restore",
@@ -89,16 +91,90 @@ describe.each<[string, RowComponent]>([
     );
   });
 
+  // The kind the backend now sends with each shape, or none (older payload).
   it.each([
-    ["codex apply_patch text", CODEX_PATCH, "codex:///Users/alex/repo"],
-    ["opencode edit fragment", FRAGMENT, "opencode://proj1"],
-    ["opencode multiedit json", JSON_BLOB, "opencode://proj1"],
-  ])("never sends %s to restore_file", async (_label, content, projectPath) => {
+    ["codex apply_patch text", CODEX_PATCH, "codex:///Users/alex/repo", "patch"],
+    ["opencode edit fragment", FRAGMENT, "opencode://proj1", "fragment"],
+    ["opencode multiedit json", JSON_BLOB, "opencode://proj1", "unavailable"],
+    ["untagged content", CODEX_PATCH, "codex:///Users/alex/repo", undefined],
+  ] as const)("never sends %s to restore_file", async (_label, content, projectPath, kind) => {
     render(
-      <Row edit={row(content)} isDarkMode={false} projectCwd={PROJECT} restoreScope={{ projectPath }} />
+      <Row
+        edit={row(content, kind)}
+        isDarkMode={false}
+        projectCwd={PROJECT}
+        restoreScope={{ projectPath }}
+      />
     );
     await restoreAndConfirm();
     const writes = apiMock.mock.calls.filter((c) => c[0] === "restore_file");
     expect(writes).toEqual([]);
+  });
+
+  const renderUnavailable = () =>
+    render(
+      <Row
+        edit={row(CODEX_PATCH, "patch")}
+        isDarkMode={false}
+        projectCwd={PROJECT}
+        restoreScope={{ projectPath: "codex:///Users/alex/repo" }}
+      />
+    );
+
+  // `aria-disabled`, not native `disabled`: a natively disabled button leaves
+  // the tab order, so keyboard and screen-reader users never reach the reason,
+  // and some webviews do not show `title` on disabled elements.
+  it("keeps Restore visible but aria-disabled, with the reason as its label", () => {
+    renderUnavailable();
+    const button = screen.getByRole("button", { name: "recentEdits.restoreUnavailable" });
+    expect(button).toHaveAttribute("aria-disabled", "true");
+    expect(button).not.toBeDisabled();
+    expect(button).toHaveAttribute("title", "recentEdits.restoreUnavailable");
+    expect(screen.queryByRole("button", { name: "recentEdits.restoreFile" })).toBeNull();
+  });
+
+  it("keeps the unavailable Restore button keyboard-focusable", () => {
+    renderUnavailable();
+    const button = screen.getByRole("button", { name: "recentEdits.restoreUnavailable" });
+    expect(button.tabIndex).toBe(0);
+    act(() => button.focus());
+    expect(document.activeElement).toBe(button);
+  });
+
+  it("does nothing when the unavailable Restore button is activated", async () => {
+    renderUnavailable();
+    const button = screen.getByRole("button", { name: "recentEdits.restoreUnavailable" });
+    act(() => button.focus());
+    fireEvent.click(button);
+    fireEvent.keyDown(button, { key: "Enter", code: "Enter" });
+    fireEvent.keyDown(button, { key: " ", code: "Space" });
+    fireEvent.keyUp(button, { key: " ", code: "Space" });
+    await flush();
+    expect(screen.queryByText("recentEdits.confirmRestore")).toBeNull();
+    expect(apiMock.mock.calls.filter((c) => c[0] === "restore_file")).toEqual([]);
+  });
+
+  it.each([
+    ["a whole-file row", DISK],
+    ["an empty whole-file row", ""],
+  ])("restores %s", async (_label, content) => {
+    render(
+      <Row
+        edit={row(content, "full")}
+        isDarkMode={false}
+        projectCwd={PROJECT}
+        restoreScope={{ projectPath: PROJECT }}
+      />
+    );
+    const button = screen.getByRole("button", { name: "recentEdits.restoreFile" });
+    expect(button).toHaveProperty("disabled", false);
+    expect(button).not.toHaveAttribute("aria-disabled");
+    await restoreAndConfirm();
+    expect(apiMock).toHaveBeenCalledWith("restore_file", {
+      filePath: FILE,
+      content,
+      projectPath: PROJECT,
+      sessionFilePath: undefined,
+    });
   });
 });
