@@ -93,6 +93,31 @@ describe("Field", () => {
     expect(describedTexts(trigger)).toEqual(["Days to include", "Pick a range"]);
   });
 
+  it("keeps a Select trigger's own aria-label or aria-labelledby as its name", () => {
+    render(
+      <>
+        <span id="own-name">Date range</span>
+        <Field label="Range">
+          <Select defaultValue="7">
+            <SelectTrigger aria-label="Time window">
+              <SelectValue />
+            </SelectTrigger>
+          </Select>
+        </Field>
+        <Field label="Range">
+          <Select defaultValue="7">
+            <SelectTrigger aria-labelledby="own-name">
+              <SelectValue />
+            </SelectTrigger>
+          </Select>
+        </Field>
+      </>,
+    );
+    const labelled = screen.getByRole("combobox", { name: "Time window" });
+    expect(labelled).not.toHaveAttribute("aria-labelledby");
+    expect(screen.getByRole("combobox", { name: "Date range" })).toHaveAttribute("aria-labelledby", "own-name");
+  });
+
   it("leaves a control outside a Field as it was", () => {
     render(<Input aria-label="Search" />);
     const input = screen.getByRole("textbox", { name: "Search" });

@@ -157,6 +157,13 @@ const hasName = (attr: ts.JsxAttribute | undefined) => !!attr && attributeValue(
 /**
  * `<SelectTrigger>` elements of one TSX source without an accessible name
  * (see the file header), as `file:line`.
+ *
+ * Limit of a static scan: an expression id is compared by its source text
+ * (`htmlFor={scopeId}` ↔ `id={scopeId}`) across the whole file, so two
+ * components in one file that reuse the same variable name can pair a label
+ * with the other component's trigger. That never fails a named trigger, but
+ * it can hide a missing name; give each label/trigger pair a distinct id
+ * name (`useId()` per pair, as the settings dialogs do).
  */
 function unnamedSelectTriggers(sourceText: string, fileName = "fixture.tsx"): string[] {
   const source = ts.createSourceFile(fileName, sourceText, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);

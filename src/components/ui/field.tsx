@@ -100,7 +100,10 @@ interface FieldControlProps {
  * The id, description and invalid state a control inside a Field takes
  * (spread after its own props). Outside a Field: nothing.
  */
-function useFieldControl(props: FieldControlProps, { labelledBy = false }: { labelledBy?: boolean } = {}): FieldControlProps {
+function useFieldControl(
+  props: FieldControlProps & { "aria-label"?: string },
+  { labelledBy = false }: { labelledBy?: boolean } = {},
+): FieldControlProps {
   const field = React.useContext(FieldContext);
   const register = field?.registerId;
   const ownId = props.id;
@@ -110,11 +113,14 @@ function useFieldControl(props: FieldControlProps, { labelledBy = false }: { lab
     return () => register(null);
   }, [register, ownId]);
   if (!field) return {};
+  // A control named by its own aria-label or aria-labelledby keeps that name:
+  // a generated aria-labelledby would take precedence over aria-label.
+  const ownName = props["aria-labelledby"] ?? props["aria-label"];
   return {
     id: ownId ?? field.controlId,
     "aria-describedby": [props["aria-describedby"], field.describedBy].filter(Boolean).join(" ") || undefined,
     "aria-invalid": props["aria-invalid"] ?? (field.invalid ? true : undefined),
-    ...(labelledBy ? { "aria-labelledby": props["aria-labelledby"] ?? field.labelId } : {}),
+    ...(labelledBy && ownName == null ? { "aria-labelledby": field.labelId } : {}),
   };
 }
 
