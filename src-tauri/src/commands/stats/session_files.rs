@@ -471,27 +471,24 @@ mod raw_open_guard {
 
     /// `line: code` for every raw open in the production code of `source`
     /// that is not marked. Test code is skipped: a top-level item under a
-    /// test attribute, up to the `}` that closes it.
+    /// test attribute, up to the `;` or the `}` that ends it, found by
+    /// counting its brackets ([`Brackets`]). Test code that never ends is
+    /// reported as well: it would hide the rest of the file.
     fn raw_opens(source: &str) -> Vec<String> {
         let mut found = Vec::new();
-        let mut in_test_item = false;
-        let mut test_attribute = false;
+        let mut brackets = Brackets::default();
+        let mut test_item: Option<usize> = None;
         let mut marked_lines: usize = 0;
         for (index, line) in source.lines().enumerate() {
-            if in_test_item {
-                in_test_item = !line.starts_with('}');
-                continue;
+            if test_item.is_none() && brackets.within == Within::Code && is_test_attribute(line) {
+                test_item = Some(index + 1);
+                brackets.depth = 0;
             }
-            if is_test_attribute(line) {
-                test_attribute = true;
-                continue;
-            }
-            if test_attribute {
-                if line.starts_with("#[") {
-                    continue;
+            let item_ends = brackets.read(line);
+            if test_item.is_some() {
+                if item_ends {
+                    test_item = None;
                 }
-                test_attribute = false;
-                in_test_item = !line.trim_end().ends_with(';') && !line.starts_with('}');
                 continue;
             }
             let code = line.trim();
@@ -510,7 +507,132 @@ mod raw_open_guard {
             }
             marked_lines = marked_lines.saturating_sub(1);
         }
+        if let Some(start) = test_item {
+            found.push(format!("{start}: test code that never ends"));
+        }
         found
+    }
+
+    /// Where a line of source leaves off: in code, or in a string literal or
+    /// a block comment that goes on to the next line.
+    #[derive(Clone, Copy, Default, PartialEq)]
+    enum Within {
+        #[default]
+        Code,
+        Str,
+        /// A raw string, closed by `"` and this many `#`.
+        RawStr(usize),
+        /// A block comment, nested this deep.
+        Comment(usize),
+    }
+
+    /// Source read line by line as far as its brackets go. A bracket in a
+    /// string or char literal (`"{"`, `r#"{"#`, `'{'`) or in a comment is
+    /// not counted, and a lifetime's quote (`'a`) opens no char literal.
+    #[derive(Default)]
+    struct Brackets {
+        /// How many `(`, `[` and `{` are open.
+        depth: usize,
+        within: Within,
+    }
+
+    impl Brackets {
+        /// Read `line`. Whether an item ends on it: a `;` outside every
+        /// bracket, or the `}` that closes the last one open.
+        fn read(&mut self, line: &str) -> bool {
+            let chars: Vec<char> = line.chars().collect();
+            let mut ends = false;
+            let mut i = 0;
+            while i < chars.len() {
+                let next = chars.get(i + 1).copied();
+                match self.within {
+                    Within::Str => match chars[i] {
+                        '\\' => i += 1,
+                        '"' => self.within = Within::Code,
+                        _ => {}
+                    },
+                    Within::RawStr(hashes) => {
+                        let closing = chars.get(i + 1..i + 1 + hashes);
+                        if chars[i] == '"'
+                            && closing.is_some_and(|tail| tail.iter().all(|&c| c == '#'))
+                        {
+                            self.within = Within::Code;
+                            i += hashes;
+                        }
+                    }
+                    Within::Comment(nested) => match (chars[i], next) {
+                        ('*', Some('/')) => {
+                            self.within = if nested > 1 {
+                                Within::Comment(nested - 1)
+                            } else {
+                                Within::Code
+                            };
+                            i += 1;
+                        }
+                        ('/', Some('*')) => {
+                            self.within = Within::Comment(nested + 1);
+                            i += 1;
+                        }
+                        _ => {}
+                    },
+                    Within::Code => match (chars[i], next) {
+                        ('/', Some('/')) => break,
+                        ('/', Some('*')) => {
+                            self.within = Within::Comment(1);
+                            i += 1;
+                        }
+                        ('"', _) => self.within = Within::Str,
+                        ('\'', _) => i += char_literal_len(&chars[i..]) - 1,
+                        ('(' | '[' | '{', _) => self.depth += 1,
+                        (')' | ']', _) => self.depth = self.depth.saturating_sub(1),
+                        ('}', _) => {
+                            self.depth = self.depth.saturating_sub(1);
+                            ends |= self.depth == 0;
+                        }
+                        (';', _) => ends |= self.depth == 0,
+                        (c, _) if is_word(c) => {
+                            let end = chars[i..]
+                                .iter()
+                                .position(|&c| !is_word(c))
+                                .map_or(chars.len(), |len| i + len);
+                            let hashes = chars[end..].iter().take_while(|&&c| c == '#').count();
+                            let prefix = matches!(&chars[i..end], ['r'] | ['b' | 'c', 'r']);
+                            if prefix && chars.get(end + hashes) == Some(&'"') {
+                                // A raw string: no escapes, closed by `"` and
+                                // as many `#`.
+                                self.within = Within::RawStr(hashes);
+                                i = end + hashes;
+                            } else {
+                                i = end - 1;
+                            }
+                        }
+                        _ => {}
+                    },
+                }
+                i += 1;
+            }
+            ends
+        }
+    }
+
+    /// A char of a word: an identifier, a keyword, a number, or the prefix
+    /// of a literal (`r#"…"#`, `b'…'`).
+    fn is_word(c: char) -> bool {
+        c.is_alphanumeric() || c == '_'
+    }
+
+    /// How many chars the char literal at the start of `rest` takes (`'{'`,
+    /// `'\''`, `'\u{7b}'`): one, the quote alone, for a lifetime or a label
+    /// (`'a`).
+    fn char_literal_len(rest: &[char]) -> usize {
+        match rest {
+            ['\'', '\\', _, tail @ ..] => tail
+                .iter()
+                .position(|&c| c == '\'')
+                .map_or(1, |end| end + 4),
+            ['\'', _, '\'', ..] => 3,
+            _ => 1,
+        }
     }
 
     fn crate_file(relative: &str) -> String {
@@ -560,7 +682,9 @@ mod raw_open_guard {
 
     /// The guard itself: a raw open planted in a reader is reported; a marked
     /// read, a comment and test code are not, and a marker covers only the
-    /// open right below it.
+    /// open right below it. Test code ends where its brackets close, whatever
+    /// brackets its literals and comments hold, and test code that never
+    /// ends is reported.
     #[test]
     fn the_guard_reports_a_raw_open_planted_in_a_reader() {
         let planted = "\
@@ -600,6 +724,48 @@ mod tests {
         let _ = std::fs::read(\"x.jsonl\");
     }
 }
+
+#[cfg(test)]
+fn one_line() {}
+
+fn after_one_line(path: &Path) -> Vec<u8> {
+    fs::read(path).unwrap()
+}
+
+#[cfg(test)]
+static FIXTURE: Lazy<String> =
+    Lazy::new(|| String::from(\"{\"));
+
+fn after_static(path: &Path) -> String {
+    fs::read_to_string(path).unwrap()
+}
+
+#[cfg(test)]
+mod quoted {
+    // A `{` in a comment.
+    /* A `{` in a /* nested */ block comment { */
+    const RAW: &str = r#\"a \"{\" in a raw string
+}\"#;
+    const ESCAPED: &str = \"\\\"{\";
+    const BRACE: char = '{';
+    fn first<'a>(lines: &'a [&'a str]) -> &'a str {
+        lines.first().copied().unwrap_or(ESCAPED)
+    }
+    fn in_test(path: &Path) -> String {
+        std::fs::read_to_string(path).unwrap()
+    }
+}
+
+fn after_quoted(path: &Path) -> String {
+    fs::read_to_string(path).unwrap()
+}
+
+/*
+#[cfg(test)]
+*/
+fn after_comment(path: &Path) -> Vec<u8> {
+    fs::read(path).unwrap()
+}
 ";
         assert_eq!(
             raw_opens(planted),
@@ -607,7 +773,15 @@ mod tests {
                 "4: fs::read(path).ok()",
                 "8: BufReader::new(File::open(path).unwrap())",
                 "22: let _ = std::fs::copy(from, to);",
+                "42: fs::read(path).unwrap()",
+                "50: fs::read_to_string(path).unwrap()",
+                "70: fs::read_to_string(path).unwrap()",
+                "77: fs::read(path).unwrap()",
             ]
+        );
+        assert_eq!(
+            raw_opens("#[cfg(test)]\nmod tests {\n    fn f() {}\n"),
+            ["1: test code that never ends"]
         );
     }
 }
