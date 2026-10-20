@@ -1,5 +1,6 @@
 //! Session loading functions
 
+use crate::commands::stats::session_files;
 use crate::models::{ClaudeMessage, ClaudeSession, MessagePage, RawLogEntry};
 use crate::utils::{extract_project_name, find_line_ranges, find_line_starts};
 use chrono::{DateTime, Utc};
@@ -12,7 +13,6 @@ use std::io::{BufRead, BufReader, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 use uuid::Uuid;
-use walkdir::WalkDir;
 
 /// Cache entry for a single session file (supports incremental parsing)
 #[derive(serde::Serialize, serde::Deserialize, Clone)]
@@ -260,6 +260,21 @@ fn extract_session_metadata_from_file(file_path: &PathBuf) -> Option<SessionExtr
     extract_session_metadata_internal(file_path, None)
 }
 
+/// The lines of a session file for a metadata scan. A line that is not UTF-8
+/// is skipped; any other read error ends the scan. `BufRead::lines` returns
+/// such an error again on every call (each read of a directory fails), so a
+/// scan that skipped it as well never ended.
+fn session_lines(reader: impl BufRead) -> impl Iterator<Item = String> {
+    reader
+        .lines()
+        .map_while(|line| match line {
+            Ok(line) => Some(Some(line)),
+            Err(error) if error.kind() == std::io::ErrorKind::InvalidData => Some(None),
+            Err(_) => None,
+        })
+        .flatten()
+}
+
 /// Incremental session metadata extraction - only parses new content from given offset
 fn extract_session_metadata_incremental(
     file_path: &PathBuf,
@@ -284,7 +299,7 @@ fn extract_session_metadata_internal(
         })
         .unwrap_or_else(|| Utc::now().to_rfc3339());
 
-    let mut file = fs::File::open(file_path).ok()?;
+    let mut file = session_files::open_regular_file(file_path).ok()?;
     let file_path_str = file_path.to_string_lossy().to_string();
 
     // Initialize from incremental state or start fresh
@@ -350,12 +365,7 @@ fn extract_session_metadata_internal(
     let mut lines_processed = 0usize;
     const METADATA_PHASE_LINES: usize = 100; // Full parse first N lines
 
-    for line_result in reader.lines() {
-        let line = match line_result {
-            Ok(l) => l,
-            Err(_) => continue,
-        };
-
+    for line in session_lines(reader) {
         if line.trim().is_empty() {
             continue;
         }
@@ -1157,24 +1167,16 @@ fn load_project_sessions_page_blocking(
     let mut candidates: Vec<SessionPageCandidate> = Vec::new();
     let mut known_dropped_candidates = 0usize;
 
-    for entry in WalkDir::new(project_root)
-        .follow_links(false)
-        .into_iter()
-        .filter_map(std::result::Result::ok)
-        .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("jsonl"))
-    {
-        if entry.file_type().is_symlink() {
-            continue;
-        }
-
-        let Ok(canonical_path) = entry.path().canonicalize() else {
+    // Regular files only, no symlink below the project followed
+    // (`session_files`).
+    for path in session_files::regular_session_files(project_root) {
+        let Ok(canonical_path) = path.canonicalize() else {
             continue;
         };
         if !canonical_path.starts_with(&canonical_project_root) {
             continue;
         }
 
-        let path = entry.path().to_path_buf();
         let path_str = path.to_string_lossy().to_string();
         let (current_mtime, current_size, modified_sort_key) = metadata_sort_snapshot(&path);
 
@@ -1442,6 +1444,11 @@ pub fn find_project_session_by_path(
     if metadata.file_type().is_symlink() {
         return Err("Session file cannot be a symlink".to_string());
     }
+    // Nothing but a regular file is read: a directory named like a session
+    // fails every read, and a FIFO blocks the read.
+    if !metadata.is_file() {
+        return Err("Session file is not a regular file".to_string());
+    }
     let canonical_path = path
         .canonicalize()
         .map_err(|error| format!("Failed to resolve file_path: {error}"))?;
@@ -1514,13 +1521,11 @@ fn load_project_sessions_blocking(
     let mut cache = load_cache(&project_path);
     let mut cache_updated = false;
 
-    // 2. Collect all JSONL file paths
-    let file_paths: Vec<PathBuf> = WalkDir::new(&project_path)
-        .into_iter()
-        .filter_map(std::result::Result::ok)
-        .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("jsonl"))
-        .map(|e| e.path().to_path_buf())
-        .collect();
+    // 2. Collect the session files: regular files only, no symlink below the
+    // project followed (`session_files`). A linked file would be read
+    // wherever it points; a directory named like a session used to stall
+    // this load, and a FIFO would block it.
+    let file_paths: Vec<PathBuf> = session_files::regular_session_files(Path::new(&project_path));
 
     #[cfg(debug_assertions)]
     eprintln!(
@@ -1999,8 +2004,8 @@ pub async fn load_session_messages(session_path: String) -> Result<Vec<ClaudeMes
 #[allow(unsafe_code)] // Required for mmap performance optimization
 fn load_all_messages_from_file(session_path: &Path) -> Result<Vec<ClaudeMessage>, String> {
     // Use memory-mapped file for faster I/O
-    let file =
-        fs::File::open(session_path).map_err(|e| format!("Failed to open session file: {e}"))?;
+    let file = session_files::open_regular_file(session_path)
+        .map_err(|e| format!("Failed to open session file: {e}"))?;
 
     // SAFETY: We're only reading the file, and the file handle is kept open
     // for the duration of the mmap's lifetime. No concurrent modifications expected
@@ -2152,8 +2157,6 @@ fn kilo_subagents(session_path: &str) -> Vec<SubagentSession> {
 /// Returns subagent sessions for a given parent session file.
 #[tauri::command]
 pub async fn get_session_subagents(session_path: String) -> Result<Vec<SubagentSession>, String> {
-    use crate::utils::find_subagent_files;
-
     // OpenCode keeps subagent runs as child rows in SQLite rather than as
     // sidechain files beside the parent, so the file scan below has nothing to
     // find and the absolute-path check would reject the URI outright (#560).
@@ -2169,7 +2172,10 @@ pub async fn get_session_subagents(session_path: String) -> Result<Vec<SubagentS
     if !path.is_absolute() {
         return Err("session_path must be an absolute path".to_string());
     }
-    let subagent_files = find_subagent_files(&path);
+    // Regular files only, never through a symlinked folder
+    // (`session_files::regular_subagent_files`): a linked `<session>/` or
+    // `subagents/` folder would list transcripts from outside the root.
+    let subagent_files = session_files::regular_subagent_files(&path);
 
     if subagent_files.is_empty() {
         return Ok(Vec::new());
@@ -2248,7 +2254,7 @@ fn read_subagent_tool_use_id(meta_path: &std::path::Path) -> Option<String> {
 fn extract_subagent_metadata(
     path: &PathBuf,
 ) -> (usize, Option<String>, Option<String>, Option<String>) {
-    let file = match fs::File::open(path) {
+    let file = match session_files::open_regular_file(path) {
         Ok(f) => f,
         Err(_) => return (0, None, None, None),
     };
@@ -2258,8 +2264,7 @@ fn extract_subagent_metadata(
     let mut last_time: Option<String> = None;
     let mut summary: Option<String> = None;
 
-    for line_result in reader.lines() {
-        let Ok(line) = line_result else { continue };
+    for line in session_lines(reader) {
         if line.trim().is_empty() {
             continue;
         }
@@ -2390,8 +2395,8 @@ pub fn get_session_message_offset(
     message_uuid: String,
     exclude_sidechain: Option<bool>,
 ) -> Result<Option<usize>, String> {
-    let file =
-        fs::File::open(&session_path).map_err(|e| format!("Failed to open session file: {e}"))?;
+    let file = session_files::open_regular_file(Path::new(&session_path))
+        .map_err(|e| format!("Failed to open session file: {e}"))?;
 
     // SAFETY: We're only reading the file, and the file handle is kept open
     // for the duration of the mmap's lifetime. No concurrent modifications expected
@@ -2450,8 +2455,8 @@ fn load_message_window_from_file(
     limit: usize,
     exclude: bool,
 ) -> Result<(Vec<ClaudeMessage>, usize, bool), String> {
-    let file =
-        fs::File::open(session_path).map_err(|e| format!("Failed to open session file: {e}"))?;
+    let file = session_files::open_regular_file(session_path)
+        .map_err(|e| format!("Failed to open session file: {e}"))?;
 
     // SAFETY: We're only reading the file, and the file handle is kept open
     // for the duration of the mmap's lifetime. No concurrent modifications expected
@@ -2498,8 +2503,8 @@ fn load_message_window_from_file(
 /// Count viewer-visible messages in a single file (the pre-chain algorithm).
 #[allow(unsafe_code)] // Required for mmap performance optimization
 fn count_valid_messages_in_file(session_path: &Path, exclude: bool) -> Result<usize, String> {
-    let file =
-        fs::File::open(session_path).map_err(|e| format!("Failed to open session file: {e}"))?;
+    let file = session_files::open_regular_file(session_path)
+        .map_err(|e| format!("Failed to open session file: {e}"))?;
 
     // SAFETY: We're only reading the file, and the file handle is kept open
     // for the duration of the mmap's lifetime. No concurrent modifications expected
@@ -4545,5 +4550,22 @@ mod tests {
         let link = dir.path().join("agent-link.meta.json");
         std::os::unix::fs::symlink(&real, &link).unwrap();
         assert_eq!(read_subagent_tool_use_id(&link), None);
+    }
+
+    /// A read that keeps failing ends a metadata scan: `BufRead::lines`
+    /// returns the same error again (every read of a directory fails), so a
+    /// scan that skipped it never returned. A line that is not UTF-8 is
+    /// still skipped.
+    #[test]
+    fn test_session_lines_end_at_a_read_error() {
+        struct Unreadable;
+        impl std::io::Read for Unreadable {
+            fn read(&mut self, _: &mut [u8]) -> std::io::Result<usize> {
+                Err(std::io::Error::other("unreadable"))
+            }
+        }
+        assert_eq!(session_lines(BufReader::new(Unreadable)).count(), 0);
+        let mixed: &[u8] = b"one\n\xff\ntwo\n";
+        assert_eq!(session_lines(mixed).collect::<Vec<_>>(), ["one", "two"]);
     }
 }

@@ -1,5 +1,6 @@
 //! File edit and restore functions
 
+use crate::commands::stats::session_files;
 use crate::models::{ClaudeMessage, EditContentKind, RawLogEntry, RecentFileEdit};
 use crate::providers;
 use crate::utils::find_line_ranges;
@@ -8,7 +9,6 @@ use rayon::prelude::*;
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
-use walkdir::WalkDir;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum EditsProvider {
@@ -112,7 +112,7 @@ fn apply_edit(content: &str, old_str: &str, new_str: &str, replace_all: bool) ->
 /// Process a single session file and extract edit information
 #[allow(unsafe_code)] // Required for mmap performance optimization
 fn process_session_file_for_edits(file_path: &PathBuf) -> Option<SessionEditsResult> {
-    let file = fs::File::open(file_path).ok()?;
+    let file = session_files::open_regular_file(file_path).ok()?;
 
     // SAFETY: We're only reading the file, and the file handle is kept open
     // for the duration of the mmap's lifetime. Session files are append-only.
@@ -864,11 +864,15 @@ fn validate_session_file_in_project(
     // Reject a symlink outright, matching the policy `decode_project_path_verified`
     // already applies to project directories. `canonicalize` would happily follow
     // one out of the project and then report the resolved name as fine.
-    if fs::symlink_metadata(candidate)
-        .map(|m| m.file_type().is_symlink())
-        .unwrap_or(false)
-    {
-        return Err("Invalid session file path: symlinks are not allowed".to_string());
+    if let Ok(meta) = fs::symlink_metadata(candidate) {
+        if meta.file_type().is_symlink() {
+            return Err("Invalid session file path: symlinks are not allowed".to_string());
+        }
+        // Regular files only, as the directory walk below: a FIFO named like
+        // a session would block the reader that opens it.
+        if !meta.is_file() {
+            return Err("Invalid session file path: not a regular file".to_string());
+        }
     }
 
     // The check above reports on the final component only: `symlink_metadata`
@@ -1024,15 +1028,10 @@ fn collect_all_recent_edits(
     // Phase 1: Collect the session files to scan
     let session_files: Vec<PathBuf> = match session_file_path {
         Some(path) => vec![validate_session_file_in_project(path, project_path)?],
-        None => WalkDir::new(project_path)
-            .into_iter()
-            .filter_map(std::result::Result::ok)
-            // Same symlink policy as the single-file path above. Without it the
-            // two entry points disagree about what is in the project.
-            .filter(|e| !e.path_is_symlink())
-            .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("jsonl"))
-            .map(|e| e.path().to_path_buf())
-            .collect(),
+        // Regular files only, never through a symlink (`session_files`): the
+        // same policy as the single-file path above. Without it the two entry
+        // points disagree about what is in the project.
+        None => session_files::regular_session_files(Path::new(project_path)),
     };
 
     // Phase 2: Process files in parallel

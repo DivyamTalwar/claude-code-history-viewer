@@ -18,7 +18,9 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 mod cache;
-mod session_files;
+#[cfg(all(test, unix))]
+mod path_safety_tests;
+pub(crate) mod session_files;
 pub mod usage_breakdown;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
@@ -4452,7 +4454,8 @@ impl SessionTokenAccum {
 
 /// Token stats for one Claude session. Under `billing_total` the session's
 /// subagent transcripts (`<session>/subagents/**`, found the same way the
-/// `SubAgent Sessions` panel finds them) are folded in, since their usage is
+/// `SubAgent Sessions` panel finds them, never through a symlinked folder:
+/// `session_files::regular_subagent_files`) are folded in, since their usage is
 /// billed sidechain usage; under `conversation_only` only the session's own
 /// transcript counts (#577).
 fn extract_session_token_stats_sync(
@@ -4463,7 +4466,7 @@ fn extract_session_token_stats_sync(
 ) -> Option<SessionTokenStats> {
     let mut accum = extract_session_token_accum_sync(session_path, mode, s_limit, e_limit);
     if mode.include_sidechain() {
-        for subagent_path in crate::utils::find_subagent_files(session_path) {
+        for subagent_path in session_files::regular_subagent_files(session_path) {
             let Some(subagent) =
                 extract_session_token_accum_sync(&subagent_path, mode, s_limit, e_limit)
             else {
@@ -4998,13 +5001,16 @@ fn claude_session_heads(files: Vec<PathBuf>) -> Vec<PathBuf> {
 }
 
 /// Every Claude session file under `project_dir` for the stats commands:
-/// symlinks are never followed (`session_files`); what the walk skipped or
-/// could not read is logged. `get_usage_breakdown` uses the same walk and
-/// reports the skipped part in its coverage.
+/// regular files only, symlinks never followed (`session_files`); what the
+/// walk skipped or could not read is logged. `get_usage_breakdown` uses the
+/// same walk and reports the skipped part in its coverage.
 fn claude_project_session_files(project_dir: &Path) -> Vec<PathBuf> {
     let walk = session_files::walk_session_files(project_dir);
     log_skipped_history(project_dir, &walk.links, &walk.errors);
     walk.files
+        .into_iter()
+        .filter(|path| session_files::is_regular_file(path))
+        .collect()
 }
 
 fn log_skipped_history(dir: &Path, links: &[PathBuf], errors: &[String]) {
@@ -5021,7 +5027,8 @@ fn log_skipped_history(dir: &Path, links: &[PathBuf], errors: &[String]) {
 }
 
 /// Comparison stats for one Claude session, with its subagent transcripts'
-/// tokens and messages folded in under `billing_total` (#577).
+/// tokens and messages folded in under `billing_total` (#577), never through
+/// a symlinked folder (`session_files::regular_subagent_files`).
 fn session_comparison_with_subagents(
     session_path: &PathBuf,
     mode: StatsMode,
@@ -5030,7 +5037,7 @@ fn session_comparison_with_subagents(
 ) -> Option<SessionComparisonStats> {
     let mut stats = process_session_file_for_comparison(session_path, mode, s_limit, e_limit);
     if mode.include_sidechain() {
-        for subagent_path in crate::utils::find_subagent_files(session_path) {
+        for subagent_path in session_files::regular_subagent_files(session_path) {
             let Some(subagent) =
                 process_session_file_for_comparison(&subagent_path, mode, s_limit, e_limit)
             else {
