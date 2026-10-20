@@ -1,5 +1,6 @@
 //! File edit and restore functions
 
+use crate::commands::stats::session_files;
 use crate::models::{ClaudeMessage, RawLogEntry, RecentFileEdit};
 use crate::providers;
 use crate::utils::find_line_ranges;
@@ -8,7 +9,6 @@ use rayon::prelude::*;
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
-use walkdir::WalkDir;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum EditsProvider {
@@ -974,15 +974,10 @@ fn collect_all_recent_edits(
     // Phase 1: Collect the session files to scan
     let session_files: Vec<PathBuf> = match session_file_path {
         Some(path) => vec![validate_session_file_in_project(path, project_path)?],
-        None => WalkDir::new(project_path)
-            .into_iter()
-            .filter_map(std::result::Result::ok)
-            // Same symlink policy as the single-file path above. Without it the
-            // two entry points disagree about what is in the project.
-            .filter(|e| !e.path_is_symlink())
-            .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("jsonl"))
-            .map(|e| e.path().to_path_buf())
-            .collect(),
+        // Regular files only, never through a symlink (`session_files`): the
+        // same policy as the single-file path above. Without it the two entry
+        // points disagree about what is in the project.
+        None => session_files::regular_session_files(Path::new(project_path)),
     };
 
     // Phase 2: Process files in parallel

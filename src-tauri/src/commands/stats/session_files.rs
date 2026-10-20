@@ -1,7 +1,8 @@
 //! The Claude session files a stats scan reads, found without following a
 //! symlink (src-tauri security rule; backported from #691).
 //!
-//! One walk for every Claude stats command: every `*.jsonl` entry under a
+//! One walk for every Claude stats command and history reader (session
+//! list, project list, search, recent edits): every `*.jsonl` entry under a
 //! project directory that is not a symlink. The walk root itself may be
 //! reached through a symlink (a symlinked `~/.claude`, #355): the caller
 //! authorizes the root, and the HTTP route judges it by its canonical path.
@@ -21,8 +22,8 @@ fn has_session_extension(path: &Path) -> bool {
 #[derive(Debug, Default)]
 pub(crate) struct SessionFileWalk {
     /// Every `*.jsonl` entry that is not a symlink, in walk order. As in the
-    /// old scans, a directory named like a session is kept, so it surfaces
-    /// as a failed read instead of disappearing.
+    /// old scans, a directory named like a session is kept, so a scan can
+    /// report it; a reader opens [`regular_session_files`] only.
     pub files: Vec<PathBuf>,
     /// `*.jsonl` entries that are symlinks: never followed, never read.
     pub links: Vec<PathBuf>,
@@ -43,6 +44,26 @@ pub(crate) fn walk_session_files(project_dir: &Path) -> SessionFileWalk {
         }
     }
     walk
+}
+
+/// Whether `path` is a regular file, judged without following a symlink:
+/// the only kind of entry a history reader opens. A symlink can lead out of
+/// the root, a directory named like a session fails every read (which a
+/// line reader used to retry forever), and a FIFO blocks the reader that
+/// opens it.
+pub(crate) fn is_regular_file(path: &Path) -> bool {
+    fs::symlink_metadata(path).is_ok_and(|meta| meta.is_file())
+}
+
+/// The session files a history reader opens under `project_dir`: the walk's
+/// files that are regular files. The walk keeps a directory named like a
+/// session, so that a scan can report it; a reader never opens one.
+pub(crate) fn regular_session_files(project_dir: &Path) -> Vec<PathBuf> {
+    walk_session_files(project_dir)
+        .files
+        .into_iter()
+        .filter(|path| is_regular_file(path))
+        .collect()
 }
 
 /// The project directories directly under a Claude `projects/` folder.
@@ -159,6 +180,45 @@ mod tests {
         );
         assert_eq!(walk.links, [project.join("link.jsonl")]);
         assert_eq!(walk.errors, Vec::<String>::new());
+    }
+
+    /// A reader opens regular files only: not a link, not a directory named
+    /// like a session (the walk keeps it), not a FIFO.
+    #[test]
+    fn readers_open_the_regular_session_files_only() {
+        let dir = TempDir::new().unwrap();
+        let project = dir.path().join("p");
+        touch(&project.join("a.jsonl"));
+        touch(&project.join("a/subagents/agent-1.jsonl"));
+        fs::create_dir_all(project.join("folder.jsonl")).unwrap();
+        symlink(project.join("a.jsonl"), project.join("link.jsonl")).unwrap();
+        let fifo = project.join("fifo.jsonl");
+        let made = std::process::Command::new("mkfifo")
+            .arg(&fifo)
+            .status()
+            .unwrap();
+        assert!(made.success());
+
+        let mut walked = walk_session_files(&project).files;
+        walked.sort();
+        let mut read = regular_session_files(&project);
+        read.sort();
+        assert_eq!(
+            walked,
+            [
+                project.join("a/subagents/agent-1.jsonl"),
+                project.join("a.jsonl"),
+                fifo,
+                project.join("folder.jsonl"),
+            ]
+        );
+        assert_eq!(
+            read,
+            [
+                project.join("a/subagents/agent-1.jsonl"),
+                project.join("a.jsonl")
+            ]
+        );
     }
 
     #[test]

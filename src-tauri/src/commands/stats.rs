@@ -20,7 +20,7 @@ use std::path::{Path, PathBuf};
 mod cache;
 #[cfg(all(test, unix))]
 mod path_safety_tests;
-mod session_files;
+pub(crate) mod session_files;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 enum StatsProvider {
@@ -4959,12 +4959,15 @@ fn claude_session_heads(files: Vec<PathBuf>) -> Vec<PathBuf> {
 }
 
 /// Every Claude session file under `project_dir` for the stats commands:
-/// symlinks are never followed (`session_files`); what the walk skipped or
-/// could not read is logged.
+/// regular files only, symlinks never followed (`session_files`); what the
+/// walk skipped or could not read is logged.
 fn claude_project_session_files(project_dir: &Path) -> Vec<PathBuf> {
     let walk = session_files::walk_session_files(project_dir);
     log_skipped_history(project_dir, &walk.links, &walk.errors);
     walk.files
+        .into_iter()
+        .filter(|path| session_files::is_regular_file(path))
+        .collect()
 }
 
 fn log_skipped_history(dir: &Path, links: &[PathBuf], errors: &[String]) {
