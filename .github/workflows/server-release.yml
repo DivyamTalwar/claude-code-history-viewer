@@ -187,9 +187,12 @@ jobs:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
 
-          # Fetch current formula
-          gh api repos/jhlee0409/homebrew-tap/contents/Formula/cchv-server.rb \
-            --jq '.content' | base64 -d > cchv-server.rb
+          # Fetch current formula. Content and blob SHA come from one response,
+          # so the PUT below fails (409) if the formula changed after this read
+          # and the version check cannot be raced by an overlapping run.
+          gh api repos/jhlee0409/homebrew-tap/contents/Formula/cchv-server.rb > formula.json
+          jq -r '.content' formula.json | base64 -d > cchv-server.rb
+          FILE_SHA=$(jq -r '.sha' formula.json)
 
           # An older tag (a manual rebuild) still gets its assets and checksums,
           # but the formula must not move back to it.
@@ -200,8 +203,6 @@ jobs:
             echo "::notice::Formula is at ${CURRENT}, newer than ${VERSION}; leaving it unchanged"
             exit 0
           fi
-
-          FILE_SHA=$(gh api repos/jhlee0409/homebrew-tap/contents/Formula/cchv-server.rb --jq '.sha')
 
           # Replace version and SHA256 placeholders/values
           sed -i "s/version \".*\"/version \"${VERSION}\"/" cchv-server.rb
