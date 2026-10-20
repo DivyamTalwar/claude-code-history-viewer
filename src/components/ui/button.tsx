@@ -3,30 +3,59 @@ import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
 
 import { cn } from "@/lib/utils";
+import { Spinner } from "./spinner";
+
+/**
+ * Button state contract (inner-UI plan F2a, G-ST1 · ST4 · ST5 · ST6).
+ *
+ * - Focus: the base layer's one ring (`:focus-visible`, --focus-ring);
+ *   no variant switches it off.
+ * - Hover is one step, pressed one more, and nothing moves or scales. A
+ *   filled variant steps its fill towards the surface behind it (`/85`,
+ *   `/70`; destructive `/88`, `/76` so its label keeps 4.5:1); the light
+ *   and transparent ones lay the text colour over the surface (ghost and
+ *   outline 14% then 28%, secondary 20% then 34%) and show their label in
+ *   full --fg. Every step is big enough to see and keeps the label
+ *   readable in all four themes (src/test/primitiveStates.contrast.test.tsx).
+ * - Disabled is one look per variant from the disabled tokens (--fg-disabled
+ *   on --muted), not 50% opacity. Button marks it `data-disabled` for
+ *   `disabled` and for `aria-disabled="true"`, so both look the same; an
+ *   aria-disabled button stays in the tab order and ignores click, Enter
+ *   and Space (and does not open a menu it triggers).
+ * - `loading`: `aria-busy` + `aria-disabled`, clicks ignored, focus kept
+ *   (a natively disabled button would drop it). The label stays in the
+ *   layout, invisible and still the accessible name, under the shared
+ *   Spinner, so the width does not change; the variant's look stays.
+ *
+ * `accent`, `success` and `warning` have no call sites; they keep their
+ * names (F2b renames and removes variants) and render `default`.
+ */
+const FILLED = "bg-primary text-primary-foreground hover:bg-primary/85 active:bg-primary/70";
+const FILLED_DISABLED = "data-disabled:bg-muted data-disabled:text-fg-disabled";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-body font-medium transition-all duration-150 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+  [
+    "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-body font-medium transition-colors",
+    "[&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+    "data-disabled:cursor-not-allowed forced-colors:data-disabled:text-[color:GrayText] data-loading:cursor-progress",
+  ].join(" "),
   {
     variants: {
       variant: {
-        default:
-          "bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 active:scale-[0.98]",
-        destructive:
-          "bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90 active:scale-[0.98]",
+        default: `${FILLED} ${FILLED_DISABLED}`,
+        destructive: `bg-destructive text-destructive-foreground hover:bg-destructive/88 active:bg-destructive/76 ${FILLED_DISABLED}`,
         outline:
-          "border border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground",
-        secondary:
-          "bg-secondary text-secondary-foreground shadow-sm hover:bg-secondary/80 active:scale-[0.98]",
+          "border border-input bg-background hover:bg-foreground/14 hover:text-foreground active:bg-foreground/28 data-disabled:bg-background data-disabled:text-fg-disabled",
+        secondary: `bg-secondary text-secondary-foreground hover:bg-foreground/20 hover:text-foreground active:bg-foreground/34 ${FILLED_DISABLED}`,
         ghost:
-          "hover:bg-accent/10 hover:text-accent",
-        link:
-          "text-primary underline-offset-4 hover:underline",
-        accent:
-          "bg-accent text-accent-foreground shadow-sm hover:bg-accent/90 active:scale-[0.98]",
-        success:
-          "bg-success text-success-foreground shadow-sm hover:bg-success/90 active:scale-[0.98]",
-        warning:
-          "bg-warning text-warning-foreground shadow-sm hover:bg-warning/90 active:scale-[0.98]",
+          "hover:bg-foreground/14 hover:text-foreground active:bg-foreground/28 data-disabled:bg-transparent data-disabled:text-fg-disabled",
+        link: "text-primary underline-offset-4 hover:underline active:decoration-2 data-disabled:text-fg-disabled data-disabled:no-underline",
+        /** @deprecated No call sites; renders `default` until F2b removes it. */
+        accent: `${FILLED} ${FILLED_DISABLED}`,
+        /** @deprecated No call sites; renders `default` until F2b removes it. */
+        success: `${FILLED} ${FILLED_DISABLED}`,
+        /** @deprecated No call sites; renders `default` until F2b removes it. */
+        warning: `${FILLED} ${FILLED_DISABLED}`,
       },
       size: {
         default: "h-10 px-4 py-2",
@@ -48,17 +77,64 @@ export interface ButtonProps
   extends React.ButtonHTMLAttributes<HTMLButtonElement>,
     VariantProps<typeof buttonVariants> {
   asChild?: boolean;
+  /**
+   * Busy: `aria-busy` and `aria-disabled`, clicks ignored, focus kept; the
+   * label keeps its width under the shared Spinner. Ignored with `asChild`.
+   */
+  loading?: boolean;
 }
 
+/** Keys that activate a button or open the menu it triggers. */
+const ACTIVATION_KEYS = new Set(["Enter", " ", "ArrowDown", "ArrowUp"]);
+
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant, size, asChild = false, ...props }, ref) => {
+  ({ className, variant, size, asChild = false, loading = false, disabled, children, onClick, onPointerDown, onKeyDown, ...props }, ref) => {
     const Comp = asChild ? Slot : "button";
+    const busy = loading && !asChild;
+    const ariaDisabled = props["aria-disabled"] === true || props["aria-disabled"] === "true";
+    // Focusable but inactive: aria-disabled or busy.
+    const inert = ariaDisabled || busy;
     return (
       <Comp
-        className={cn(buttonVariants({ variant, size, className }))}
         ref={ref}
+        className={cn(buttonVariants({ variant, size }), busy && "relative", className)}
+        disabled={disabled}
         {...props}
-      />
+        aria-disabled={inert ? true : props["aria-disabled"]}
+        aria-busy={busy ? true : props["aria-busy"]}
+        data-disabled={(disabled || ariaDisabled) && !busy ? "" : undefined}
+        data-loading={busy ? "" : undefined}
+        onClick={
+          inert
+            ? (event: React.MouseEvent<HTMLButtonElement>) => {
+                event.preventDefault();
+                event.stopPropagation();
+              }
+            : onClick
+        }
+        onPointerDown={inert ? undefined : onPointerDown}
+        onKeyDown={
+          inert
+            ? (event: React.KeyboardEvent<HTMLButtonElement>) => {
+                if (ACTIVATION_KEYS.has(event.key)) return;
+                onKeyDown?.(event);
+              }
+            : onKeyDown
+        }
+      >
+        {busy ? (
+          <>
+            <span data-slot="button-label" className="inline-flex items-center justify-center gap-2 opacity-0">
+              {children}
+            </span>
+            <span className="absolute inset-0 flex items-center justify-center">
+              <Spinner decorative />
+            </span>
+          </>
+        ) : (
+          children
+        )}
+      </Comp>
     );
   }
 );
