@@ -2194,8 +2194,6 @@ fn kilo_subagents(session_path: &str) -> Vec<SubagentSession> {
 /// Returns subagent sessions for a given parent session file.
 #[tauri::command]
 pub async fn get_session_subagents(session_path: String) -> Result<Vec<SubagentSession>, String> {
-    use crate::utils::find_subagent_files;
-
     // OpenCode keeps subagent runs as child rows in SQLite rather than as
     // sidechain files beside the parent, so the file scan below has nothing to
     // find and the absolute-path check would reject the URI outright (#560).
@@ -2211,7 +2209,10 @@ pub async fn get_session_subagents(session_path: String) -> Result<Vec<SubagentS
     if !path.is_absolute() {
         return Err("session_path must be an absolute path".to_string());
     }
-    let subagent_files = find_subagent_files(&path);
+    // Regular files only, never through a symlinked folder
+    // (`session_files::regular_subagent_files`): a linked `<session>/` or
+    // `subagents/` folder would list transcripts from outside the root.
+    let subagent_files = session_files::regular_subagent_files(&path);
 
     if subagent_files.is_empty() {
         return Ok(Vec::new());
