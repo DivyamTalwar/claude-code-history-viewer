@@ -177,6 +177,413 @@ fn an_antigravity_desktop_failure_beside_cli_projects_is_recorded() {
     );
 }
 
+// ---- the other commands -------------------------------------------------------
+
+/// The commands other than `get_usage_breakdown` do not read the coverage
+/// report: with a store absent or a part of it unreadable, each answers as
+/// develop (733c3260) did — an error stays that error, never an empty page
+/// or zero usage (a review finding on #708: the llm and Z Code project
+/// statistics turned a database they could not open into zero usage).
+///
+/// Rows per store: readable, absent (its top part moved away), then each of
+/// its locks in turn, as in [`check`]. The answers are [`old_commands`].
+#[tokio::test]
+#[serial]
+async fn the_other_commands_answer_an_unreadable_store_as_before() {
+    let mut seen = Vec::new();
+    let mut expected = Vec::new();
+    for (fixture, before) in DEVELOP_ANSWERS {
+        let home = SandboxHome::new();
+        let _cleared = without_store_env();
+        let Store {
+            provider,
+            env: _env,
+            locks,
+        } = fixture(home.path());
+        assert_eq!(
+            before.len(),
+            locks.len() + 2,
+            "{provider}: one answer a row"
+        );
+        let mut projects: Vec<String> = provider_scan(provider)
+            .expect("the readable store scans")
+            .into_iter()
+            .map(|project| project.path)
+            .collect();
+        projects.sort();
+        let project = projects.first().expect("the store's project").clone();
+        let session = crate::commands::multi_provider::load_provider_sessions(
+            provider.to_string(),
+            project.clone(),
+            Some(false),
+        )
+        .await
+        .expect("the readable store's sessions")
+        .first()
+        .expect("the store's session")
+        .file_path
+        .clone();
+        let ask = || old_commands(provider, home.path(), &project, &session);
+
+        let mut rows = vec![("readable".to_string(), ask().await)];
+        let away = locks[0].with_extension("away");
+        fs::rename(&locks[0], &away).unwrap();
+        rows.push(("absent".to_string(), ask().await));
+        fs::rename(&away, &locks[0]).unwrap();
+        for lock in &locks {
+            let part = lock
+                .strip_prefix(home.path())
+                .unwrap()
+                .display()
+                .to_string();
+            // As root, mode 000 locks nothing (see `check`).
+            let Some(_locked) = Unreadable::new(lock) else {
+                break;
+            };
+            rows.push((part, ask().await));
+        }
+        for ((part, answer), before) in rows.into_iter().zip(before.iter()) {
+            seen.push((provider, part.clone(), answer));
+            expected.push((provider, part, (*before).to_string()));
+        }
+    }
+    assert_eq!(seen, expected);
+}
+
+type Scanner = fn() -> Result<Vec<crate::models::ClaudeProject>, String>;
+
+/// The project scans behind the project tree, by provider id.
+const PROVIDER_SCANS: [(&str, Scanner); 17] = [
+    ("antigravity", crate::providers::antigravity::scan_projects),
+    ("cline", crate::providers::cline::scan_projects),
+    ("codex", crate::providers::codex::scan_projects),
+    ("copilot", crate::providers::copilot::scan_projects),
+    ("cursor", crate::providers::cursor::scan_projects),
+    ("forgecode", crate::providers::forgecode::scan_projects),
+    ("gemini", crate::providers::gemini::scan_projects),
+    ("grok", crate::providers::grok::scan_projects),
+    ("kilo", crate::providers::kilo::scan_projects),
+    ("kimi", crate::providers::kimi::scan_projects),
+    ("llm", crate::providers::llm::scan_projects),
+    ("ompi", crate::providers::ompi::scan_projects),
+    ("opencode", crate::providers::opencode::scan_projects),
+    (
+        "openinterpreter",
+        crate::providers::openinterpreter::scan_projects,
+    ),
+    ("pi", crate::providers::pi::scan_projects),
+    ("qwen", crate::providers::qwen::scan_projects),
+    ("zcode", crate::providers::zcode::scan_projects),
+];
+
+fn provider_scan(provider: &str) -> Result<Vec<crate::models::ClaudeProject>, String> {
+    let (_, scan) = PROVIDER_SCANS
+        .iter()
+        .find(|(id, _)| *id == provider)
+        .expect("a provider with a project scan");
+    scan()
+}
+
+/// The answers of the other commands, in [`DEVELOP_ANSWERS`]' columns.
+async fn old_commands(provider: &str, home: &Path, project: &str, session: &str) -> String {
+    let claude = home.join(".claude").to_string_lossy().to_string();
+    let mode = || Some("billing_total".to_string());
+    let projects = provider_scan(provider);
+    let sessions = crate::commands::multi_provider::load_provider_sessions(
+        provider.to_string(),
+        project.to_string(),
+        Some(false),
+    )
+    .await;
+    let hits = crate::commands::multi_provider::search_all_providers(
+        Some(claude.clone()),
+        "hi".to_string(),
+        Some(vec![provider.to_string()]),
+        None,
+        None,
+        Some(100),
+        None,
+        Some(false),
+        None,
+    )
+    .await;
+    let tokens = crate::commands::stats::get_project_token_stats(
+        project.to_string(),
+        Some(0),
+        Some(100),
+        None,
+        None,
+        mode(),
+    )
+    .await;
+    let summary =
+        crate::commands::stats::get_project_stats_summary(project.to_string(), None, None, mode())
+            .await;
+    let global = crate::commands::stats::get_global_stats_summary(
+        claude,
+        Some(vec![provider.to_string()]),
+        mode(),
+        None,
+        None,
+        None,
+    )
+    .await;
+    let session_stats =
+        crate::commands::stats::get_session_token_stats(session.to_string(), None, None, mode())
+            .await;
+    [
+        answer(&projects, Vec::len),
+        answer(&sessions, Vec::len),
+        answer(&hits, Vec::len),
+        same_error(&tokens, |page| page.total_count, &sessions),
+        same_error(&summary, |summary| summary.total_sessions, &sessions),
+        answer(&global, |summary| summary.total_sessions as usize),
+        answer(&session_stats, |stats| stats.message_count),
+    ]
+    .join(" ")
+}
+
+/// `E` for an error, else how many `count` finds in the answer.
+fn answer<T>(result: &Result<T, String>, count: impl Fn(&T) -> usize) -> String {
+    match result {
+        Ok(value) => count(value).to_string(),
+        Err(_) => "E".to_string(),
+    }
+}
+
+/// [`answer`] of a command that loads the session list: when that list is an
+/// error, so is the command — the same one (`E≠` marks another error).
+fn same_error<T>(
+    result: &Result<T, String>,
+    count: impl Fn(&T) -> usize,
+    sessions: &Result<Vec<crate::models::ClaudeSession>, String>,
+) -> String {
+    match (result, sessions) {
+        (Err(error), Err(list_error)) if error != list_error => "E≠".to_string(),
+        _ => answer(result, count),
+    }
+}
+
+/// What develop answered, row by row ([`old_commands`]; the same at 733c3260
+/// and at 84e068f9). Columns:
+/// projects scanned, sessions listed, search hits, the project token stats
+/// page and the project summary (sessions), the global summary (sessions),
+/// the session token stats (messages); `E` is an error.
+const DEVELOP_ANSWERS: &[(Fixture, &[&str])] = &[
+    (
+        codex,
+        &[
+            "1 1 1 1 1 1 2", // readable
+            "0 0 0 0 0 0 E", // absent
+            "0 0 0 0 0 0 E", // sessions
+            "0 0 0 0 0 0 E", // 16
+            "0 0 0 0 0 0 E", // rollout-2026-10-16T09-00-00-codex-s1.jsonl
+        ],
+    ),
+    (
+        openinterpreter,
+        &[
+            "1 1 1 1 1 1 2", // readable
+            "0 0 0 0 0 0 E", // absent
+            "0 0 0 0 0 0 E", // sessions
+            "0 0 0 0 0 0 E", // 16
+            "0 0 0 0 0 0 E", // rollout-2026-10-16T09-00-00-oi-s1.jsonl
+        ],
+    ),
+    (
+        gemini,
+        &[
+            "1 1 1 1 1 1 2", // readable
+            "0 E 0 E E 0 E", // absent
+            "E E 0 E E 0 E", // tmp
+            "0 0 0 0 0 0 E", // projhash
+            "0 E 0 E E 0 E", // chats
+            "0 0 0 0 0 0 E", // session-2026-10-16T01-00-abc.json
+        ],
+    ),
+    (
+        qwen,
+        &[
+            "1 1 1 1 1 1 2", // readable
+            "0 0 0 0 0 0 E", // absent
+            "0 0 0 0 0 0 E", // .qwen
+            "0 0 0 0 0 0 E", // projects
+            "0 0 0 0 0 0 E", // -work-app
+            "0 0 0 0 0 0 E", // chats
+            "0 0 0 0 0 0 E", // sess-q1.jsonl
+        ],
+    ),
+    (
+        pi,
+        &[
+            "1 1 1 1 1 1 2", // readable
+            "0 0 0 0 0 0 E", // absent
+            "0 0 0 0 0 0 E", // .pi
+            "0 0 0 0 0 0 E", // agent
+            "0 0 0 0 0 0 E", // sessions
+            "0 0 0 0 0 0 E", // --work-app--
+            "0 0 0 0 0 0 E", // 2026-10-16T09-00-00-000Z_s1.jsonl
+        ],
+    ),
+    (
+        ompi,
+        &[
+            "1 1 1 1 1 1 2", // readable
+            "0 0 0 0 0 0 E", // absent
+            "0 0 0 0 0 0 E", // .omp
+            "0 0 0 0 0 0 E", // agent
+            "0 0 0 0 0 0 E", // sessions
+            "0 0 0 0 0 0 E", // --work-app--
+            "0 0 0 0 0 0 E", // 2026-10-16T09-00-00-000Z_s1.jsonl
+        ],
+    ),
+    (
+        grok,
+        &[
+            "1 1 1 1 1 1 2", // readable
+            "E E 0 E E 0 E", // absent
+            "0 E 0 E E 0 E", // .grok
+            "E E 0 E E 0 E", // sessions
+            "E E 0 E E 0 E", // %2Fwork%2Fapp
+            "0 0 0 0 0 0 E", // 019fa555-791c-71e2-8c92-ff2e6fa26d6e
+            "0 0 0 0 0 0 2", // summary.json
+            "1 1 0 E E 0 E", // chat_history.jsonl
+        ],
+    ),
+    (
+        kimi,
+        &[
+            "1 1 1 1 1 1 2", // readable
+            "0 E 0 E E 0 E", // absent
+            "0 E 0 E E 0 E", // .kimi
+            "E E 0 E E 0 E", // sessions
+            "E E 0 E E 0 E", // proj-hash
+            "0 0 0 0 0 0 E", // sess-k1
+            "0 0 0 0 0 0 E", // context.jsonl
+        ],
+    ),
+    (
+        kimi_code,
+        &[
+            "1 1 1 1 1 1 1", // readable
+            "0 0 0 0 0 0 E", // absent
+            "0 E 0 E E 0 E", // .kimi-code
+            "0 E 0 E E 0 E", // sessions
+            "0 0 0 0 0 0 E", // wd_demo
+            "0 0 0 0 0 0 E", // session_one
+            "0 0 0 0 0 0 E", // agents
+            "0 0 0 0 0 0 E", // main
+            "0 0 0 0 0 0 E", // wire.jsonl
+        ],
+    ),
+    (
+        cline,
+        &[
+            "1 1 0 E E 0 E", // readable
+            "0 E 0 E E 0 E", // absent
+            "0 E 0 E E 0 E", // globalStorage
+            "0 0 0 0 0 0 E", // saoudrizwan.claude-dev
+            "0 0 0 0 0 0 E", // state
+            "0 0 0 0 0 0 E", // taskHistory.json
+            "1 1 0 E E 0 E", // tasks
+            "1 1 0 E E 0 E", // task-1
+            "1 1 0 E E 0 E", // ui_messages.json
+        ],
+    ),
+    (
+        copilot_cli,
+        &[
+            "1 1 1 1 1 1 1", // readable
+            "0 0 0 0 0 0 E", // absent
+            "0 0 0 0 0 0 E", // .copilot
+            "0 0 0 0 0 0 E", // session-state
+            "0 0 0 0 0 0 E", // 11111111-1111-1111-1111-111111111111
+            "1 1 0 E E 0 E", // events.jsonl
+        ],
+    ),
+    (
+        copilot_vscode,
+        &[
+            "1 1 1 1 1 1 E", // readable
+            "0 0 0 0 0 0 E", // absent
+            "0 0 0 0 0 0 E", // User
+            "0 0 0 0 0 0 E", // workspaceStorage
+            "0 0 0 0 0 0 E", // abc123
+            "0 1 1 1 1 0 E", // workspace.json
+            "0 0 0 0 0 0 E", // chatSessions
+            "0 0 0 0 0 0 E", // vs-1.json
+        ],
+    ),
+    (
+        antigravity,
+        &[
+            "1 1 1 1 1 1 1", // readable
+            "0 0 0 0 0 0 E", // absent
+            "0 0 0 0 0 0 E", // antigravity
+            "0 0 0 0 0 0 E", // .token-monitor
+            "0 0 0 0 0 0 E", // rpc-cache
+            "E E 0 E E 0 E", // v1
+            "0 0 0 0 0 0 E", // sess-a1
+            "1 1 0 E E 0 E", // usage.jsonl
+        ],
+    ),
+    (
+        opencode,
+        &[
+            "1 1 1 1 1 1 2", // readable
+            "0 0 0 0 0 0 E", // absent
+            "0 0 0 0 0 0 E", // opencode.db
+        ],
+    ),
+    (
+        kilo,
+        &[
+            "1 1 1 1 1 1 2", // readable
+            "0 0 0 0 0 0 E", // absent
+            "0 0 0 0 0 0 E", // kilo.db
+        ],
+    ),
+    (
+        forgecode,
+        &[
+            "1 1 1 1 1 1 2", // readable
+            "E E 0 E E 0 E", // absent
+            "0 0 0 0 0 0 E", // .forge
+            "0 0 0 0 0 0 E", // .forge.db
+        ],
+    ),
+    (
+        zcode,
+        &[
+            "1 1 0 0 0 0 E", // readable
+            "0 0 0 0 0 0 E", // absent
+            "0 0 0 0 0 0 E", // .zcode
+            "0 0 0 0 0 0 E", // cli
+            "0 0 0 0 0 0 E", // db
+            "E E 0 E E 0 E", // db.sqlite
+        ],
+    ),
+    (
+        llm,
+        &[
+            "1 1 1 1 1 1 2", // readable
+            "E E 0 E E 0 E", // absent
+            "E E 0 E E 0 E", // llm-user
+            "E E 0 E E 0 E", // logs.db
+        ],
+    ),
+    (
+        cursor,
+        &[
+            "1 1 0 1 1 1 2", // readable
+            "E E 0 E E 0 E", // absent
+            "0 0 0 0 0 0 E", // cursor-user
+            "0 0 0 0 0 0 E", // globalStorage
+            "E E 0 E E 0 E", // state.vscdb
+        ],
+    ),
+];
+
 // ---- fixtures ----------------------------------------------------------------
 
 fn write_lines(path: &Path, lines: &[Value]) {
