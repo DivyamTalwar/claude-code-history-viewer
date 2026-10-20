@@ -19,7 +19,7 @@ const NEUTRAL = "border-transparent bg-secondary text-secondary-foreground";
 const DANGER = "border-status-danger-line bg-status-danger-surface text-status-danger-fg";
 
 const badgeVariants = cva(
-  "inline-flex items-center gap-1 rounded-pill border font-medium whitespace-nowrap",
+  "inline-flex items-center rounded-pill border font-medium",
   {
     variants: {
       variant: {
