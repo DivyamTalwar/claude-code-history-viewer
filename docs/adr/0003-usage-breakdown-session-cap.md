@@ -234,14 +234,22 @@ held no usage) nor `unreadable` (a store that exists but cannot be read).
   before a scanner runs (`usage_breakdown/availability.rs`). Presence is the provider's own
   detection — `detect()`, the one the provider list uses — so no store layout is copied; the
   store root it names must also open, or the provider is `unreadable`.
-- **Known limitation, until a follow-up lands:** for a provider other than Claude only that store
-  root is opened before its scanner runs. A read failure inside a present store, below the root —
-  a `sessions/` directory or a session database that cannot be opened — is dropped by some
-  scanners, so the provider can still be `scanned` with zero usage. The AN0b re-review reproduced
-  it for Codex, OpenCode and Kilo (Gemini reports `unreadable`); the other token-reporting
-  providers were not probed. A missing store (`not_found`) and an unreadable store root
-  (`unreadable`) are reported for every provider. The follow-up has the scanners report what
-  they could not read.
+- **Below the root, every token-reporting provider reports what its scan could not read** (a
+  known limitation of AN0b, lifted by the follow-up). A scanner records each part of a present
+  store it goes past without reading — a directory it may not list or look into, a session file
+  it cannot open, a database it cannot open or read — in a `ScanReport`
+  (`providers/scan_report.rs`), and each one is a source that was not read: `partial` when
+  something else was read, `unreadable` when nothing was. A path that is not there is not a
+  failure (nor one that vanished between a listing and the read), and content a scanner does not
+  recognise (a table the store does not have, JSON that does not parse) is not a failure to read
+  it. Before, the AN0b re-review reproduced Codex, OpenCode and Kilo as `scanned` with zero usage;
+  `store_failure_tests` now locks (mode 000) each directory and file of a one-session store in
+  turn, for every token-reporting provider, and requires `unreadable`. The old stats commands and
+  the project tree pass a report they drop, so what they return is unchanged.
+- Detection only looks at paths, and a path it may not look into passes for an absent one. When
+  `detect()` calls a store missing, its scanner still runs, on a probe: a probe that records a
+  failure shows the store is there (`partial` / `unreadable`), one that records nothing leaves
+  the provider `not_found`.
 - Claude: none of the request's `projects/` folders exists → `not_found`; a root without one adds
   nothing. A custom root that fails validation is still a failed source.
 - Wire: `ProviderScanStatus` in Rust and TypeScript, and the contract fixture's
