@@ -46,18 +46,6 @@ pub(crate) fn walk_session_files(project_dir: &Path) -> SessionFileWalk {
     walk
 }
 
-/// The Claude base directory (`~/.claude`-shaped) a stats request names.
-/// Empty means the default root, `~/.claude`, as the HTTP route's root guard
-/// reads it (`require_claude_base`), never a `projects/` folder relative to
-/// the working directory; `None` when this machine has no default root.
-pub(crate) fn claude_base(claude_path: &str) -> Option<PathBuf> {
-    if claude_path.is_empty() {
-        crate::providers::claude::get_base_path().map(PathBuf::from)
-    } else {
-        Some(PathBuf::from(claude_path))
-    }
-}
-
 /// The project directories directly under a Claude `projects/` folder.
 #[derive(Debug, Default)]
 pub(crate) struct ProjectDirs {
