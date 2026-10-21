@@ -8,18 +8,23 @@
  *   is computed per theme in `src/test/primitiveStates.contrast.test.ts`;
  *   that the steps show on screen is `pnpm ui:states`.
  * - `aria-disabled="true"` looks exactly like `disabled` but stays in the
- *   tab order, and click, Enter and Space do nothing (with `asChild` too:
- *   the child's own handlers do not run).
+ *   tab order, and no press does anything (with `asChild` too: the child's
+ *   own handlers do not run). The table below holds every press handler and
+ *   the activation keys' key handlers, the Button's and an `asChild` link's
+ *   or submit button's, aria-disabled and loading, against an enabled
+ *   control; focus, hover and the other keys still run.
  * - `loading` is busy (`aria-busy`) and unavailable (`aria-disabled`), keeps
- *   its name and its width (the label stays in the layout, invisible, under
- *   the shared Spinner) and keeps focus. jsdom cannot measure, so the width
- *   (also with the caller's own gap, padding or direction) is measured in
- *   real WebKit and Chromium by scripts/ui-capture/test/primitives.states.test.mjs.
+ *   its name and its size (the label stays in the layout, invisible, under
+ *   the shared Spinner) and keeps focus. jsdom cannot measure, so the size
+ *   (also with the caller's own gap, padding or direction, and a wrapping
+ *   label) is measured in real WebKit and Chromium by
+ *   scripts/ui-capture/test/primitives.states.test.mjs, which also presses
+ *   the probes with a real mouse, touch and keyboard.
  */
 import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { Button, buttonVariants } from "./button";
+import { Button, buttonVariants, type ButtonProps } from "./button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "./dropdown-menu";
 
 afterEach(cleanup);
@@ -117,7 +122,7 @@ describe("aria-disabled", () => {
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
-  it("does not open a menu it triggers (the same trigger without it does)", () => {
+  it.each(["Enter", " ", "ArrowDown"])("does not open a menu it triggers with %j (the same trigger without it does)", (key) => {
     const menu = (ariaDisabled: boolean) => (
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
@@ -129,12 +134,13 @@ describe("aria-disabled", () => {
       </DropdownMenu>
     );
     const { unmount } = render(menu(true));
-    fireEvent.keyDown(screen.getByRole("button", { name: "More" }), { key: "Enter" });
+    fireEvent.keyDown(screen.getByRole("button", { name: "More" }), { key });
+    fireEvent.pointerDown(screen.getByRole("button", { name: "More" }), { button: 0, ctrlKey: false, pointerType: "mouse" });
     expect(screen.queryByRole("menu")).toBeNull();
     unmount();
 
     render(menu(false));
-    fireEvent.keyDown(screen.getByRole("button", { name: "More" }), { key: "Enter" });
+    fireEvent.keyDown(screen.getByRole("button", { name: "More" }), { key });
     expect(screen.getByRole("menu")).toBeInTheDocument();
   });
 
@@ -217,6 +223,136 @@ describe("aria-disabled with asChild", () => {
     fireEvent.keyDown(link, { key: "Enter" });
     expect(onClick).toHaveBeenCalledTimes(1);
     expect(onKeyDown).toHaveBeenCalledTimes(1);
+  });
+});
+
+/*
+ * The inactive guard, table-driven: aria-disabled or loading, a Button and
+ * an `asChild` link or submit button run none of the handlers of a press,
+ * their own or the child's, and none of their key handlers for the
+ * activation keys (Enter, Space). Focus, hover and the other keys (arrows
+ * too, on a button that opens no popup) still run. Each row renders the
+ * control with that one handler as a spy on the Button and on the child,
+ * and fires the event behind it; an enabled control runs every row once.
+ */
+type Fire = (el: HTMLElement) => void;
+type Row = [name: string, handler: string, fire: Fire];
+
+const auxClick: Fire = (el) => fireEvent(el, new MouseEvent("auxclick", { bubbles: true, cancelable: true, button: 1 }));
+const KEY_EVENTS = { onKeyDown: "keyDown", onKeyDownCapture: "keyDown", onKeyUp: "keyUp", onKeyUpCapture: "keyUp", onKeyPress: "keyPress", onKeyPressCapture: "keyPress" } as const;
+const CHAR_CODES: Record<string, number> = { Enter: 13, " ": 32, a: 97 };
+const keyRow = (handler: keyof typeof KEY_EVENTS, key: string): Row => [
+  `${handler} ${key === " " ? "Space" : key}`,
+  handler,
+  (el) => fireEvent[KEY_EVENTS[handler]](el, { key, charCode: CHAR_CODES[key] ?? 0, keyCode: CHAR_CODES[key] ?? 0 }),
+];
+const KEY_HANDLERS = Object.keys(KEY_EVENTS) as (keyof typeof KEY_EVENTS)[];
+
+/** What an inactive Button holds back. */
+const HELD_BACK: Row[] = [
+  ...(
+    [
+      ["onClick", (el) => fireEvent.click(el)],
+      ["onClickCapture", (el) => fireEvent.click(el)],
+      ["onDoubleClick", (el) => fireEvent.doubleClick(el)],
+      ["onDoubleClickCapture", (el) => fireEvent.doubleClick(el)],
+      ["onAuxClick", auxClick],
+      ["onAuxClickCapture", auxClick],
+      ["onMouseDown", (el) => fireEvent.mouseDown(el)],
+      ["onMouseDownCapture", (el) => fireEvent.mouseDown(el)],
+      ["onMouseUp", (el) => fireEvent.mouseUp(el)],
+      ["onMouseUpCapture", (el) => fireEvent.mouseUp(el)],
+      ["onPointerDown", (el) => fireEvent.pointerDown(el)],
+      ["onPointerDownCapture", (el) => fireEvent.pointerDown(el)],
+      ["onPointerUp", (el) => fireEvent.pointerUp(el)],
+      ["onPointerUpCapture", (el) => fireEvent.pointerUp(el)],
+      ["onTouchStart", (el) => fireEvent.touchStart(el)],
+      ["onTouchStartCapture", (el) => fireEvent.touchStart(el)],
+      ["onTouchEnd", (el) => fireEvent.touchEnd(el)],
+      ["onTouchEndCapture", (el) => fireEvent.touchEnd(el)],
+      ["onSubmit", (el) => fireEvent.submit(el)],
+      ["onSubmitCapture", (el) => fireEvent.submit(el)],
+    ] as [string, Fire][]
+  ).map(([handler, fire]): Row => [handler, handler, fire]),
+  ...KEY_HANDLERS.flatMap((handler) => [keyRow(handler, "Enter"), keyRow(handler, " ")]),
+];
+
+/** What an inactive Button still runs. */
+const KEPT: Row[] = [
+  ...(
+    [
+      ["onFocus", (el) => fireEvent.focus(el)],
+      ["onBlur", (el) => fireEvent.blur(el)],
+      ["onMouseEnter", (el) => fireEvent.mouseEnter(el)],
+      ["onMouseLeave", (el) => fireEvent.mouseLeave(el)],
+      ["onMouseMove", (el) => fireEvent.mouseMove(el)],
+      ["onPointerEnter", (el) => fireEvent.pointerEnter(el)],
+      ["onPointerLeave", (el) => fireEvent.pointerLeave(el)],
+      ["onPointerMove", (el) => fireEvent.pointerMove(el)],
+      ["onContextMenu", (el) => fireEvent.contextMenu(el)],
+    ] as [string, Fire][]
+  ).map(([handler, fire]): Row => [handler, handler, fire]),
+  ...KEY_HANDLERS.map((handler) => keyRow(handler, "a")),
+  keyRow("onKeyDown", "ArrowDown"),
+  keyRow("onKeyDown", "ArrowUp"),
+  keyRow("onKeyDown", "Escape"),
+];
+
+const MODES = ["Button", "asChild link", "asChild submit"] as const;
+type Mode = (typeof MODES)[number];
+const INERT: Record<string, ButtonProps> = { "aria-disabled": { "aria-disabled": true }, loading: { loading: true } };
+
+/** Calls of `handler` on the Button (and the child) after `fire` at the rendered control. */
+function callsOf(mode: Mode, state: ButtonProps, [, handler, fire]: Row) {
+  const own = vi.fn();
+  const child = vi.fn();
+  const { container, unmount } = render(
+    <form onSubmit={(event) => event.preventDefault()}>
+      {mode === "Button" ? (
+        <Button type="submit" {...state} {...{ [handler]: own }}>
+          Go
+        </Button>
+      ) : (
+        <Button asChild {...state} {...{ [handler]: own }}>
+          {mode === "asChild link" ? (
+            <a href="#go" {...{ [handler]: child }}>
+              Go
+            </a>
+          ) : (
+            <button type="submit" {...{ [handler]: child }}>
+              Go
+            </button>
+          )}
+        </Button>
+      )}
+    </form>,
+  );
+  fire(container.querySelector<HTMLElement>("a, button")!);
+  unmount();
+  return mode === "Button" ? { button: own.mock.calls.length } : { button: own.mock.calls.length, child: child.mock.calls.length };
+}
+
+/** The rows whose calls are not `expected` (each handler called that many times), by row name. */
+function deviations(mode: Mode, state: ButtonProps, rows: Row[], expected: number) {
+  const out: Record<string, Record<string, number>> = {};
+  for (const row of rows) {
+    const calls = callsOf(mode, state, row);
+    if (Object.values(calls).some((n) => n !== expected)) out[row[0]] = calls;
+  }
+  return out;
+}
+
+describe.each(MODES)("an inactive %s (table)", (mode) => {
+  it.each(Object.keys(INERT))("%s: runs no press handler and no Enter or Space key handler, its own or its child's", (state) => {
+    expect(deviations(mode, INERT[state]!, HELD_BACK, 0)).toEqual({});
+  });
+
+  it.each(Object.keys(INERT))("%s: still runs focus, hover, context menu and the other keys", (state) => {
+    expect(deviations(mode, INERT[state]!, KEPT, 1)).toEqual({});
+  });
+
+  it("enabled (the control): runs every one of them once", () => {
+    expect(deviations(mode, {}, [...HELD_BACK, ...KEPT], 1)).toEqual({});
   });
 });
 

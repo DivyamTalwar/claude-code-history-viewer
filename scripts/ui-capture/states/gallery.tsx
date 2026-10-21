@@ -13,11 +13,13 @@
 //
 // `?view=probes` renders the Button behaviour probes of the real-browser
 // tests (test/primitives.states.test.mjs) instead: the same mounted Button
-// idle and loading with the caller's own gap, padding and direction, and
-// aria-disabled Buttons (also `asChild`) whose handlers count what ran. They
-// are not part of the gallery sheets (`pnpm ui:states` opens the gallery).
+// idle and loading with the caller's own gap, padding, direction and a
+// wrapping label, and a Button, an `asChild` link and an `asChild` submit
+// button, each aria-disabled, loading and enabled, whose handlers (their
+// own and the child's) record every call in `window.__probeLog`. They are
+// not part of the gallery sheets (`pnpm ui:states` opens the gallery).
 import { createRoot } from "react-dom/client";
-import { useState, type KeyboardEvent, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { Settings } from "lucide-react";
 import "./states.css";
 import "@/i18n";
@@ -219,72 +221,114 @@ function App() {
   );
 }
 
-/** Loading-width probes: an icon and a label laid out by the caller's own classes. */
-const LOADING_PROBES: { id: string; className?: string; size?: "sm"; trailingIcon?: boolean }[] = [
+/** Loading-size probes: an icon and a label laid out by the caller's own classes (the last three wrap the label). */
+const LOADING_PROBES: { id: string; className?: string; size?: "sm"; trailingIcon?: boolean; parentWidth?: number }[] = [
   { id: "default" },
   { id: "gap-1", className: "gap-1" },
   { id: "gap-3", className: "gap-3" },
   { id: "gap-1.5 px-2, icon label icon", className: "gap-1.5 px-2", trailingIcon: true },
   { id: "sm gap-1", className: "gap-1", size: "sm" },
   { id: "flex-col gap-1", className: "h-auto flex-col gap-1 py-2" },
+  { id: "gap-1, wraps at 101px", className: "h-auto w-[101px] gap-1 whitespace-normal py-2" },
+  { id: "gap-1, wraps in a 101px parent", className: "h-auto gap-1 whitespace-normal py-2", parentWidth: 101 },
+  { id: "flex-col gap-1, wraps at 101px", className: "h-auto w-[101px] flex-col gap-1 whitespace-normal py-2" },
 ];
 
-const NO_ACTIONS = { link: 0, linkPointer: 0, linkKey: 0, childSubmit: 0, childSubmitKey: 0, button: 0, submit: 0, enabled: 0 };
+/**
+ * Every handler the press probes record, by name: each press handler and
+ * key handler an inactive Button holds back, and the focus and hover ones
+ * it keeps (the real-browser test decides which must run).
+ */
+const RECORDED_HANDLERS = [
+  "onClick", "onClickCapture", "onDoubleClick", "onDoubleClickCapture", "onAuxClick", "onAuxClickCapture",
+  "onMouseDown", "onMouseDownCapture", "onMouseUp", "onMouseUpCapture",
+  "onPointerDown", "onPointerDownCapture", "onPointerUp", "onPointerUpCapture",
+  "onTouchStart", "onTouchStartCapture", "onTouchEnd", "onTouchEndCapture",
+  "onSubmit", "onSubmitCapture",
+  "onKeyDown", "onKeyDownCapture", "onKeyUp", "onKeyUpCapture", "onKeyPress", "onKeyPressCapture",
+  "onFocus", "onBlur", "onPointerEnter", "onPointerLeave", "onMouseEnter", "onMouseLeave",
+] as const;
+
+type ProbeRecord = { probe: string; source: "button" | "child" | "form" | "window"; handler: string; key?: string };
+const probeLog: ProbeRecord[] = [];
+
+/** Recording handlers for every RECORDED_HANDLERS name, as props. */
+const recorders = (probe: string, source: "button" | "child") =>
+  Object.fromEntries(RECORDED_HANDLERS.map((handler) => [handler, (event: { key?: string }) => void probeLog.push({ probe, source, handler, key: event.key })]));
+
+const PRESS_MODES = ["button", "link", "submit"] as const;
+const PRESS_STATES = ["aria-disabled", "loading", "enabled"] as const;
+
+/** One press probe: `data-probe-press="<mode>:<state>"` on the element that receives the events, in its own form. */
+function PressProbe({ mode, state }: { mode: (typeof PRESS_MODES)[number]; state: (typeof PRESS_STATES)[number] }) {
+  const id = `${mode}:${state}`;
+  const stateProps = state === "aria-disabled" ? { "aria-disabled": true } : state === "loading" ? { loading: true } : {};
+  const label = `${mode} ${state}`;
+  return (
+    <form
+      onSubmit={(event) => {
+        event.preventDefault();
+        probeLog.push({ probe: id, source: "form", handler: "submit" });
+      }}
+    >
+      {mode === "button" ? (
+        <Button data-probe-press={id} type="submit" {...stateProps} {...recorders(id, "button")}>
+          {label}
+        </Button>
+      ) : (
+        <Button asChild {...stateProps} {...recorders(id, "button")}>
+          {mode === "link" ? (
+            <a data-probe-press={id} href={`#followed-${mode}-${state}`} {...recorders(id, "child")}>
+              {label}
+            </a>
+          ) : (
+            <button data-probe-press={id} type="submit" {...recorders(id, "child")}>
+              {label}
+            </button>
+          )}
+        </Button>
+      )}
+    </form>
+  );
+}
 
 function Probes() {
   const [loading, setLoading] = useState(false);
-  const [actions, setActions] = useState(NO_ACTIONS);
-  const count = (name: keyof typeof NO_ACTIONS) => setActions((n) => ({ ...n, [name]: n[name] + 1 }));
-  const countActivation = (name: keyof typeof NO_ACTIONS) => (event: KeyboardEvent) => {
-    if (event.key === "Enter" || event.key === " ") count(name);
-  };
   return (
     <div className="bg-background text-foreground min-h-screen p-6" style={{ width: 1100 }} data-gallery-ready="true">
-      <Row id="probe-loading" label="loading width">
+      <Row id="probe-loading" label="loading size">
         <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 8 }}>
           <button type="button" data-probe="toggle-loading" onClick={() => setLoading((on) => !on)}>
             Toggle loading
           </button>
-          {LOADING_PROBES.map(({ id, className, size, trailingIcon }) => (
-            <Button key={id} data-probe-width={id} className={className} size={size} loading={loading}>
-              <Settings />
-              Save changes
-              {trailingIcon && <Settings />}
-            </Button>
-          ))}
+          {LOADING_PROBES.map(({ id, className, size, trailingIcon, parentWidth }) => {
+            const button = (
+              <Button key={id} data-probe-width={id} className={className} size={size} loading={loading}>
+                <Settings />
+                Save changes
+                {trailingIcon && <Settings />}
+              </Button>
+            );
+            return parentWidth ? <div key={id} style={{ width: parentWidth }}>{button}</div> : button;
+          })}
         </div>
       </Row>
-      <Row id="probe-inert" label="aria-disabled">
-        <form
-          style={{ display: "flex", gap: 8 }}
-          onSubmit={(event) => {
-            event.preventDefault();
-            count("submit");
-          }}
-        >
-          <Button asChild aria-disabled>
-            <a data-probe="inert-link" href="#followed" onClick={() => count("link")} onPointerDown={() => count("linkPointer")} onKeyDown={countActivation("linkKey")}>
-              Child link
-            </a>
-          </Button>
-          <Button asChild aria-disabled>
-            <button data-probe="inert-child-submit" type="submit" onClick={() => count("childSubmit")} onKeyDown={countActivation("childSubmitKey")}>
-              Child submit
-            </button>
-          </Button>
-          <Button data-probe="inert-submit" type="submit" aria-disabled onClick={() => count("button")}>
-            Send
-          </Button>
-        </form>
-        <Button asChild>
-          <a data-probe="enabled-link" href="#enabled" onClick={() => count("enabled")}>
-            Enabled child link
-          </a>
-        </Button>
-        <output data-probe="actions">{JSON.stringify(actions)}</output>
+      <Row id="probe-press" label="press handlers">
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, max-content)", gap: 16 }}>
+          {PRESS_STATES.flatMap((state) => PRESS_MODES.map((mode) => <PressProbe key={`${mode}:${state}`} mode={mode} state={state} />))}
+        </div>
       </Row>
     </div>
   );
+}
+
+if (query.get("view") === "probes") {
+  Object.assign(window, { __probeLog: probeLog });
+  // A global shortcut listener (bubble phase): it must still see every key.
+  window.addEventListener("keydown", (event) => {
+    const probe = (event.target as Element | null)?.closest?.("[data-probe-press]")?.getAttribute("data-probe-press");
+    if (probe) probeLog.push({ probe, source: "window", handler: "keydown", key: event.key });
+  });
 }
 
 createRoot(document.getElementById("root")!).render(query.get("view") === "probes" ? <Probes /> : <App />);

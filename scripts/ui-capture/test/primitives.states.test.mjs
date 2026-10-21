@@ -269,7 +269,11 @@ describe.skipIf(!ENABLED)("F2a Button probes (real WebKit and Chromium)", () => 
   it.each(["webkit", "chromium"])("%s: the same Button keeps its width and height when it starts loading, with the caller's own gap, padding and direction", async (engine) => {
     await withGallery(browserFor(engine), { theme: "light", view: "probes" }, async (page) => {
       const idle = await probeBoxes(page);
-      expect(idle.length).toBe(6);
+      expect(idle.length).toBe(9);
+      // Guard the fixture itself: the real primitive utilities must be loaded.
+      expect(idle.find((p) => p.id === "gap-1").width).toBeCloseTo(145.5, 1);
+      expect(await page.locator('[data-probe-width="default"]').evaluate((el) => getComputedStyle(el).display)).toBe("flex"); // blockified flex item
+      expect(idle.filter((p) => p.id.includes("wraps")).every((p) => p.height > 40)).toBe(true);
       // The probes really set their own gap (Tailwind generated the classes).
       const gaps = Object.fromEntries(idle.map((p) => [p.id, p.gap]));
       expect(gaps).toMatchObject({ default: "8px", "gap-1": "4px", "gap-3": "12px", "gap-1.5 px-2, icon label icon": "6px" });
@@ -290,30 +294,75 @@ describe.skipIf(!ENABLED)("F2a Button probes (real WebKit and Chromium)", () => 
     });
   }, 60_000);
 
-  it.each(["webkit", "chromium"])("%s: an aria-disabled Button runs no click, pointer-down, Enter or Space handler, follows no link and submits no form, also with asChild", async (engine) => {
+  it.each(["webkit", "chromium"])("%s: unavailable controls suppress activation handlers, not focus, hover or global keys; enabled controls work", async (engine) => {
     await withGallery(browserFor(engine), { theme: "light", view: "probes" }, async (page) => {
-      const actions = async () => JSON.parse(await page.locator('[data-probe="actions"]').textContent());
-      const clickCentre = async (locator) => {
-        const box = await locator.boundingBox();
-        await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
-      };
-      for (const id of ["inert-link", "inert-child-submit", "inert-submit"]) {
-        const control = page.locator(`[data-probe="${id}"]`);
-        expect(await control.getAttribute("aria-disabled"), id).toBe("true");
-        await clickCentre(control);
-        await control.focus();
-        await page.keyboard.press("Enter");
-        await page.keyboard.press("Space");
-        expect(await control.evaluate((el) => document.activeElement === el), `${id} keeps focus`).toBe(true);
+      const log = () => page.evaluate(() => window.__probeLog);
+      const reset = () => page.evaluate(() => { window.__probeLog.length = 0; });
+      const activation = (records) => records.filter((r) => r.source !== "window" && !["onFocus", "onBlur", "onPointerEnter", "onPointerLeave", "onMouseEnter", "onMouseLeave"].includes(r.handler));
+      const escaped = [];
+      for (const mode of ["button", "link", "submit"]) {
+        for (const state of ["aria-disabled", "loading", "enabled"]) {
+          const id = `${mode}:${state}`;
+          const control = page.locator(`[data-probe-press="${id}"]`);
+          const enabled = state === "enabled";
+          if (!enabled) expect(await control.getAttribute("aria-disabled"), id).toBe("true");
+          const focus = await keyboardFocus(page, await control.elementHandle(), engine === "webkit" ? "Alt+Tab" : "Tab");
+          expect(focus.reached, id).toBe(true);
+          await reset();
+          const box = await control.boundingBox();
+          await page.mouse.move(1, 1);
+          await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+          // macOS WebKit does not mouse-focus native buttons; do not change that default.
+          if (engine === "chromium") expect(await control.evaluate((el) => document.activeElement === el), `${id}: mouse focus`).toBe(true);
+          await page.mouse.dblclick(box.x + box.width / 2, box.y + box.height / 2);
+          // Dispatch auxclick without opening a new browser tab.
+          await control.dispatchEvent("auxclick", { button: 1, bubbles: true, cancelable: true });
+          // Touch handler paths (real touch input is checked below separately).
+          await control.dispatchEvent("touchstart", { bubbles: true });
+          await control.dispatchEvent("touchend", { bubbles: true });
+          await control.focus();
+          await page.keyboard.press("Enter");
+          await page.keyboard.press("Space");
+          expect(await control.evaluate((el) => document.activeElement === el), `${id}: keyboard keeps focus`).toBe(true);
+          const records = await log();
+          if (!enabled) escaped.push(...activation(records).map((r) => ({ id, ...r })));
+          else {
+            for (const source of mode === "button" ? ["button"] : ["button", "child"]) {
+              for (const handler of ["onClick", "onClickCapture", "onDoubleClick", "onDoubleClickCapture", "onAuxClick", "onAuxClickCapture", "onMouseDown", "onMouseDownCapture", "onMouseUp", "onMouseUpCapture", "onPointerDown", "onPointerDownCapture", "onPointerUp", "onPointerUpCapture", "onTouchStart", "onTouchStartCapture", "onTouchEnd", "onTouchEndCapture", "onKeyDown", "onKeyDownCapture", "onKeyUp", "onKeyUpCapture", "onKeyPress", "onKeyPressCapture"]) {
+                expect(records.some((r) => r.source === source && r.handler === handler), `${id}/${source}/${handler}`).toBe(true);
+              }
+            }
+            expect(records.some((r) => r.source === "form"), id).toBe(mode !== "link");
+          }
+          expect(records.some((r) => r.handler === "onMouseEnter"), `${id}: hover`).toBe(true);
+          expect(records.filter((r) => r.source === "window").map((r) => r.key), `${id}: global shortcut propagation`).toEqual(["Enter", " "]);
+          await reset();
+          await page.keyboard.press("Escape");
+          await page.keyboard.press("ArrowDown");
+          expect((await log()).filter((r) => r.handler === "onKeyDown").map((r) => r.key), id).toEqual(mode === "button" ? ["Escape", "ArrowDown"] : ["Escape", "Escape", "ArrowDown", "ArrowDown"]);
+          if (mode === "link") {
+            expect(await page.evaluate(() => location.hash), id).toBe(enabled ? "#followed-link-enabled" : "");
+          }
+        }
       }
-      await page.waitForTimeout(100);
-      expect(await actions()).toEqual({ link: 0, linkPointer: 0, linkKey: 0, childSubmit: 0, childSubmitKey: 0, button: 0, submit: 0, enabled: 0 });
-      expect(await page.evaluate(() => location.hash)).toBe("");
-
-      // The control: the same asChild link, enabled, runs its action and is followed.
-      await clickCentre(page.locator('[data-probe="enabled-link"]'));
-      await page.waitForFunction(() => location.hash === "#enabled");
-      expect((await actions()).enabled).toBe(1);
+      expect(escaped).toEqual([]);
     });
+  }, 60_000);
+
+  it.each(["webkit", "chromium"])("%s: a real touch reaches only enabled activation callbacks", async (engine) => {
+    const context = await browserFor(engine).newContext({ hasTouch: true, viewport: { width: 1200, height: 2400 } });
+    try {
+      const page = await openGalleryPage(context, origin, "light", "probes");
+      for (const state of ["aria-disabled", "loading", "enabled"]) {
+        const target = page.locator(`[data-probe-press="link:${state}"]`);
+        const box = await target.boundingBox();
+        await page.evaluate(() => { window.__probeLog.length = 0; });
+        await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2);
+        const records = await page.evaluate(() => window.__probeLog.filter((r) => ["onTouchStart", "onTouchEnd", "onPointerDown", "onPointerUp", "onClick"].includes(r.handler)));
+        if (state === "enabled") {
+          for (const handler of ["onTouchStart", "onTouchEnd", "onPointerDown", "onPointerUp", "onClick"]) expect(records.some((r) => r.handler === handler), handler).toBe(true);
+        } else expect(records, state).toEqual([]);
+      }
+    } finally { await context.close(); }
   }, 60_000);
 });
