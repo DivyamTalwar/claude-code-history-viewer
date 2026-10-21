@@ -10,7 +10,7 @@ import { useAppStore } from "@/store/useAppStore";
 import type { ClaudeProject, ClaudeSession } from "@/types";
 
 vi.mock("@/services/api", () => ({ api: vi.fn() }));
-const session: ClaudeSession = { session_id: "s", file_path: "/history/project/s.jsonl",
+const session: ClaudeSession = { session_id: "s", actual_session_id: "s", file_path: "/history/project/s.jsonl",
   project_name: "project", message_count: 1, last_modified: "2026-10-01T00:00:00Z",
   first_message_time: "2026-10-01T00:00:00Z", last_message_time: "2026-10-01T00:00:00Z",
   has_tool_use: false, has_errors: false, summary: "Loaded session" };

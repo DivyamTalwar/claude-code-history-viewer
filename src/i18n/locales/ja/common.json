@@ -1,4 +1,6 @@
 {
+  "common.loadingSessions": "セッションを読み込み中…",
+  "common.loadingMessages": "メッセージを読み込み中…",
   "common.loadingProjects": "プロジェクトを読み込み中…",
   "common.a11y.skipNavigation": "スキップナビゲーション",
   "common.a11y.skipToMain": "メインコンテンツへ移動",

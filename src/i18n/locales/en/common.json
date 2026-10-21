@@ -1,4 +1,6 @@
 {
+  "common.loadingSessions": "Loading sessions…",
+  "common.loadingMessages": "Loading messages…",
   "common.loadingProjects": "Loading projects…",
   "common.a11y.skipNavigation": "Skip navigation",
   "common.a11y.skipToMain": "Skip to main content",

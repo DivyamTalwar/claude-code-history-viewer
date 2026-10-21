@@ -1,4 +1,6 @@
 {
+  "common.loadingSessions": "正在加载会话…",
+  "common.loadingMessages": "正在加载消息…",
   "common.loadingProjects": "正在加载项目…",
   "common.a11y.skipNavigation": "跳转导航",
   "common.a11y.skipToMain": "跳转到主要内容",
