@@ -22,7 +22,11 @@ import { Spinner } from "./spinner";
  *   `disabled` and for `aria-disabled="true"`, so both look the same; an
  *   aria-disabled button stays in the tab order and ignores click, Enter
  *   and Space (and does not open a menu it triggers). With `asChild` the
- *   child's own handlers are held back too.
+ *   child's own activation handlers are held back too, in both phases:
+ *   click/double/aux click, mouse/pointer down/up, touch start/end and submit.
+ *   Enter and Space are filtered from key handlers without stopping key
+ *   propagation; only menu triggers also filter their opening arrow keys.
+ *   Focus, blur, hover, movement, context menus and other keys are kept.
  * - `loading`: `aria-busy` + `aria-disabled`, clicks ignored, focus kept
  *   (a natively disabled button would drop it). The label stays in the
  *   layout, invisible and still the accessible name, under the shared
@@ -82,70 +86,73 @@ export interface ButtonProps
   asChild?: boolean;
   /**
    * Busy: `aria-busy` and `aria-disabled`, clicks ignored, focus kept; the
-   * label keeps its width under the shared Spinner. Ignored with `asChild`.
+   * label keeps its width under the shared Spinner. With `asChild`, marks
+   * the child busy and unavailable but leaves its content intact.
    */
   loading?: boolean;
 }
 
-/** Keys that activate a button or open the menu it triggers. */
-const ACTIVATION_KEYS = new Set(["Enter", " ", "ArrowDown", "ArrowUp"]);
-
-/** An inactive button's key handler: the activation keys reach no handler, other keys do. */
-const withoutActivationKeys =
-  <T extends Element>(handler?: React.KeyboardEventHandler<T>): React.KeyboardEventHandler<T> =>
-  (event) => {
-    if (!ACTIVATION_KEYS.has(event.key)) handler?.(event);
-  };
-
 /**
- * An inactive button's click, in the capture phase: it runs before every
- * click handler of the button (Slot runs an `asChild` child's own before
- * Button's) and stops them, the form submit and the link.
+ * Activation callbacks, not every event: keep focus/blur, hover, movement,
+ * context menus and unrelated keys. Apply the same policy before Slot can
+ * compose a child's callback ahead of Button's.
  */
-const ignoreClick = (event: React.MouseEvent<HTMLElement>) => {
+const ACTIVATION_HANDLERS = [
+  "onClick", "onClickCapture", "onDoubleClick", "onDoubleClickCapture", "onAuxClick", "onAuxClickCapture",
+  "onMouseDown", "onMouseDownCapture", "onMouseUp", "onMouseUpCapture",
+  "onPointerDown", "onPointerDownCapture", "onPointerUp", "onPointerUpCapture",
+  "onTouchStart", "onTouchStartCapture", "onTouchEnd", "onTouchEndCapture",
+  "onSubmit", "onSubmitCapture",
+] as const satisfies readonly (keyof React.DOMAttributes<Element>)[];
+const KEY_HANDLERS = ["onKeyDown", "onKeyDownCapture", "onKeyUp", "onKeyUpCapture", "onKeyPress", "onKeyPressCapture"] as const;
+
+/** Cancel activation defaults, never key propagation (window shortcuts need it). */
+function inactiveHandlers<T extends Element>(props: React.DOMAttributes<T>, menuTrigger: boolean): React.DOMAttributes<T> {
+  const filtered = { ...props };
+  for (const name of ACTIVATION_HANDLERS) filtered[name] = undefined;
+  for (const name of KEY_HANDLERS) {
+    filtered[name] = (event) => {
+      if (event.key === "Enter" || event.key === " " || (menuTrigger && (event.key === "ArrowDown" || event.key === "ArrowUp"))) {
+        event.preventDefault();
+      } else props[name]?.(event);
+    };
+  }
+  return filtered;
+}
+
+/** Stop navigation/submission and ancestor clicks, without cancelling pointer focus. */
+const ignoreActivation = (event: React.SyntheticEvent) => {
   event.preventDefault();
   event.stopPropagation();
 };
 
-/** The handlers of an `asChild` child that an inactive Button holds back. */
-type ChildHandlers = Pick<React.DOMAttributes<Element>, "onClickCapture" | "onPointerDown" | "onPointerDownCapture" | "onKeyDown">;
-
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant, size, asChild = false, loading = false, disabled, children, onClick, onClickCapture, onPointerDown, onPointerDownCapture, onKeyDown, ...props }, ref) => {
+  ({ className, variant, size, asChild = false, loading = false, disabled, children, ...props }, ref) => {
     const Comp = asChild ? Slot : "button";
-    const busy = loading && !asChild;
     const ariaDisabled = props["aria-disabled"] === true || props["aria-disabled"] === "true";
-    // Focusable but inactive: aria-disabled or busy.
-    const inert = ariaDisabled || busy;
-    // Slot runs the child's own handlers before Button's: an inactive Button
-    // holds back the child's pointer down and activation keys as it holds
-    // back its own (its clicks stop at ignoreClick).
-    const content =
-      inert && asChild && React.isValidElement<ChildHandlers>(children)
-        ? React.cloneElement(children, {
-            onClickCapture: undefined,
-            onPointerDown: undefined,
-            onPointerDownCapture: undefined,
-            onKeyDown: withoutActivationKeys(children.props.onKeyDown),
-          })
-        : children;
+    // Loading also makes a Slot child unavailable, but never replaces its content.
+    const inert = ariaDisabled || loading;
+    const child = asChild && React.isValidElement<React.HTMLAttributes<Element>>(children) ? children : null;
+    const popup = props["aria-haspopup"] ?? child?.props["aria-haspopup"];
+    const menuTrigger = popup === "menu" || popup === true || popup === "true";
+    const handlers = inert ? inactiveHandlers(props, menuTrigger) : props;
+    const content = inert && child ? React.cloneElement(child, inactiveHandlers(child.props, menuTrigger)) : children;
     return (
       <Comp
         ref={ref}
-        className={cn(buttonVariants({ variant, size }), busy && "relative", className)}
+        className={cn(buttonVariants({ variant, size }), loading && !asChild && "relative", className)}
         disabled={disabled}
-        {...props}
+        {...handlers}
         aria-disabled={inert ? true : props["aria-disabled"]}
-        aria-busy={busy ? true : props["aria-busy"]}
-        data-disabled={(disabled || ariaDisabled) && !busy ? "" : undefined}
-        data-loading={busy ? "" : undefined}
-        onClickCapture={inert ? ignoreClick : onClickCapture}
-        onClick={inert ? undefined : onClick}
-        onPointerDown={inert ? undefined : onPointerDown}
-        onPointerDownCapture={inert ? undefined : onPointerDownCapture}
-        onKeyDown={inert ? withoutActivationKeys(onKeyDown) : onKeyDown}
+        aria-busy={loading ? true : props["aria-busy"]}
+        data-disabled={(disabled || ariaDisabled) && !loading ? "" : undefined}
+        data-loading={loading ? "" : undefined}
+        onClickCapture={inert ? ignoreActivation : props.onClickCapture}
+        onDoubleClickCapture={inert ? ignoreActivation : props.onDoubleClickCapture}
+        onAuxClickCapture={inert ? ignoreActivation : props.onAuxClickCapture}
+        onSubmitCapture={inert ? ignoreActivation : props.onSubmitCapture}
       >
-        {busy ? (
+        {loading && !asChild ? (
           <>
             {/* Inherits the button's flex direction, wrap, gap and alignment: as wide and tall as the parts without it. */}
             <span
