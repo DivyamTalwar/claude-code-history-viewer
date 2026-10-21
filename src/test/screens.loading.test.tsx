@@ -2,6 +2,7 @@ import { act, render, screen, within } from "@testing-library/react";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "@/i18n";
 import { EmptyScreen } from "@/layouts/shell/screens";
+import { StatusBar } from "@/layouts/shell/StatusBar";
 import { ProjectTree } from "@/components/ProjectTree";
 import { ProjectSessions } from "@/components/ProjectTree/components/ProjectSessions";
 import { MessageViewer } from "@/components/MessageViewer";
@@ -23,7 +24,7 @@ const project: ClaudeProject = {
 
 function Tree({ phone = false }: { phone?: boolean }) {
   const projects = useAppStore((s) => s.projects);
-  const loading = useAppStore((s) => s.isLoading);
+  const loading = useAppStore((s) => s.isLoadingProjects || s.isLoadingSessions);
   return <ProjectTree projects={projects} sessions={[]} selectedProject={null} selectedSession={null}
     onProjectSelect={vi.fn()} onSessionSelect={vi.fn()} onGlobalStatsClick={vi.fn()}
     isLoading={loading} asideId={phone ? "mobile-project-explorer" : "project-explorer"}
@@ -57,6 +58,20 @@ describe("loading truth in main area and project explorer", () => {
     expect(screen.getByRole("heading", { name: i18n.t("session.noProjects.claudeTitle") })).toBeInTheDocument();
   });
 
+  it("status bar: initial counts are unknown; settled zeros and cached counts stay visible", () => {
+    const props = { isDesktop: false, appVersion: "", projectCount: 0, sessionCount: 0, messageCount: null,
+      isLoading: true, isLoadingProjects: true, isLoadingSessions: false, isLoadingMessages: false, isLoadingStats: false };
+    const { rerender } = render(<StatusBar {...props} />);
+    expect(screen.queryByText(i18n.t("project.count", { count: 0 }))).not.toBeInTheDocument();
+    expect(screen.queryByText(i18n.t("session.count", { count: 0 }))).not.toBeInTheDocument();
+    rerender(<StatusBar {...props} isLoading={false} isLoadingProjects={false} />);
+    expect(screen.getByText(i18n.t("project.count", { count: 0 }))).toBeInTheDocument();
+    expect(screen.getByText(i18n.t("session.count", { count: 0 }))).toBeInTheDocument();
+    rerender(<StatusBar {...props} projectCount={2} sessionCount={3} />);
+    expect(screen.getByText(i18n.t("project.count", { count: 2 }))).toBeInTheDocument();
+    expect(screen.getByText(i18n.t("session.count", { count: 3 }))).toBeInTheDocument();
+  });
+
   it("main: pending → content → refresh keeps the resolved selection prompt", () => {
     useAppStore.setState({ isLoadingProjects: true });
     render(<EmptyScreen />);
@@ -67,15 +82,15 @@ describe("loading truth in main area and project explorer", () => {
     expect(screen.getByText(i18n.t("session.select"))).toBeInTheDocument();
   });
 
-  it.each([false, true])("explorer (phone=%s): pending has neither false empty nor zero count; settled empty has both", (phone) => {
-    useAppStore.setState({ isLoadingProjects: true });
+  it.each([false, true].flatMap((phone) => (["isLoading", "isLoadingProjects", "isDetectingProviders"] as const).map((flag) => ({ phone, flag }))))("explorer ($phone, $flag): pending has neither false empty nor zero count; settled empty has both", ({ phone, flag }) => {
+    useAppStore.setState({ [flag]: true });
     const { container } = render(<Tree phone={phone} />);
     expectNoFalseEmpty();
     const region = screen.getByRole("region", { name: i18n.t("project.projects") });
     expect(within(region).queryByText("0")).not.toBeInTheDocument();
     expect(region).toHaveAttribute("aria-busy", "true");
     expect(container.querySelector('[aria-hidden="true"] .animate-shimmer')).toBeInTheDocument();
-    act(() => useAppStore.setState({ isLoadingProjects: false }));
+    act(() => useAppStore.setState({ [flag]: false }));
     expect(within(region).getByText("0")).toBeInTheDocument();
     expect(within(region).getByText(i18n.t("session.noProjects.claudeTitle"))).toBeInTheDocument();
   });
