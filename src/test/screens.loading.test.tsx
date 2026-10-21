@@ -88,12 +88,23 @@ describe("loading truth in main area and project explorer", () => {
     expect(screen.queryByText(i18n.t("project.sessions.empty"))).not.toBeInTheDocument();
     expect(container.querySelector('[aria-busy="true"] .animate-shimmer')).toBeInTheDocument();
     rerender(<ProjectSessions {...props} isLoading={false} />);
-    expect(screen.getByText(i18n.t(showAll ? "session.notFound" : "project.sessions.empty"))).toBeInTheDocument();
+    expect(screen.getByText(i18n.t("project.sessions.empty"))).toBeInTheDocument();
     rerender(<ProjectSessions {...props} isLoading={false} sessions={[session]} sessionsTotal={1} />);
     expect(screen.getByText(session.summary!)).toBeInTheDocument();
     rerender(<ProjectSessions {...props} sessions={[session]} sessionsTotal={1} />);
     expect(screen.getByText(session.summary!)).toBeInTheDocument();
     expect(container.querySelector(".animate-shimmer")).not.toBeInTheDocument();
+  });
+
+  it("full session list: settled empty is localized", async () => {
+    await i18n.changeLanguage("ko");
+    try {
+      render(<ProjectSessions project={project} isOpen sessions={[]}
+        sessionsTotal={0} hasMoreSessions={false} selectedSession={null} isLoading={false}
+        isLoadingMoreSessions={false} showAll onShowAll={vi.fn()} onSessionSelect={vi.fn()}
+        onLoadMoreSessions={vi.fn()} formatTimeAgo={() => "now"} />);
+      expect(screen.getByText(i18n.t("project.sessions.empty"))).toBeInTheDocument();
+    } finally { await i18n.changeLanguage("en"); }
   });
 
   it("full session list: existing rows survive background refresh", () => {
