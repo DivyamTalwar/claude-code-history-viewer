@@ -272,9 +272,23 @@ describe.skipIf(!ENABLED)("F2a Button probes (real WebKit and Chromium)", () => 
       await page.$$eval("[data-probe-width]", (els, spacing) => els.forEach((el) => { el.style.letterSpacing = spacing; }), letterSpacing);
       const idle = await probeBoxes(page);
       expect(idle.length).toBe(9);
-      // Guard the fixture itself: the real primitive utilities must be loaded.
-      expect(idle.find((p) => p.id === "gap-1").width).toBeCloseTo(145.5, 1);
-      expect(await page.locator('[data-probe-width="default"]').evaluate((el) => getComputedStyle(el).display)).toBe("flex"); // blockified flex item
+      // Guard the real CSS/layout, not one OS's glyph metrics (Linux Chromium
+      // measures the normal label 0.5px wider than macOS). The expected idle
+      // box is its measured text + 16px icon + 4px gap + 16px padding per side.
+      const reference = await page.locator('[data-probe-width="gap-1"]').evaluate((el) => {
+        const cs = getComputedStyle(el);
+        const text = [...el.childNodes].find((node) => node.nodeType === Node.TEXT_NODE && node.textContent.trim());
+        const range = document.createRange();
+        range.selectNodeContents(text);
+        return {
+          display: cs.display, height: cs.height, gap: cs.columnGap,
+          paddingLeft: cs.paddingLeft, paddingRight: cs.paddingRight,
+          iconWidth: el.querySelector("svg").getBoundingClientRect().width,
+          textWidth: range.getBoundingClientRect().width,
+        };
+      });
+      expect(reference).toMatchObject({ display: "flex", height: "40px", gap: "4px", paddingLeft: "16px", paddingRight: "16px", iconWidth: 16 });
+      expect(idle.find((p) => p.id === "gap-1").width).toBeCloseTo(reference.textWidth + 16 + 4 + 16 + 16, 1);
       expect(idle.filter((p) => p.id.includes("wraps")).every((p) => p.height > 40)).toBe(true);
       // The probes really set their own gap (Tailwind generated the classes).
       const gaps = Object.fromEntries(idle.map((p) => [p.id, p.gap]));
