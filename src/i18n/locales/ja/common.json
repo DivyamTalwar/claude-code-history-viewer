@@ -1,4 +1,5 @@
 {
+  "common.loadingProjects": "プロジェクトを読み込み中…",
   "common.a11y.skipNavigation": "スキップナビゲーション",
   "common.a11y.skipToMain": "メインコンテンツへ移動",
   "common.a11y.skipToInspector": "インスペクタへ移動",

@@ -2,8 +2,8 @@
  * With no projects at all, the main area must not ask the user to "select a
  * session" from a sidebar that says there are none. It explains what was
  * searched and where, instead. While projects are still loading (or
- * providers are being detected), or once there is at least one project, it
- * keeps the usual "select a session" prompt.
+ * providers are being detected), it shows a placeholder. Once there is at
+ * least one project, it keeps the usual "select a session" prompt.
  *
  * Startup scans Claude Code only: other assistants (Codex CLI, OpenCode, …)
  * are searched only after the user asks ("Find other providers"). Until then

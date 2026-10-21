@@ -1,4 +1,5 @@
 {
+  "common.loadingProjects": "正在加载项目…",
   "common.a11y.skipNavigation": "跳转导航",
   "common.a11y.skipToMain": "跳转到主要内容",
   "common.a11y.skipToInspector": "跳转到检查器",
