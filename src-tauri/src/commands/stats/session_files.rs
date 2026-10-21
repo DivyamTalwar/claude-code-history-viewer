@@ -269,6 +269,7 @@ fn blocking_reads(file: &File) -> io::Result<()> {
 }
 
 #[cfg(not(unix))]
+#[allow(clippy::unnecessary_wraps)] // Result matches the Unix version, which can fail.
 fn blocking_reads(_file: &File) -> io::Result<()> {
     Ok(())
 }
