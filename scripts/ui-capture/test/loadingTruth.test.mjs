@@ -34,7 +34,7 @@ afterAll(async () => {
 });
 
 describe.skipIf(!ENABLED)("initial loading and settled-empty truth (WebKit)", () => {
-  for (const locale of SUPPORTED_LOCALES) for (const width of [1440, 390]) for (const state of ["loading", "empty", "empty-first-launch"]) {
+  for (const locale of SUPPORTED_LOCALES) for (const width of [1440, 390]) for (const state of ["loading", "empty", "empty-first-launch", "error"]) {
     it(`${locale} ${width}px 125% ${state}`, async () => {
       const scenario = cases.find((s) => s.id === `${state}--${width === 390 ? "390x844" : "1440x900"}--dark`);
       const session = await newScenarioPage(browser, { scenario, origin: server.origin, locale, fixedNow: fixture.fixedNow,
@@ -45,7 +45,18 @@ describe.skipIf(!ENABLED)("initial loading and settled-empty truth (WebKit)", ()
         await page.goto(server.origin, { waitUntil: "domcontentloaded" });
         await settle(session, { mode: state === "loading" ? "loading" : "ready" });
         const forbidden = ["session.select", "session.selectDescription", "session.noProjects.title", "session.noProjects.claudeTitle", "project.notFound"];
+        if (state === "error") {
+          expect(await page.getByRole("heading", { name: t("common.errorOccurred"), exact: true }).count()).toBe(1);
+          expect(await page.getByRole("button", { name: t("common.retry"), exact: true }).count()).toBe(1);
+          for (const key of forbidden) expect(await page.getByText(t(key), { exact: true }).count(), key).toBe(0);
+          expect(await page.locator('.animate-shimmer').count()).toBe(0);
+          observations.push({ locale, width, state, errorDistinctFromEmpty: true });
+          return;
+        }
         if (state === "loading") {
+          const footer = page.locator("footer");
+          expect(await footer.getByText(t("project.count").replace("{{count}}", "0"), { exact: true }).count()).toBe(0);
+          expect(await footer.getByText(t("session.count").replace("{{count}}", "0"), { exact: true }).count()).toBe(0);
           for (const key of forbidden) expect(await page.getByText(t(key), { exact: true }).count(), key).toBe(0);
           expect(await page.locator('[aria-busy="true"] .animate-shimmer').count()).toBeGreaterThan(0);
         }
