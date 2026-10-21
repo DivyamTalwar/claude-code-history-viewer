@@ -80,18 +80,28 @@ describe("loading truth in main area and project explorer", () => {
     expect(within(region).getByText(i18n.t("session.noProjects.claudeTitle"))).toBeInTheDocument();
   });
 
-  it("sessions: pending → empty, with scoped skeletons", () => {
+  it.each([false, true])("sessions (showAll=%s): pending → empty → content → refresh", (showAll) => {
     const props = { project, isOpen: true, sessions: [], sessionsTotal: 0, hasMoreSessions: false,
-      selectedSession: null, isLoading: true, isLoadingMoreSessions: false, showAll: false,
+      selectedSession: null, isLoading: true, isLoadingMoreSessions: false, showAll,
       onShowAll: vi.fn(), onSessionSelect: vi.fn(), onLoadMoreSessions: vi.fn(), formatTimeAgo: () => "now" };
     const { container, rerender } = render(<ProjectSessions {...props} />);
     expect(screen.queryByText(i18n.t("project.sessions.empty"))).not.toBeInTheDocument();
     expect(container.querySelector('[aria-busy="true"] .animate-shimmer')).toBeInTheDocument();
     rerender(<ProjectSessions {...props} isLoading={false} />);
-    expect(screen.getByText(i18n.t("project.sessions.empty"))).toBeInTheDocument();
+    expect(screen.getByText(i18n.t(showAll ? "session.notFound" : "project.sessions.empty"))).toBeInTheDocument();
+    rerender(<ProjectSessions {...props} isLoading={false} sessions={[session]} sessionsTotal={1} />);
+    expect(screen.getByText(session.summary!)).toBeInTheDocument();
     rerender(<ProjectSessions {...props} sessions={[session]} sessionsTotal={1} />);
     expect(screen.getByText(session.summary!)).toBeInTheDocument();
     expect(container.querySelector(".animate-shimmer")).not.toBeInTheDocument();
+  });
+
+  it("full session list: existing rows survive background refresh", () => {
+    render(<ProjectSessions project={project} isOpen sessions={[session]}
+      sessionsTotal={1} hasMoreSessions={false} selectedSession={null} isLoading
+      isLoadingMoreSessions={false} showAll onShowAll={vi.fn()} onSessionSelect={vi.fn()}
+      onLoadMoreSessions={vi.fn()} formatTimeAgo={() => "now"} />);
+    expect(screen.getByText(session.summary!)).toBeInTheDocument();
   });
 
   it("sessions: preview rejection is an error, not settled empty", async () => {
