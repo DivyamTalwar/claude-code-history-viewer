@@ -111,24 +111,24 @@ describe("EmptyScreen", () => {
     expect(screen.getByText("~/.claude")).toBeInTheDocument();
   });
 
-  it("while projects load: keeps the 'select a session' prompt", () => {
+  it("while projects load: shows loading instead of the 'select a session' prompt", () => {
     useAppStore.setState({ isLoadingProjects: true });
     render(<EmptyScreen />);
-    expect(screen.getByText(i18n.t("session.select"))).toBeInTheDocument();
+    expect(screen.queryByText(i18n.t("session.select"))).not.toBeInTheDocument();
     expect(screen.queryByText(i18n.t("session.noProjects.claudeTitle"))).not.toBeInTheDocument();
   });
 
-  it("while providers are being detected: keeps the 'select a session' prompt", () => {
+  it("while providers are being detected: shows loading instead of the 'select a session' prompt", () => {
     useAppStore.setState({ isDetectingProviders: true });
     render(<EmptyScreen />);
-    expect(screen.getByText(i18n.t("session.select"))).toBeInTheDocument();
+    expect(screen.queryByText(i18n.t("session.select"))).not.toBeInTheDocument();
     expect(screen.queryByText(i18n.t("session.noProjects.claudeTitle"))).not.toBeInTheDocument();
   });
 
-  it("while the app initializes: keeps the 'select a session' prompt", () => {
+  it("while the app initializes: shows loading instead of the 'select a session' prompt", () => {
     useAppStore.setState({ isLoading: true });
     render(<EmptyScreen />);
-    expect(screen.getByText(i18n.t("session.select"))).toBeInTheDocument();
+    expect(screen.queryByText(i18n.t("session.select"))).not.toBeInTheDocument();
   });
 
   it("with projects: asks to select a session", () => {
