@@ -4,7 +4,7 @@ use crate::models::MessageContent;
 use crate::models::{
     ActivityHeatmap, ClaudeMessage, DailyStats, GlobalStatsSummary, ModelContextStats, ModelStats,
     ProjectRanking, ProjectStatsSummary, ProviderUsageStats, RawLogEntry, SessionComparison,
-    SessionTokenStats, TokenDistribution, TokenUsage, ToolUsageStats,
+    SessionTokenStats, TokenDistribution, TokenUsage, TokenUsageRecording, ToolUsageStats,
 };
 use crate::providers;
 use crate::providers::scan_report::ScanReport;
@@ -19,8 +19,12 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 mod cache;
+mod recording;
+use recording::TokenRecordingEvidence;
 #[cfg(all(test, unix))]
 mod path_safety_tests;
+#[cfg(test)]
+mod recording_tests;
 pub(crate) mod session_files;
 pub mod usage_breakdown;
 
@@ -2744,6 +2748,7 @@ fn build_antigravity_session_token_stats(
     }
 
     let stats = SessionTokenStats {
+        token_usage_recording: TokenUsageRecording::Unknown,
         session_id: session.actual_session_id.clone(),
         project_name: session.project_name.clone(),
         total_input_tokens: records
@@ -3568,6 +3573,7 @@ fn build_session_token_stats_from_messages(
     }
 
     Some(SessionTokenStats {
+        token_usage_recording: TokenUsageRecording::Unknown,
         session_id,
         project_name,
         total_input_tokens,
@@ -4385,6 +4391,7 @@ pub struct PaginatedTokenStats {
 /// success rates are derived.
 #[derive(Debug, Default)]
 pub(super) struct SessionTokenAccum {
+    recording: TokenRecordingEvidence,
     pub(super) session_id: String,
     pub(super) summary: Option<String>,
     pub(super) input_tokens: u64,
@@ -4425,6 +4432,7 @@ impl SessionTokenAccum {
     /// Fold another transcript of the same session into this one. Identity
     /// (`session_id`, `summary`) stays with `self`, the main transcript.
     fn merge(&mut self, other: SessionTokenAccum) {
+        self.recording.merge(other.recording);
         self.input_tokens += other.input_tokens;
         self.output_tokens += other.output_tokens;
         self.cache_creation_tokens += other.cache_creation_tokens;
@@ -4455,6 +4463,7 @@ impl SessionTokenAccum {
             + self.cache_read_tokens
             + self.reasoning_tokens;
         SessionTokenStats {
+            token_usage_recording: self.recording.finish(),
             session_id: self.session_id,
             project_name,
             total_input_tokens: self.input_tokens,
@@ -4618,6 +4627,8 @@ fn scan_session_token_accum(
         }
 
         accum.message_count += 1;
+
+        accum.recording.observe(&message);
 
         let UsageGrowth {
             totals:
