@@ -72,6 +72,17 @@ describe("loading truth in main area and project explorer", () => {
     expect(screen.getByText(i18n.t("session.count", { count: 3 }))).toBeInTheDocument();
   });
 
+  it("status bar: a pending transcript count is unknown, but a settled empty transcript is zero", () => {
+    const props = { isDesktop: false, appVersion: "", projectCount: 1, sessionCount: 1, messageCount: 0,
+      isLoading: false, isLoadingProjects: false, isLoadingSessions: false, isLoadingMessages: true, isLoadingStats: false };
+    const { rerender } = render(<StatusBar {...props} />);
+    expect(screen.queryByText(i18n.t("message.count", { count: 0 }))).not.toBeInTheDocument();
+    rerender(<StatusBar {...props} isLoadingMessages={false} />);
+    expect(screen.getByText(i18n.t("message.count", { count: 0 }))).toBeInTheDocument();
+    rerender(<StatusBar {...props} messageCount={4} />);
+    expect(screen.getByText(i18n.t("message.count", { count: 4 }))).toBeInTheDocument();
+  });
+
   it("main: pending → content → refresh keeps the resolved selection prompt", () => {
     useAppStore.setState({ isLoadingProjects: true });
     render(<EmptyScreen />);
