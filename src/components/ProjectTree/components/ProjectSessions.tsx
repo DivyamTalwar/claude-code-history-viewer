@@ -1,7 +1,7 @@
 // src/components/ProjectTree/components/ProjectSessions.tsx
 import React, { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { LoaderCircle } from "lucide-react";
+import { LoadingRows } from "@/components/ui/loading-rows";
 import { api } from "@/services/api";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/store/useAppStore";
@@ -149,12 +149,7 @@ export const ProjectSessions: React.FC<ProjectSessionsProps> = ({
   const loading = isOpen ? isLoading && sessions.length === 0 : preview.page === null && !preview.failed;
 
   if (loading) {
-    return (
-      <div role="group" className="h-7 flex items-center gap-1.5 pl-7 text-caption text-muted-foreground">
-        <LoaderCircle className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />
-        {t("common.loading")}
-      </div>
-    );
+    return <LoadingRows label={t("common.loadingSessions")} compact className="pl-7 py-2" />;
   }
 
   if (rows.length === 0) {

@@ -35,6 +35,11 @@ export const StatusBar = ({
   const { t } = useTranslation();
   // The loaded window may be partial under message pagination: "+" says so.
   const hasMoreMessages = useAppStore((s) => s.pagination.hasMore);
+  const isDetectingProviders = useAppStore((s) => s.isDetectingProviders);
+  const projectsScanned = useAppStore((s) => s.projectsScanned);
+  const projectsPending = !projectsScanned || isLoading || isLoadingProjects || isDetectingProviders;
+  const showProjectCount = projectCount > 0 || !projectsPending;
+  const showSessionCount = sessionCount > 0 || !(projectsPending || isLoadingSessions);
 
   // The first load in progress names the status, in this precedence.
   const loadingLabel = (
@@ -57,11 +62,15 @@ export const StatusBar = ({
               })
             : t("status.webMode", "Web")}
         </span>
-        <span className="text-border">&bull;</span>
-        <span>{t("project.count", { count: projectCount })}</span>
-        <span className="text-border">&bull;</span>
-        <span>{t("session.count", { count: sessionCount })}</span>
-        {messageCount !== null && (
+        {showProjectCount && <>
+          <span className="text-border">&bull;</span>
+          <span>{t("project.count", { count: projectCount })}</span>
+        </>}
+        {showSessionCount && <>
+          <span className="text-border">&bull;</span>
+          <span>{t("session.count", { count: sessionCount })}</span>
+        </>}
+        {messageCount !== null && (messageCount > 0 || !isLoadingMessages) && (
           <>
             <span className="text-border">&bull;</span>
             <span>

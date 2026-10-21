@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { SCREEN_ICONS } from "@/components/icon/screenIcons";
 import { Icon } from "@/components/icon/Icon";
+import { LoadingRows } from "@/components/ui/loading-rows";
 import { useTranslation } from "react-i18next";
 import { OverlayScrollbarsComponent } from "overlayscrollbars-react";
 import { toast } from "sonner";
@@ -108,6 +109,10 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
   const detectedProviders = useAppStore((state) => state.providers);
   const isDetectingProviders = useAppStore((state) => state.isDetectingProviders);
   const isLoadingProjects = useAppStore((state) => state.isLoadingProjects);
+  const isInitializing = useAppStore((state) => state.isLoading);
+  const projectsScanned = useAppStore((state) => state.projectsScanned);
+  const projectError = useAppStore((state) => state.error);
+  const projectsPending = isInitializing || isLoadingProjects || isDetectingProviders || (!projectsScanned && !projectError);
   const {
     discover: handleDiscoverProviders,
     hasSearched: hasSearchedOtherProviders,
@@ -311,6 +316,9 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
     () => projects.filter((p) => matchesProviderFilter(p) && matchesSearch(p)),
     [projects, matchesProviderFilter, matchesSearch]
   );
+  // Partial results outside this filter cannot establish that its answer is zero.
+  const initialProjectsPending = projectsPending && filteredProjects.length === 0;
+  const projectCountKnown = filteredProjects.length > 0 || (projectsScanned && !projectsPending);
 
   const filteredDirectoryGroups = useMemo(() => {
     const filterFn = (p: (typeof projects)[number]) =>
@@ -744,7 +752,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
           <div className="w-6 h-px bg-border my-1" />
           <div className="flex flex-col items-center gap-1" title={t("project.projects")}>
             <Folder className="w-4 h-4 text-muted-foreground" aria-hidden="true" />
-            <span className="text-caption tabular-nums text-muted-foreground">{filteredProjects.length}</span>
+            {projectCountKnown && <span className="text-caption tabular-nums text-muted-foreground">{filteredProjects.length}</span>}
           </div>
         </div>
       </aside>
@@ -784,12 +792,12 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
         >
           <LibrarySection {...libraryProps} />
 
-          <section aria-labelledby={projectsHeadingId} className="px-2 pb-2">
+          <section aria-labelledby={projectsHeadingId} aria-busy={projectsPending} className="px-2 pb-2">
             <div className="flex items-center justify-between px-2 pt-1.5 pb-1">
               <h2 id={projectsHeadingId} className="text-caption font-medium text-muted-foreground">
                 {t("project.projects")}
               </h2>
-              <span className="text-caption tabular-nums text-muted-foreground">{filteredProjects.length}</span>
+              {projectCountKnown && <span className="text-caption tabular-nums text-muted-foreground">{filteredProjects.length}</span>}
             </div>
             <div className="flex items-center gap-1 pb-1">
               <div className="relative min-w-0 flex-1">
@@ -833,7 +841,11 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
               />
             </div>
 
-            {filteredProjects.length === 0 ? (
+            {initialProjectsPending ? (
+              <LoadingRows label={t("common.loadingProjects")} compact />
+            ) : projects.length === 0 && !projectsScanned && projectError ? (
+              <p className="px-4 py-4 text-body text-destructive">{t("common.errorOccurred")}</p>
+            ) : filteredProjects.length === 0 ? (
               <div className="px-4 py-10 text-center">
                 <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-muted/30 flex items-center justify-center">
                   <Icon icon={Folder} size={24} className="text-muted-foreground/40" />

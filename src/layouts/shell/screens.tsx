@@ -14,6 +14,8 @@ import { useTranslation } from "react-i18next";
 import { FolderSearch, MessageSquare, Search } from "lucide-react";
 import { Icon } from "@/components/icon/Icon";
 import { Button } from "@/components/ui/button";
+import { LoadingRows } from "@/components/ui/loading-rows";
+import { LoadingState } from "@/components/ui/loading";
 import { useProviderDiscovery } from "@/hooks/useProviderDiscovery";
 import { cn } from "@/lib/utils";
 import { useShallow } from "zustand/react/shallow";
@@ -163,14 +165,16 @@ const NoProjectsState = () => {
  */
 export const EmptyScreen = () => {
   const { t } = useTranslation();
-  const hasNoProjects = useAppStore(
-    (s) =>
-      !s.isLoading &&
-      !s.isLoadingProjects &&
-      !s.isDetectingProviders &&
-      s.projects.length === 0
-  );
-  if (hasNoProjects) return <NoProjectsState />;
+  const hasProjects = useAppStore((s) => s.projects.length > 0);
+  const projectsScanned = useAppStore((s) => s.projectsScanned);
+  const error = useAppStore((s) => s.error);
+  const activeRequest = useAppStore((s) => s.isLoading || s.isLoadingProjects || s.isDetectingProviders);
+  const pending = activeRequest || (!projectsScanned && !error);
+  if (pending && !hasProjects) return <LoadingRows label={t("common.loadingProjects")} className="h-full p-6" />;
+  if (!hasProjects && !projectsScanned && error) {
+    return <LoadingState isLoading={false} error={error.message} errorTitle={t("common.errorOccurred")} className="h-full" />;
+  }
+  if (!hasProjects) return <NoProjectsState />;
   return (
     <EmptyState icon={MessageSquare} title={t("session.select")}>
       <p className="text-body text-muted-foreground">{t("session.selectDescription")}</p>

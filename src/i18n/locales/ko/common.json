@@ -1,4 +1,7 @@
 {
+  "common.loadingSessions": "세션을 불러오는 중…",
+  "common.loadingMessages": "메시지를 불러오는 중…",
+  "common.loadingProjects": "프로젝트를 불러오는 중…",
   "common.a11y.skipNavigation": "건너뛰기 내비게이션",
   "common.a11y.skipToMain": "메인 콘텐츠로 건너뛰기",
   "common.a11y.skipToInspector": "인스펙터로 건너뛰기",

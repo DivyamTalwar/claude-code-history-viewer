@@ -13,6 +13,7 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { LoadingSpinner, LoadingState } from "@/components/ui/loading";
+import { LoadingRows } from "@/components/ui/loading-rows";
 
 // Local imports
 import type { MessageViewerProps } from "./types";
@@ -922,16 +923,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
 
   // 로딩 중일 때 로딩 표시 (isLoadingMessages 기반 — scrollReady 의존 제거로 빈 세션 무한 스피너 방지)
   if ((isLoading || isLoadingMessages) && messages.length === 0) {
-    return (
-      <div className="flex-1 flex items-center justify-center h-full">
-        <LoadingState
-          isLoading={true}
-          loadingMessage={t("messageViewer.loadingMessages")}
-          spinnerSize="md"
-          withSparkle={false}
-        />
-      </div>
-    );
+    return <LoadingRows label={t("common.loadingMessages")} className="flex-1 h-full p-6" />;
   }
 
   // 로딩 종료 후 메시지가 없으면 "No Messages" 표시 (위 L606 스피너 분기가 로딩을 먼저 처리).

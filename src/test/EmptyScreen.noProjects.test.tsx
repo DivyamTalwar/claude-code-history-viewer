@@ -2,8 +2,8 @@
  * With no projects at all, the main area must not ask the user to "select a
  * session" from a sidebar that says there are none. It explains what was
  * searched and where, instead. While projects are still loading (or
- * providers are being detected), or once there is at least one project, it
- * keeps the usual "select a session" prompt.
+ * providers are being detected), it shows a placeholder. Once there is at
+ * least one project, it keeps the usual "select a session" prompt.
  *
  * Startup scans Claude Code only: other assistants (Codex CLI, OpenCode, …)
  * are searched only after the user asks ("Find other providers"). Until then
@@ -33,6 +33,7 @@ function withDiscovered(discoveredProviderIds: string[] | undefined, providersDi
 
 const reset = {
   projects: [],
+  projectsScanned: true,
   isLoadingProjects: false,
   isLoading: false,
   isDetectingProviders: false,
@@ -111,24 +112,24 @@ describe("EmptyScreen", () => {
     expect(screen.getByText("~/.claude")).toBeInTheDocument();
   });
 
-  it("while projects load: keeps the 'select a session' prompt", () => {
+  it("while projects load: shows loading instead of the 'select a session' prompt", () => {
     useAppStore.setState({ isLoadingProjects: true });
     render(<EmptyScreen />);
-    expect(screen.getByText(i18n.t("session.select"))).toBeInTheDocument();
+    expect(screen.queryByText(i18n.t("session.select"))).not.toBeInTheDocument();
     expect(screen.queryByText(i18n.t("session.noProjects.claudeTitle"))).not.toBeInTheDocument();
   });
 
-  it("while providers are being detected: keeps the 'select a session' prompt", () => {
+  it("while providers are being detected: shows loading instead of the 'select a session' prompt", () => {
     useAppStore.setState({ isDetectingProviders: true });
     render(<EmptyScreen />);
-    expect(screen.getByText(i18n.t("session.select"))).toBeInTheDocument();
+    expect(screen.queryByText(i18n.t("session.select"))).not.toBeInTheDocument();
     expect(screen.queryByText(i18n.t("session.noProjects.claudeTitle"))).not.toBeInTheDocument();
   });
 
-  it("while the app initializes: keeps the 'select a session' prompt", () => {
+  it("while the app initializes: shows loading instead of the 'select a session' prompt", () => {
     useAppStore.setState({ isLoading: true });
     render(<EmptyScreen />);
-    expect(screen.getByText(i18n.t("session.select"))).toBeInTheDocument();
+    expect(screen.queryByText(i18n.t("session.select"))).not.toBeInTheDocument();
   });
 
   it("with projects: asks to select a session", () => {
