@@ -266,8 +266,10 @@ describe.skipIf(!ENABLED)("F2a Button probes (real WebKit and Chromium)", () => 
       }),
     );
 
-  it.each(["webkit", "chromium"])("%s: the same Button keeps its width and height when it starts loading, with the caller's own gap, padding and direction", async (engine) => {
+  it.each(["webkit", "chromium"].flatMap((engine) => ["normal", "0.5px"].map((letterSpacing) => [engine, letterSpacing])))("%s (%s letter-spacing): the same Button keeps its width and height when it starts loading, with the caller's own gap, padding and direction", async (engine, letterSpacing) => {
     await withGallery(browserFor(engine), { theme: "light", view: "probes" }, async (page) => {
+      // Font metrics differ across platforms; exercise a second actual glyph width locally too.
+      await page.$$eval("[data-probe-width]", (els, spacing) => els.forEach((el) => { el.style.letterSpacing = spacing; }), letterSpacing);
       const idle = await probeBoxes(page);
       expect(idle.length).toBe(9);
       // Guard the fixture itself: the real primitive utilities must be loaded.
