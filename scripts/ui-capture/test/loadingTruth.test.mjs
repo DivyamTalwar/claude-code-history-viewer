@@ -52,7 +52,11 @@ describe.skipIf(!ENABLED)("initial loading and settled-empty truth (WebKit)", ()
         const forbidden = ["session.select", "session.selectDescription", "session.noProjects.title", "session.noProjects.claudeTitle", "project.notFound"];
         if (state === "unscanned-error") {
           for (const key of forbidden) expect(await page.getByText(t(key), { exact: true }).count(), key).toBe(0);
-          expect(await page.getByRole("heading", { name: t("common.errorOccurred"), exact: true }).count()).toBe(1);
+          // LoadingState's error title is a paragraph inside its alert, not a heading.
+          // The existing folder picker remains the actionable failure screen.
+          expect(await page.getByRole("alert").filter({ hasText: t("common.errorOccurred") }).count()).toBe(1);
+          expect(await page.getByRole("heading", { name: t("folderPicker.notFound"), exact: true }).count()).toBe(1);
+          expect(await page.getByRole("button", { name: t("folderPicker.selectButton"), exact: true }).count()).toBe(1);
           expect(await page.locator('[aria-busy="true"] .animate-shimmer').count()).toBe(0);
           const footer = page.locator("footer");
           expect(await footer.getByText(t("project.count").replace("{{count}}", "0"), { exact: true }).count()).toBe(0);
