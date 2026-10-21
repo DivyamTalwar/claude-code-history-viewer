@@ -3,8 +3,17 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vites
 import i18n from "@/i18n";
 import { EmptyScreen } from "@/layouts/shell/screens";
 import { ProjectTree } from "@/components/ProjectTree";
+import { ProjectSessions } from "@/components/ProjectTree/components/ProjectSessions";
+import { MessageViewer } from "@/components/MessageViewer";
+import { api } from "@/services/api";
 import { useAppStore } from "@/store/useAppStore";
-import type { ClaudeProject } from "@/types";
+import type { ClaudeProject, ClaudeSession } from "@/types";
+
+vi.mock("@/services/api", () => ({ api: vi.fn() }));
+const session: ClaudeSession = { session_id: "s", file_path: "/history/project/s.jsonl",
+  project_name: "project", message_count: 1, last_modified: "2026-10-01T00:00:00Z",
+  first_message_time: "2026-10-01T00:00:00Z", last_message_time: "2026-10-01T00:00:00Z",
+  has_tool_use: false, has_errors: false, summary: "Loaded session" };
 
 const initial = useAppStore.getState();
 const project: ClaudeProject = {
@@ -30,6 +39,7 @@ function expectNoFalseEmpty() {
 describe("loading truth in main area and project explorer", () => {
   beforeAll(async () => { await i18n.changeLanguage("en"); });
   beforeEach(() => {
+    vi.mocked(api).mockReset();
     localStorage.clear();
     useAppStore.setState({ ...initial, projects: [], isLoading: false, isLoadingProjects: false,
       isDetectingProviders: false, projectsScanned: true, error: null });
@@ -68,6 +78,45 @@ describe("loading truth in main area and project explorer", () => {
     act(() => useAppStore.setState({ isLoadingProjects: false }));
     expect(within(region).getByText("0")).toBeInTheDocument();
     expect(within(region).getByText(i18n.t("session.noProjects.claudeTitle"))).toBeInTheDocument();
+  });
+
+  it("sessions: pending → empty, with scoped skeletons", () => {
+    const props = { project, isOpen: true, sessions: [], sessionsTotal: 0, hasMoreSessions: false,
+      selectedSession: null, isLoading: true, isLoadingMoreSessions: false, showAll: false,
+      onShowAll: vi.fn(), onSessionSelect: vi.fn(), onLoadMoreSessions: vi.fn(), formatTimeAgo: () => "now" };
+    const { container, rerender } = render(<ProjectSessions {...props} />);
+    expect(screen.queryByText(i18n.t("project.sessions.empty"))).not.toBeInTheDocument();
+    expect(container.querySelector('[aria-busy="true"] .animate-shimmer')).toBeInTheDocument();
+    rerender(<ProjectSessions {...props} isLoading={false} />);
+    expect(screen.getByText(i18n.t("project.sessions.empty"))).toBeInTheDocument();
+    rerender(<ProjectSessions {...props} sessions={[session]} sessionsTotal={1} />);
+    expect(screen.getByText(session.summary!)).toBeInTheDocument();
+    expect(container.querySelector(".animate-shimmer")).not.toBeInTheDocument();
+  });
+
+  it("sessions: preview rejection is an error, not settled empty", async () => {
+    let reject!: (reason: Error) => void;
+    vi.mocked(api).mockReturnValue(new Promise((_, fail) => { reject = fail; }));
+    const { container } = render(<ProjectSessions project={project} isOpen={false} sessions={[]}
+      sessionsTotal={0} hasMoreSessions={false} selectedSession={null} isLoading={false}
+      isLoadingMoreSessions={false} showAll={false} onShowAll={vi.fn()} onSessionSelect={vi.fn()}
+      onLoadMoreSessions={vi.fn()} formatTimeAgo={() => "now"} />);
+    expect(container.querySelector('[aria-busy="true"] .animate-shimmer')).toBeInTheDocument();
+    await act(async () => { reject(new Error("unreadable")); });
+    expect(screen.getByText(i18n.t("project.sessions.loadError"))).toBeInTheDocument();
+    expect(screen.queryByText(i18n.t("project.sessions.empty"))).not.toBeInTheDocument();
+  });
+
+  it.each(["prop", "store"])("transcript: %s loading → settled empty uses scoped skeletons", (source) => {
+    useAppStore.setState({ selectedSession: session, isLoadingMessages: source === "store" });
+    const props = { messages: [], selectedSession: session, isLoading: source === "prop",
+      sessionSearch: initial.sessionSearch, onSearchChange: vi.fn(), onFilterTypeChange: vi.fn(), onClearSearch: vi.fn() };
+    const { container, rerender } = render(<MessageViewer {...props} />);
+    expect(screen.queryByText(i18n.t("messageViewer.noMessages"))).not.toBeInTheDocument();
+    expect(container.querySelector('[aria-busy="true"] .animate-shimmer')).toBeInTheDocument();
+    act(() => useAppStore.setState({ isLoadingMessages: false }));
+    rerender(<MessageViewer {...props} isLoading={false} />);
+    expect(screen.getByText(i18n.t("messageViewer.noMessages"))).toBeInTheDocument();
   });
 
   it("explorer: refresh retains existing rows and their known count", () => {
