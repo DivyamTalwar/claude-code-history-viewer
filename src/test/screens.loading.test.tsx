@@ -1,4 +1,4 @@
-import { act, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "@/i18n";
 import { EmptyScreen } from "@/layouts/shell/screens";
@@ -200,6 +200,28 @@ describe("loading truth in main area and project explorer", () => {
     act(() => useAppStore.setState({ isLoadingMessages: false }));
     rerender(<MessageViewer {...props} isLoading={false} />);
     expect(screen.getByText(i18n.t("messageViewer.noMessages"))).toBeInTheDocument();
+  });
+
+  it.each([false, true].flatMap((phone) => ["provider", "search"].map((filter) => ({ phone, filter }))))("explorer ($phone, $filter): partial scans cannot establish a filtered zero", ({ phone, filter }) => {
+    const codex: ClaudeProject = { ...project, name: "codex-result", path: "codex://result", actual_path: "/work/codex-result", provider: "codex" };
+    useAppStore.setState({ projects: [project], projectsScanned: false, isLoadingProjects: true,
+      activeProviders: filter === "provider" ? ["codex"] : ["claude", "codex"],
+      providers: [
+        { id: "claude", display_name: "Claude Code", base_path: "/history", is_available: true },
+        { id: "codex", display_name: "Codex CLI", base_path: "/codex", is_available: true },
+      ], hasDetectedProviders: true });
+    render(<Tree phone={phone} />);
+    if (filter === "search") fireEvent.change(screen.getByRole("textbox", { name: i18n.t("project.filterPlaceholder") }), { target: { value: "codex-result" } });
+    const region = screen.getByRole("region", { name: i18n.t("project.projects") });
+    expect(within(region).queryByText(i18n.t("project.notFound"))).not.toBeInTheDocument();
+    expect(within(region).queryByText("0")).not.toBeInTheDocument();
+    expect(region.querySelector('.animate-shimmer')).toBeInTheDocument();
+    act(() => useAppStore.setState({ isLoadingProjects: false, projectsScanned: true }));
+    expect(within(region).getByText(i18n.t("project.notFound"))).toBeInTheDocument();
+    expect(within(region).getByText("0")).toBeInTheDocument();
+    act(() => useAppStore.setState({ projects: [project, codex], isLoadingProjects: true }));
+    expect(within(region).getByRole("treeitem", { name: /codex-result/ })).toBeInTheDocument();
+    expect(region.querySelector('.animate-shimmer')).not.toBeInTheDocument();
   });
 
   it("explorer: refresh retains existing rows and their known count", () => {
