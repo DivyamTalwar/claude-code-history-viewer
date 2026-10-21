@@ -33,6 +33,7 @@ function withDiscovered(discoveredProviderIds: string[] | undefined, providersDi
 
 const reset = {
   projects: [],
+  projectsScanned: true,
   isLoadingProjects: false,
   isLoading: false,
   isDetectingProviders: false,

@@ -36,7 +36,8 @@ export const StatusBar = ({
   // The loaded window may be partial under message pagination: "+" says so.
   const hasMoreMessages = useAppStore((s) => s.pagination.hasMore);
   const isDetectingProviders = useAppStore((s) => s.isDetectingProviders);
-  const projectsPending = isLoading || isLoadingProjects || isDetectingProviders;
+  const projectsScanned = useAppStore((s) => s.projectsScanned);
+  const projectsPending = !projectsScanned || isLoading || isLoadingProjects || isDetectingProviders;
   const showProjectCount = projectCount > 0 || !projectsPending;
   const showSessionCount = sessionCount > 0 || !(projectsPending || isLoadingSessions);
 

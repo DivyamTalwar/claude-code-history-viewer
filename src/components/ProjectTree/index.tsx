@@ -110,8 +110,11 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
   const isDetectingProviders = useAppStore((state) => state.isDetectingProviders);
   const isLoadingProjects = useAppStore((state) => state.isLoadingProjects);
   const isInitializing = useAppStore((state) => state.isLoading);
-  const projectsPending = isInitializing || isLoadingProjects || isDetectingProviders;
+  const projectsScanned = useAppStore((state) => state.projectsScanned);
+  const projectError = useAppStore((state) => state.error);
+  const projectsPending = isInitializing || isLoadingProjects || isDetectingProviders || (!projectsScanned && !projectError);
   const initialProjectsPending = projectsPending && projects.length === 0;
+  const projectCountKnown = projects.length > 0 || (projectsScanned && !projectsPending);
   const {
     discover: handleDiscoverProviders,
     hasSearched: hasSearchedOtherProviders,
@@ -748,7 +751,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
           <div className="w-6 h-px bg-border my-1" />
           <div className="flex flex-col items-center gap-1" title={t("project.projects")}>
             <Folder className="w-4 h-4 text-muted-foreground" aria-hidden="true" />
-            {!initialProjectsPending && <span className="text-caption tabular-nums text-muted-foreground">{filteredProjects.length}</span>}
+            {projectCountKnown && <span className="text-caption tabular-nums text-muted-foreground">{filteredProjects.length}</span>}
           </div>
         </div>
       </aside>
@@ -793,7 +796,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
               <h2 id={projectsHeadingId} className="text-caption font-medium text-muted-foreground">
                 {t("project.projects")}
               </h2>
-              {!initialProjectsPending && <span className="text-caption tabular-nums text-muted-foreground">{filteredProjects.length}</span>}
+              {projectCountKnown && <span className="text-caption tabular-nums text-muted-foreground">{filteredProjects.length}</span>}
             </div>
             <div className="flex items-center gap-1 pb-1">
               <div className="relative min-w-0 flex-1">
@@ -839,6 +842,8 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
 
             {initialProjectsPending ? (
               <LoadingRows label={t("common.loadingProjects")} compact />
+            ) : projects.length === 0 && !projectsScanned && projectError ? (
+              <p className="px-4 py-4 text-body text-destructive">{t("common.errorOccurred")}</p>
             ) : filteredProjects.length === 0 ? (
               <div className="px-4 py-10 text-center">
                 <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-muted/30 flex items-center justify-center">
