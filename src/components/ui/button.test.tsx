@@ -351,6 +351,10 @@ describe.each(MODES)("an inactive %s (table)", (mode) => {
     expect(deviations(mode, INERT[state]!, KEPT, 1)).toEqual({});
   });
 
+  it.each(Object.keys(INERT))("%s: menu-trigger arrows still reach callbacks (opening defaults are cancelled, not key propagation)", (state) => {
+    expect(deviations(mode, { ...INERT[state], "aria-haspopup": "menu" }, [keyRow("onKeyDown", "ArrowDown"), keyRow("onKeyDownCapture", "ArrowUp"), keyRow("onKeyUp", "ArrowDown")], 1)).toEqual({});
+  });
+
   it("enabled (the control): runs every one of them once", () => {
     expect(deviations(mode, {}, [...HELD_BACK, ...KEPT], 1)).toEqual({});
   });
