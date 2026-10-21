@@ -113,8 +113,6 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
   const projectsScanned = useAppStore((state) => state.projectsScanned);
   const projectError = useAppStore((state) => state.error);
   const projectsPending = isInitializing || isLoadingProjects || isDetectingProviders || (!projectsScanned && !projectError);
-  const initialProjectsPending = projectsPending && projects.length === 0;
-  const projectCountKnown = projects.length > 0 || (projectsScanned && !projectsPending);
   const {
     discover: handleDiscoverProviders,
     hasSearched: hasSearchedOtherProviders,
@@ -318,6 +316,9 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
     () => projects.filter((p) => matchesProviderFilter(p) && matchesSearch(p)),
     [projects, matchesProviderFilter, matchesSearch]
   );
+  // Partial results outside this filter cannot establish that its answer is zero.
+  const initialProjectsPending = projectsPending && filteredProjects.length === 0;
+  const projectCountKnown = filteredProjects.length > 0 || (projectsScanned && !projectsPending);
 
   const filteredDirectoryGroups = useMemo(() => {
     const filterFn = (p: (typeof projects)[number]) =>
