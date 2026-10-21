@@ -25,8 +25,9 @@ import { Spinner } from "./spinner";
  *   child's own activation handlers are held back too, in both phases:
  *   click/double/aux click, mouse/pointer down/up, touch start/end and submit.
  *   Enter and Space are filtered from key handlers without stopping key
- *   propagation; only menu triggers also filter their opening arrow keys.
- *   Focus, blur, hover, movement, context menus and other keys are kept.
+ *   propagation; menu triggers cancel arrow-opening defaults but still call
+ *   the caller's arrow handlers. Focus, blur, hover, movement, context menus
+ *   and other keys are kept.
  * - `loading`: `aria-busy` + `aria-disabled`, clicks ignored, focus kept
  *   (a natively disabled button would drop it). The label stays in the
  *   layout, invisible and still the accessible name, under the shared
@@ -112,9 +113,14 @@ function inactiveHandlers<T extends Element>(props: React.DOMAttributes<T>, menu
   for (const name of ACTIVATION_HANDLERS) filtered[name] = undefined;
   for (const name of KEY_HANDLERS) {
     filtered[name] = (event) => {
-      if (event.key === "Enter" || event.key === " " || (menuTrigger && (event.key === "ArrowDown" || event.key === "ArrowUp"))) {
+      if (event.key === "Enter" || event.key === " ") {
         event.preventDefault();
-      } else props[name]?.(event);
+        return;
+      }
+      // Radix's composed opening handler respects defaultPrevented. The
+      // caller still receives arrows, and the key still reaches the window.
+      if (menuTrigger && (event.key === "ArrowDown" || event.key === "ArrowUp")) event.preventDefault();
+      props[name]?.(event);
     };
   }
   return filtered;
