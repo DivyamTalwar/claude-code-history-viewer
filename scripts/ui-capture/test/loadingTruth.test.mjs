@@ -34,17 +34,36 @@ afterAll(async () => {
 });
 
 describe.skipIf(!ENABLED)("initial loading and settled-empty truth (WebKit)", () => {
-  for (const locale of SUPPORTED_LOCALES) for (const width of [1440, 390]) for (const state of ["loading", "empty", "empty-first-launch", "error"]) {
+  for (const locale of SUPPORTED_LOCALES) for (const width of [1440, 390]) for (const state of ["loading", "empty", "empty-first-launch", "error", "unscanned-error"]) {
     it(`${locale} ${width}px 125% ${state}`, async () => {
-      const scenario = cases.find((s) => s.id === `${state}--${width === 390 ? "390x844" : "1440x900"}--dark`);
+      const screen = state === "unscanned-error" ? "empty-first-launch" : state;
+      const scenario = cases.find((s) => s.id === `${screen}--${width === 390 ? "390x844" : "1440x900"}--dark`);
+      const injections = state === "unscanned-error" ? [
+        { command: "load_user_metadata", respond: { version: 1, sessions: {}, projects: {}, settings: {} } },
+        { command: "get_claude_folder_path", fail: { status: 500, error: "CLAUDE_FOLDER_NOT_FOUND:Fixture folder unavailable" } },
+      ] : scenario.screen.inject;
       const session = await newScenarioPage(browser, { scenario, origin: server.origin, locale, fixedNow: fixture.fixedNow,
-        injections: scenario.screen.inject, storageSeed: { ...STORAGE_SEED, ...(scenario.screen.storage ?? {}) }, variant: { fontScale: 1.25 } });
+        injections, storageSeed: { ...STORAGE_SEED, ...(scenario.screen.storage ?? {}) }, variant: { fontScale: 1.25 } });
       try {
         const { page } = session;
         const t = loadTranslator(REPO, locale);
         await page.goto(server.origin, { waitUntil: "domcontentloaded" });
         await settle(session, { mode: state === "loading" ? "loading" : "ready" });
         const forbidden = ["session.select", "session.selectDescription", "session.noProjects.title", "session.noProjects.claudeTitle", "project.notFound"];
+        if (state === "unscanned-error") {
+          for (const key of forbidden) expect(await page.getByText(t(key), { exact: true }).count(), key).toBe(0);
+          expect(await page.getByRole("heading", { name: t("common.errorOccurred"), exact: true }).count()).toBe(1);
+          expect(await page.locator('[aria-busy="true"] .animate-shimmer').count()).toBe(0);
+          const footer = page.locator("footer");
+          expect(await footer.getByText(t("project.count").replace("{{count}}", "0"), { exact: true }).count()).toBe(0);
+          expect(await footer.getByText(t("session.count").replace("{{count}}", "0"), { exact: true }).count()).toBe(0);
+          if (process.env.UI_LOADING_SHOTS) {
+            fs.mkdirSync(process.env.UI_LOADING_SHOTS, { recursive: true });
+            await page.screenshot({ path: path.join(process.env.UI_LOADING_SHOTS, `${locale}-${width}-${state}.png`) });
+          }
+          observations.push({ locale, width, state, unestablishedCountsHidden: true });
+          return;
+        }
         if (state === "error") {
           expect(await page.getByRole("heading", { name: t("common.errorOccurred"), exact: true }).count()).toBe(1);
           expect(await page.getByRole("button", { name: t("common.retry"), exact: true }).count()).toBe(1);
