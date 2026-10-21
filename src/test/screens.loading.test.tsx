@@ -8,7 +8,7 @@ import { ProjectSessions } from "@/components/ProjectTree/components/ProjectSess
 import { MessageViewer } from "@/components/MessageViewer";
 import { api } from "@/services/api";
 import { useAppStore } from "@/store/useAppStore";
-import type { ClaudeProject, ClaudeSession } from "@/types";
+import { AppErrorType, type ClaudeProject, type ClaudeSession } from "@/types";
 
 vi.mock("@/services/api", () => ({ api: vi.fn() }));
 const session: ClaudeSession = { session_id: "s", actual_session_id: "s", file_path: "/history/project/s.jsonl",
@@ -33,7 +33,7 @@ function Tree({ phone = false }: { phone?: boolean }) {
 
 function expectNoFalseEmpty() {
   for (const key of ["session.select", "session.selectDescription", "session.noProjects.title", "session.noProjects.claudeTitle", "project.notFound"]) {
-    expect(screen.queryByText(i18n.t(key))).not.toBeInTheDocument();
+    expect(screen.queryAllByText(i18n.t(key))).toHaveLength(0);
   }
 }
 
@@ -56,6 +56,42 @@ describe("loading truth in main area and project explorer", () => {
     expect(container.querySelector('[role="alert"], [aria-live]')).not.toBeInTheDocument();
     act(() => useAppStore.setState({ [flag]: false }));
     expect(screen.getByRole("heading", { name: i18n.t("session.noProjects.claudeTitle") })).toBeInTheDocument();
+  });
+
+  it.each(["main", "explorer", "phone", "footer"])("%s: before the first scan starts, no result has been established", (surface) => {
+    useAppStore.setState({ projectsScanned: false });
+    const footer = <StatusBar isDesktop={false} appVersion="" projectCount={0} sessionCount={0} messageCount={null}
+      isLoading={false} isLoadingProjects={false} isLoadingSessions={false} isLoadingMessages={false} isLoadingStats={false} />;
+    const { container } = render(surface === "main" ? <EmptyScreen /> : surface === "footer" ? footer : <Tree phone={surface === "phone"} />);
+    expectNoFalseEmpty();
+    if (surface === "footer") {
+      expect(screen.queryByText(i18n.t("project.count", { count: 0 }))).not.toBeInTheDocument();
+      expect(screen.queryByText(i18n.t("session.count", { count: 0 }))).not.toBeInTheDocument();
+    } else {
+      expect(container.querySelector('[aria-busy="true"] .animate-shimmer')).toBeInTheDocument();
+    }
+  });
+
+  it.each(["main", "explorer", "phone", "footer"])("%s: failed initialization without a scan is not settled empty or busy", (surface) => {
+    useAppStore.setState({ projectsScanned: false, error: { type: AppErrorType.CLAUDE_FOLDER_NOT_FOUND, message: "Folder unavailable" } });
+    const footer = <StatusBar isDesktop={false} appVersion="" projectCount={0} sessionCount={0} messageCount={null}
+      isLoading={false} isLoadingProjects={false} isLoadingSessions={false} isLoadingMessages={false} isLoadingStats={false} />;
+    const { container } = render(surface === "main" ? <EmptyScreen /> : surface === "footer" ? footer : <Tree phone={surface === "phone"} />);
+    expectNoFalseEmpty();
+    expect(container.querySelector('[aria-busy="true"]')).not.toBeInTheDocument();
+    if (surface === "footer") {
+      expect(screen.queryByText(i18n.t("project.count", { count: 0 }))).not.toBeInTheDocument();
+      expect(screen.queryByText(i18n.t("session.count", { count: 0 }))).not.toBeInTheDocument();
+    } else {
+      expect(screen.getByText(i18n.t("common.errorOccurred"))).toBeInTheDocument();
+    }
+    act(() => useAppStore.setState({ error: null, projectsScanned: true }));
+    if (surface === "footer") {
+      expect(screen.getByText(i18n.t("project.count", { count: 0 }))).toBeInTheDocument();
+      expect(screen.getByText(i18n.t("session.count", { count: 0 }))).toBeInTheDocument();
+    } else {
+      expect(screen.getByText(i18n.t("session.noProjects.claudeTitle"))).toBeInTheDocument();
+    }
   });
 
   it("status bar: initial counts are unknown; settled zeros and cached counts stay visible", () => {
