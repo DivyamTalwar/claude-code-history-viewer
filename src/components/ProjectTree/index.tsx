@@ -109,7 +109,8 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
   const detectedProviders = useAppStore((state) => state.providers);
   const isDetectingProviders = useAppStore((state) => state.isDetectingProviders);
   const isLoadingProjects = useAppStore((state) => state.isLoadingProjects);
-  const projectsPending = isLoading || isLoadingProjects || isDetectingProviders;
+  const isInitializing = useAppStore((state) => state.isLoading);
+  const projectsPending = isInitializing || isLoadingProjects || isDetectingProviders;
   const initialProjectsPending = projectsPending && projects.length === 0;
   const {
     discover: handleDiscoverProviders,
