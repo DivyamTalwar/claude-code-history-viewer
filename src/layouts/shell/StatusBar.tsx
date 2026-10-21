@@ -69,7 +69,7 @@ export const StatusBar = ({
           <span className="text-border">&bull;</span>
           <span>{t("session.count", { count: sessionCount })}</span>
         </>}
-        {messageCount !== null && (
+        {messageCount !== null && (messageCount > 0 || !isLoadingMessages) && (
           <>
             <span className="text-border">&bull;</span>
             <span>
