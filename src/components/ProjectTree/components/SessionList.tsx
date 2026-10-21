@@ -472,11 +472,11 @@ export const SessionList: React.FC<SessionListProps> = ({
   // Virtual scroll 사용 여부
   const useVirtualScroll = filteredAndSortedSessions.length >= VIRTUALIZATION_THRESHOLD;
 
-  if (isLoading) {
+  if (isLoading && sessions.length === 0) {
     return (
-      <div className={cn(containerClass, borderClass, "space-y-2 py-2")}>
+      <div role="group" aria-label={t("common.loadingSessions")} aria-busy="true" className={cn(containerClass, borderClass, "space-y-2 py-2")}>
         {[1, 2, isWorktree || isMain ? 0 : 3].filter(Boolean).map((i) => (
-          <div key={i} className="flex items-center gap-2.5 py-2 px-3">
+          <div key={i} aria-hidden="true" className="flex items-center gap-2.5 py-2 px-3">
             <Skeleton variant="circular" className="w-5 h-5" />
             <div className="flex-1 space-y-1.5">
               <Skeleton className="h-3 w-3/4" />
@@ -491,7 +491,7 @@ export const SessionList: React.FC<SessionListProps> = ({
   if (sessions.length === 0 && !hasMoreSessions) {
     return (
       <div className={cn(containerClass, "py-2 text-caption text-muted-foreground", isPane ? "" : isWorktree || isMain ? "ml-5" : "ml-7")}>
-        {t("components:session.notFound", "No sessions")}
+        {t("project.sessions.empty")}
       </div>
     );
   }
