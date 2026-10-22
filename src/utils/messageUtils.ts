@@ -130,7 +130,18 @@ export const isImageUrl = (url: string): boolean => {
 
 export const isBase64Image = (data: string): boolean => {
   if (!data || typeof data !== "string") return false;
-  return /^data:image\/[a-z0-9.+-]+;base64,[a-z0-9+/]+={0,2}$/i.test(data.trim());
+
+  const match = /^data:image\/[a-z0-9.+-]+(?:;[a-z0-9!#$%&'*+.^_`|~-]+=[^;,\s]+)*;base64,([a-z0-9+/]+={0,2})$/i.exec(data.trim());
+  const payload = match?.[1];
+  if (!payload) return false;
+
+  // MIME parameters may precede ;base64. Keep the whole-value rule above so
+  // prose and code stay text. Browser Base64 decoding permits omitted padding,
+  // but a padded value must have complete quartets and one leftover character
+  // can never form a byte. This checks encoding syntax, not the image's bytes.
+  return payload.includes("=")
+    ? payload.length % 4 === 0
+    : payload.length % 4 !== 1;
 };
 
 export const extractImageFromContent = (content: unknown): string | null => {

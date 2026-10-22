@@ -36,13 +36,43 @@ describe("whole-message image detection", () => {
   });
 
   it.each([
+    "data:image/svg+xml;charset=utf-8;base64,PHN2Zy8+",
+    "data:image/svg+xml;charset=utf-8;name=diagram%20preview.svg;base64,PHN2Zy8+",
+    "DATA:IMAGE/SVG+XML;CHARSET=UTF-8;BASE64,PHN2Zy8+",
+    "data:image/png;base64,YQ==",
+    "data:image/png;base64,YWI=",
+    "data:image/png;base64,YWJj",
+    "data:image/png;base64,YQ",
+    "data:image/png;base64,YWI",
+  ])("accepts image MIME parameters and decodable base64: %s", (content) => {
+    expect(isBase64Image(content)).toBe(true);
+    expect(extractImageFromContent(content)).toBe(content);
+    expect(extractImageFromContent([{ type: "text", text: content }])).toBe(content);
+  });
+
+  it.each([
     "data:image/png",
     "data:image/png;base64,",
+    "data:image/png;base64,a",
+    "data:image/png;base64,abc==",
+    "data:image/png;base64,YQ=",
+    "data:image/png;base64,YQ===",
+    "data:image/png;base64,YW=Jj",
+    "data:image/png;base64,YWJj=",
+    "data:image/png;base64,YWJj_",
+    "data:image/png;base64,YW Jj",
+    "data:image/png;base64,YW\nJj",
+    "data:image/svg+xml;charset;base64,PHN2Zy8+",
+    "data:image/svg+xml;charset=;base64,PHN2Zy8+",
+    "data:image/svg+xml;charset=utf-8,PHN2Zy8+",
+    "data:image/svg+xml;charset=utf-8;base64,PHN2Zy8+ and more text",
     "data:image/png;base64,aGVsbG8= and more text",
     "data:text/plain;base64,aGVsbG8=",
     "Use data:image/png;base64,aGVsbG8=",
   ])("does not classify an incomplete or embedded data URL: %s", (content) => {
     expect(isBase64Image(content)).toBe(false);
+    expect(extractImageFromContent(content)).toBeNull();
+    expect(extractImageFromContent([{ type: "text", text: content }])).toBeNull();
   });
 
   it("extracts only complete images from string and text-block content", () => {

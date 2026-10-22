@@ -10,6 +10,7 @@ const wrapper = ({ children }: { children: ReactNode }) => (
 );
 const imageUrl = "https://example.invalid/diagram.png?size=large#preview";
 const imageData = "data:image/png;base64,aGVsbG8=";
+const parameterizedImageData = "data:image/svg+xml;charset=utf-8;base64,PHN2Zy8+";
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (key: string) => key }),
@@ -46,6 +47,23 @@ describe("message image content preservation", () => {
     expect(container.textContent).toContain(content);
   });
 
+  it.each([
+    `Use ${parameterizedImageData} in the example.`,
+    "data:image/png;base64,a",
+    "data:image/png;base64,abc==",
+  ])("keeps prose and malformed image data visible as text", (content) => {
+    const { container } = render(<MessageContentDisplay content={content} messageType="assistant" />, { wrapper });
+    expect(container.querySelector("img")).toBeNull();
+    expect(container.textContent).toContain(content);
+  });
+
+  it("keeps a parameterized data URL inside Markdown code", () => {
+    const content = `\`\`\`text\n${parameterizedImageData}\n\`\`\``;
+    const { container } = render(<MessageContentDisplay content={content} messageType="assistant" />, { wrapper });
+    expect(container.querySelector("img")).toBeNull();
+    expect(container.querySelector("code")?.textContent).toBe(`${parameterizedImageData}\n`);
+  });
+
   it("lets Markdown render an explicit image in its original position", () => {
     const content = `Before\n\n![diagram](${imageUrl})\n\nAfter`;
     const { container } = render(<MessageContentDisplay content={content} messageType="assistant" />, { wrapper });
@@ -79,7 +97,7 @@ describe("message image content preservation", () => {
     expect(screen.getByText("diagram.png")).toBeInTheDocument();
   });
 
-  it.each([imageUrl, imageData])("still renders a complete image value", (content) => {
+  it.each([imageUrl, imageData, parameterizedImageData])("still renders a complete image value", (content) => {
     const { container } = render(<MessageContentDisplay content={` ${content}\n`} messageType="assistant" />, { wrapper });
     expect(container.querySelector("img")).toHaveAttribute("src", content);
   });
